@@ -1,3 +1,5 @@
+#ifndef _HAS_CSOCKET_
+#define _HAS_CSOCKET_
 #include <stdio.h>
 #include <unistd.h>
 #include <sys/time.h>
@@ -16,16 +18,10 @@
 #ifdef _HAS_SSL
 #include <openssl/ssl.h>
 #include <openssl/err.h>
-
-extern int http_sslversion;
-
 #endif /* _HAS_SSL */
 
 #include <Cstring>
 #include <Cthreads>
-
-#ifndef _HAS_CSOCKET_
-#define _HAS_CSOCKET_
 
 //
 // The thought behind this class, is to use it as a main loop
@@ -35,17 +31,21 @@ extern int http_sslversion;
 // If you need more then one outbound socket, thread it, it will be faster anyway :)
 //
 
-class CSoutbound : public Cmutex
+class CTCPConn : public Cmutex
 {
 public:
-		CSoutbound() : Cmutex()
+		CTCPConn() : Cmutex()
 		{
 			Init();
 		}
 
-		virtual ~CSoutbound() 
+		virtual ~CTCPConn() 
 		{
 			close( m_sock );
+#ifdef _HAS_SSL
+			clearSSL();
+#endif _HAS_SSL
+		
 		}
 
 		typedef enum
@@ -60,7 +60,11 @@ public:
 		{
 			// mark our ssl
 			m_isSSL = isSSL;
-			
+
+#ifdef _HAS_SSL
+			clearSSL();
+#endif /* _HAS_SSL */
+
 			// figure out the hostname we're connecting to.		
 			char hbuff[2048];
 			memset( (char *)hbuff, '\0', 2048 );
@@ -96,7 +100,7 @@ public:
 			{
 				SSLeay_add_ssl_algorithms();
 		
-				switch( http_sslversion )
+				switch( m_http_sslversion )
 				{
 					case 0:
 						m_ssl_method = SSLv23_client_method();
@@ -235,8 +239,8 @@ public:
 							
 							} else if ( ( bytes == -1 ) && ( errno != EINTR ) && ( errno != EAGAIN ) )
 							{
+#ifdef _HAS_SSL
 								int iErr = 0;
-#ifdef _HAS_SSL								
 								if ( m_isSSL )
 								{
 									iErr = SSL_get_error( m_ssl, bytes );
@@ -245,6 +249,7 @@ public:
 										Disconnected();
 										close( m_sock );
 										binprog = false;
+									}
 								}
 #endif /* _HAS_SSL */								
 								if  ( !m_isSSL )
@@ -353,7 +358,7 @@ private:
 		{
 			m_sBuffer.append( data, len );
 			
-			int iFind = m_sBuffer.find( "\n" );
+			u_int iFind = m_sBuffer.find( "\n" );
 			
 			if ( iFind != Cstring::npos )
 			{
@@ -368,6 +373,24 @@ private:
 		
 		}
 		
+#ifdef _HAS_SSL
+		void clearSSL()
+		{
+			if ( m_ssl )
+			{
+				SSL_shutdown( m_ssl );
+				SSL_free( m_ssl );
+			}
+										
+			if ( m_ssl_ctx )
+				SSL_CTX_free( m_ssl_ctx );
+			
+			m_ssl = NULL;
+			m_ssl_ctx = NULL;
+				
+		}
+#endif /* _HAS_SSL */
+
 		virtual void Init()
 		{
 		
@@ -377,25 +400,15 @@ private:
 			m_bHasWrite = false;
 			m_sBuffer.clear();
 			m_iTimeoutPasses = 0;
-			
+			m_http_sslversion = 0;
 #ifdef _HAS_SSL
-
-			if ( m_ssl )
-			{
-				SSL_shutdown( m_ssl );
-				SSL_free( m_ssl );
-			}
-										
-			if ( m_ssl_ctx )
-				SSL_CTX_free( m_ssl_ctx );
-
 			m_ssl = NULL;
 			m_ssl_ctx = NULL;			
-
 #endif /* _HAS_SSL */
+
 		}
 
-		int		m_sock, m_iTimeout, m_iTimeoutPasses;
+		int		m_sock, m_iTimeout, m_iTimeoutPasses, m_http_sslversion;
 		bool	m_isSSL;
 		bool	m_bHasWrite;
 		
@@ -411,11 +424,5 @@ private:
 #endif /* _HAS_SSL */
 
 };
-
-
-
-
-
-
 
 #endif /* _HAS_CSOCKET_ */
