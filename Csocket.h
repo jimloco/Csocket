@@ -1625,6 +1625,8 @@ public:
 	//! Set the Select Timeout in MILLISECONDS
 	void  SetSelectTimeout( u_int iTimeout ) { m_iSelectWait = iTimeout; }
 
+	vector<CCron *> & GetCrons() { return( m_vcCrons ); }
+
 private:
 	/**
 	* returns a pointer to the ready Csock class thats available
