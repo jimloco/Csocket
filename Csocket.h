@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.92 $
+* $Revision: 1.93 $
 */
 
 #ifndef _HAS_CSOCKET_
@@ -209,34 +209,50 @@ namespace Csocket
 	public:
 		CCron() 
 		{
-			m_bOnlyOnce = true;
+			m_iCycles = 0;
+			m_iMaxCycles = 0;
 			m_bActive = true;
 			m_iTime	= 0;
 			m_iTimeSequence = 60;
+			m_bPause = false;
 		}
 		virtual ~CCron() {}
 		
 		//! This is used by the Job Manager, and not you directly
 		void run() 
 		{
+			if ( m_bPause )
+				return;
+
 			if ( ( m_bActive ) && ( time( NULL ) >= m_iTime ) )
 			{
 			
 				RunJob();
 
-				if ( m_bOnlyOnce )
+				if ( ( m_iMaxCycles > 0 ) && ( ++m_iCycles >= m_iMaxCycles  ) )
 					m_bActive = false;
 				else
 					m_iTime = time( NULL ) + m_iTimeSequence;
 			}
 		}
 		
-		//! This is used by the Job Manager, and not you directly
-		void Start( int TimeSequence, bool bOnlyOnce = true ) 
+		/**
+		 * @TimeSequence	how often to run in seconds
+		 * @iMaxCycles		how many times to run, 0 makes it run forever
+		 */
+		void StartMaxCycles( int TimeSequence, u_int iMaxCycles )
 		{
 			m_iTimeSequence = TimeSequence;
 			m_iTime = time( NULL ) + m_iTimeSequence;
-			m_bOnlyOnce = bOnlyOnce;
+			m_iMaxCycles = iMaxCycles;
+		}
+
+		//! starts and runs infinity amount of times
+		void Start( int TimeSequence )
+		{
+			m_iTimeSequence = TimeSequence;
+			m_iTime = time( NULL ) + m_iTimeSequence;
+			m_iMaxCycles = 0;
 		}
 
 		//! call this to turn off your cron, it will be removed
@@ -244,6 +260,22 @@ namespace Csocket
 		{
 			m_bActive = false;
 		}
+
+		//! pauses excution of your code in RunJob
+		void Pause()
+		{
+			m_bPause = true;
+		}
+
+		//! removes the pause on RunJon
+		void UnPause()
+		{
+			m_bPause = false;
+		}
+
+		int GetInterval() const { return( m_iTimeSequence ); }
+		u_int GetMaxCycles() const { return( m_iMaxCycles ); }
+		u_int GetCyclesLeft() const { return( ( m_iMaxCycles > m_iCycles ? ( m_iMaxCycles - m_iCycles ) : 0 ) );
 
 		//! returns true if cron is active
 		bool isValid() { return( m_bActive ); }
@@ -257,8 +289,9 @@ namespace Csocket
 		virtual void RunJob() { CS_DEBUG( "This should be overriden" ); }
 		
 		time_t		m_iTime;
-		bool		m_bOnlyOnce, m_bActive;
+		bool		m_bActive, m_bPause;
 		int			m_iTimeSequence;
+		u_int		m_iMaxCycles, m_iCycles;
 		CS_STRING	m_sName;
 	};
 
