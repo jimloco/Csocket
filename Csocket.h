@@ -5,8 +5,8 @@
 *
 *    CVS Info:
 *       $Author: imaginos $
-*       $Date: 2003/06/17 23:39:25 $
-*       $Revision: 1.23 $
+*       $Date: 2003/06/18 04:06:52 $
+*       $Revision: 1.24 $
 */
 
 #ifndef _HAS_CSOCKET_
@@ -71,11 +71,21 @@ inline bool GetHostByName( const Cstring & sHostName, struct in_addr *paddr )
 #ifdef __linux__
 	char hbuff[2048];
 	struct hostent hentbuff;
-	memset( (char *)hbuff, '\0', 2048 );
 			
 	int err;
-	if ( gethostbyname_r( sHostName.c_str(), &hentbuff, hbuff, 2048, &hent, &err ) == 0 )
-		bRet = true;
+	while( true )
+	{
+		memset( (char *)hbuff, '\0', 2048 );
+		int iRet = gethostbyname_r( sHostName.c_str(), &hentbuff, hbuff, 2048, &hent, &err );
+	
+		if ( iRet == 0 )
+		{
+			bRet = true;
+			break;
+		}	
+		if ( iRet != EAGAIN )
+			break;
+	}
 
 #else
 	static Cmutex m;
