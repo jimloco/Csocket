@@ -1083,6 +1083,9 @@ namespace Csocket
 
 		CS_STRING GetLocalIP()
 		{
+			if ( !m_sLocalIP.empty() )
+				return( m_sLocalIP );
+
 			int iSock = GetSock();
 
 			if ( iSock < 0 )
@@ -1090,13 +1093,17 @@ namespace Csocket
 
 			struct sockaddr_in mLocalAddr;
 			socklen_t mLocalLen = sizeof(struct sockaddr);
-			getsockname( iSock, (struct sockaddr *) &mLocalAddr, &mLocalLen );
+			if ( getsockname( iSock, (struct sockaddr *) &mLocalAddr, &mLocalLen ) == 0 )
+				m_sLocalIP = inet_ntoa( mLocalAddr.sin_addr );
 
-			return( inet_ntoa( mLocalAddr.sin_addr ) );
+			return( m_sLocalIP );
 		}
 
 		CS_STRING GetRemoteIP()
 		{
+			if ( !m_sRemoteIP.empty() )
+				return( m_sRemoteIP );
+
 			int iSock = GetSock();
 
 			if ( iSock <= 0 )
@@ -1107,9 +1114,10 @@ namespace Csocket
 
 			struct sockaddr_in mRemoteAddr;
 			socklen_t mRemoteLen = sizeof(struct sockaddr);
-			getpeername( iSock, (struct sockaddr *) &mRemoteAddr, &mRemoteLen );
+			if ( getpeername( iSock, (struct sockaddr *) &mRemoteAddr, &mRemoteLen ) == 0 )
+				m_sRemoteIp = inet_ntoa( mRemoteAddr.sin_addr );
 
-			return( inet_ntoa( mRemoteAddr.sin_addr ) );
+			return( m_sRemoteIP );
 		}
 
 		//! Tells you if the socket is connected
@@ -1203,6 +1211,44 @@ namespace Csocket
 		//! Returns a reference to the host name
 		const CS_STRING & GetHostName() { return( m_shostname ); }
 		void SetHostName( const CS_STRING & sHostname ) { m_shostname = sHostname; }
+
+		//! Returns the remote port
+		int GetRemotePort() 
+		{
+			if ( m_iRemotePort > 0 )
+				return( m_iRemotePort );
+
+			int iSock = GetSock();
+
+			if ( iSock >= 0 ) 
+			{
+				struct sockaddr_in mAddr;
+				socklen_t mLen = sizeof(struct sockaddr);
+				if ( getpeername( iSock, (struct sockaddr *) &mAddr, &mLen ) == 0 )
+					m_iRemotePort = ntohs( mAddr.sin_port );
+			}
+
+			return( iPort );
+		}
+
+		//! Returns the local port
+		int GetLocalPort() 
+		{
+			if ( m_iLocalPort > 0 )
+				return( m_iLocalPort );
+
+			int iSock = GetSock();
+
+			if ( iSock >= 0 ) 
+			{
+				struct sockaddr_in mLocalAddr;
+				socklen_t mLocalLen = sizeof(struct sockaddr);
+				if ( getsockname( iSock, (struct sockaddr *) &mLocalAddr, &mLocalLen ) == 0 )
+					m_iLocalPort = ntohs( mLocalAddr.sin_port );
+			}
+
+			return( m_iLocalPort );
+		}
 
 		//! Returns the port
 		int GetPort() { return( m_iport ); }
@@ -1541,17 +1587,17 @@ namespace Csocket
 		//////////////////////////////////////////////////	
 			
 	private:
-		int			m_iReadSock, m_iWriteSock, m_itimeout, m_iport, m_iConnType, m_iTcount, m_iMethod;
+		int			m_iReadSock, m_iWriteSock, m_itimeout, m_iport, m_iConnType, m_iTcount, m_iMethod, m_iRemotePort, m_iLocalPort;
 		bool		m_bssl, m_bIsConnected, m_bClosed, m_bBLOCK, m_bFullsslAccept;
 		bool		m_bsslEstablished, m_bEnableReadLine, m_bRequireClientCert;
 		CS_STRING	m_shostname, m_sbuffer, m_sSockName, m_sPemFile, m_sCipherType, m_sParentName;
-		CS_STRING	m_sSend, m_sSSLBuffer, m_sPemPass;
+		CS_STRING	m_sSend, m_sSSLBuffer, m_sPemPass, m_sLocalIP, m_sRemoteIP;
 
 		unsigned long long	m_iMaxMilliSeconds, m_iLastSendTime;
 		unsigned int		m_iMaxBytes, m_iLastSend, m_iMaxStoredBufferLength;
 		
 		struct sockaddr_in 	m_address;
-		
+				
 #ifdef HAVE_LIBSSL
 		SSL 				*m_ssl;
 		SSL_CTX				*m_ssl_ctx;
@@ -1626,6 +1672,8 @@ namespace Csocket
 			m_bRequireClientCert = false;
 			m_iMaxStoredBufferLength = 1024;
 			m_iConnType = INBOUND;
+			m_iRemotePort = 0;
+			m_iLocalPort = 0;
 		}
 	};
 
@@ -1949,8 +1997,30 @@ namespace Csocket
 			pcSock->SetSockName( sSockName );
 			push_back( pcSock );
 		}
-		
-		//! returns a pointer to the first sock found by name or NULL on no match
+
+		//! returns a pointer to the FIRST sock found by port or NULL on no match
+		virtual T * FindSockByRemotePort( int iPort )
+		{
+			for( unsigned int i = 0; i < size(); i++ )
+			{
+				if ( (*this)[i]->GetRemotePort() == iPort )
+					return( (*this)[i] );
+			}
+
+			return( NULL );
+		}
+
+		//! returns a pointer to the FIRST sock found by port or NULL on no match
+		virtual T * FindSockByLocalPort( int iPort )
+		{
+			for( unsigned int i = 0; i < size(); i++ )
+				if ( (*this)[i]->GetLocalPort() == iPort )
+					return( (*this)[i] );
+
+			return( NULL );
+		}
+	
+		//! returns a pointer to the FIRST sock found by name or NULL on no match
 		virtual T * FindSockByName( const CS_STRING & sName )
 		{
 			for( unsigned int i = 0; i < size(); i++ )
