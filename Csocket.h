@@ -1093,6 +1093,20 @@ public:
 		* default returns true
 		*/
 		virtual bool ConnectionFrom( const Cstring & sHost, int iPort ) { return( true ); }
+
+		//! return the data imediatly ready for read
+		int GetPending()
+		{
+#ifdef HAVE_LIBSSL
+			if( m_ssl )
+				return( SSL_pending( m_ssl ) );
+			else
+				return( 0 );
+#else
+			return( 0 );
+#endif /* HAVE_LIBSSL */
+		}
+
 		//////////////////////////////////////////////////	
 			
 				
@@ -1451,12 +1465,33 @@ public:
 			// now select on them
 			while( true )
 			{
+				// first check to see if any ssl sockets are ready for immediate read
+				bool bSSLPending = false;
+
+				for( unsigned int i = 0; i < size(); i++ )
+				{
+					T *pcSock = (*this)[i];
+			
+					if ( ( pcSock->GetSSL() ) && ( pcSock->GetType() != Csock::LISTENER ) )
+					{
+						if ( pcSock->GetPending() > 0 )
+							bSSLPending = true;
+					}
+				}
+
+				// old fashion select loop, go fer it
 				int iSel;
 
-				if ( bHasWriteable )
-					iSel = select(FD_SETSIZE, &rfds, &wfds, NULL, &tv);
-				else
-					iSel = select(FD_SETSIZE, &rfds, NULL, NULL, &tv);
+				if ( !bSSLPending )
+				{
+					if ( bHasWriteable )
+						iSel = select(FD_SETSIZE, &rfds, &wfds, NULL, &tv);
+					else
+						iSel = select(FD_SETSIZE, &rfds, NULL, NULL, &tv);
+				} else
+				{
+					iSel = 1;	// at least one, since data be pending
+				}
 
 				if ( iSel == 0 )
 				{
