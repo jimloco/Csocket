@@ -1076,6 +1076,7 @@ public:
 	* Set the timeout, set to 0 to never timeout
 	*/
 	void SetTimeout( int iTimeout ) { m_itimeout = iTimeout; }
+	int GetTimeout() const { return m_itimeout; }
 	
 	//! returns true if the socket has timed out
 	virtual bool CheckTimeout()
