@@ -8,6 +8,7 @@
 #include <sys/fcntl.h>
 #include <sys/file.h>
 #include <netinet/in.h>
+#include <arpa/inet.h>
 #include <stdlib.h>
 #include <netdb.h>
 #include <errno.h>
@@ -46,6 +47,7 @@ bool TFD_ISSET( int iSock, fd_set *set )
 class Csock
 {
 public:
+		Csock() { Csock( "", 0 ); }
 		Csock( const Cstring & sHostname, int iport, int itimeout = 60 ) 
 		{
 #ifdef _HAS_SSL	
@@ -59,6 +61,8 @@ public:
 			m_iport = iport;
 			m_shostname = sHostname;
 			m_bNeverWritten = true;
+			m_iTcount = 0;
+			m_sbuffer.clear();
 		}
 	
 		virtual ~Csock()
@@ -122,6 +126,51 @@ public:
 				return( false );
 			
 			return( true );
+		}
+		
+		bool Listen( int iPort, int iMaxConns = SOMAXCONN, bool isSSL = false )
+		{
+			m_isock = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
+			m_address.sin_family = PF_INET;
+			m_address.sin_addr.s_addr = htonl( INADDR_ANY );
+			m_address.sin_port = htons( iPort );
+
+			if ( bind(m_isock, (struct sockaddr *) &m_address, sizeof( m_address ) ) == -1)
+			{
+				return( false );
+			}
+        
+			listen( m_isock, iMaxConns );
+
+			// set it none blocking
+			int fdflags = fcntl (m_isock, F_GETFL, 0);
+			fcntl( m_isock, F_SETFL, fdflags|O_NONBLOCK );
+
+			m_iConnType = LISTENER;
+		
+			return( true );
+		}
+		
+		//
+		// Returns sock on success, -1 on failure
+		int Accept()
+		{
+			struct sockaddr_in 	client;
+			socklen_t clen;
+			
+			int iSock = accept( m_isock , (struct sockaddr *) &client, &clen );
+			
+			if ( iSock != -1 )
+			{
+				getpeername( m_isock, (struct sockaddr *) &client, &clen );
+				
+				Cstring sHost = inet_ntoa( client.sin_addr );
+				int iRPort = ntohs( client.sin_port );
+				
+				ConnectionFrom( sHost, iRPort );
+			}
+			
+			return( iSock );
 		}
 #ifdef _HAS_SSL
 	
@@ -193,6 +242,7 @@ public:
 			// and ultimatly its easier to work with
 			Cstring sSend;
 			sSend.append( data, len );
+			
 			m_bNeverWritten = false;
 #ifdef _HAS_SSL		
 			if ( m_bssl )
@@ -275,17 +325,10 @@ public:
 			else
 #endif /* _HAS_SSL */							
 				bytes = read( m_isock, data, len );
-			
-			if ( bytes == 0 )
+
+		    if ( bytes == -1 )
 			{
-			 	if ( errno != EAGAIN )
-					return( 0 );
-				else
-					return( -2 );
-					
-			} else if ( bytes == -1 )
-			{
-				if ( ( errno == EINTR ) || ( errno != EAGAIN ) )
+				if ( ( errno == EINTR ) || ( errno == EAGAIN ) )
 					return( -2 );
 #ifdef _HAS_SSL
 				if ( m_bssl )
@@ -312,26 +355,86 @@ public:
 		
 		int & GetSock() { return( m_isock ); }
 
+		void ResetTimer() { m_iTcount = 0; }
+		
+		bool CheckTimeout()
+		{
+			if ( m_iTcount >= m_itimeout )
+			{
+				Timeout();
+				return( true );
+			}
+									
+			m_iTcount++;
+			return( false );
+		}
+		
 		bool needsWrite()
 		{
 			return( m_bNeverWritten );
 		}
 		
+		void CloseSock()
+		{
+			// close the socket
+			close( m_isock );
+			// flush the buffer
+			PushBuff( "\n", 1 );
+			// call disconnect event
+			Disconnected();
+		}
+		
+		void PushBuff( const char *data, int len )
+		{
+			if ( data )
+				m_sbuffer.append( data, len );
+			
+			while( true )
+			{
+				u_int iFind = m_sbuffer.find( "\n" );
+			
+				if ( iFind != Cstring::npos )
+				{
+					Cstring sBuff = m_sbuffer.substr( 0, iFind );
+				
+					if ( !sBuff.empty() )
+						ReadLine( sBuff + "\n" );
+				
+					m_sbuffer.erase( 0, iFind + 1 );
+				
+				} else
+					break;
+			}
+		}
+		
+		int GetType() { return( m_iConnType ); }
+		
 		//
 		// Override these functions for an easy interface
 		// 
+		// Connected event
 		virtual void Connected() {}
+		// Disconnected event
 		virtual void Disconnected() {}
+		// Timeout Event
+		virtual void Timeout() {}
+		// Jobs Event
+		virtual void Jobs() {}
+		// Data Ready for Read Event
 		virtual void ReadData( const char *data, int len ) {}
+		// Line Buffer Ready for Read Event
 		virtual void ReadLine( const Cstring & sLine ) {}
-		
+		// Socket Error Event
+		virtual void SockError() {}
+		// Incoming Connection Event
+		virtual void ConnectionFrom( const Cstring & sHost, int iPort ) {}
 		//////////////////////////////////////////////////	
 			
 #endif /* _HAS_SSL */				
 private:
-		int			m_isock, m_itimeout, m_iport, m_iConnType;
+		int			m_isock, m_itimeout, m_iport, m_iConnType, m_iTcount;
 		bool		m_bssl, m_bhaswrite, m_bNeverWritten;
-		Cstring		m_shostname;
+		Cstring		m_shostname, m_sbuffer;
 
 		struct hostent		*m_hent, m_hentbuff;
 		struct sockaddr_in 	m_address;
@@ -340,7 +443,7 @@ private:
 		SSL 				*m_ssl;
 		SSL_CTX				*m_ssl_ctx;
 		SSL_METHOD			*m_ssl_method;
-#endif /* _HAS_SSL */	
+#endif /* _HAS_SSL */
 
 };
 
@@ -352,16 +455,14 @@ class TConn : public vector<T *>
 {
 public:
 		TConn() {}
-		virtual ~TConn() {}
+		virtual ~TConn() { m_errno = SUCCESS; }
 
 		typedef enum
 		{
-			SUCCESS		= 0,
-			HOST_ERR 	= 1,
-			CONNECT_ERR = 2,
-			SSL_ERR		= 3,
-			REFUSED_ERR	= 4,
-			SELECT_ERR	= 5
+			SUCCESS			= 0,
+			SELECT_ERROR	= -1,
+			SELECT_TIMEOUT	= -2,
+			SELECT_TRYAGAIN	= -3
 			
 		} eMessages;
 
@@ -392,7 +493,7 @@ public:
 				}
 			}
 			
-			push_back( pcSock );
+			AddSock( pcSock );
 			return( true );
 		}
 		
@@ -417,19 +518,23 @@ public:
 			for( unsigned int i = 0; i < size(); i++ )
 			{
 				Csock *pcSock = (*this)[i];
-				int & iSock = pcSock->GetSock();
-
-				if ( pcSock->hasWrite() )
+				
+				if ( pcSock->GetType() != T::LISTENER )
 				{
-					TFD_SET( iSock, &rfds );
+					int & iSock = pcSock->GetSock();
+
+					if ( pcSock->hasWrite() )
+					{
+						TFD_SET( iSock, &rfds );
 					
+					} else
+					{
+						TFD_SET( iSock, &rfds );
+						TFD_SET( iSock, &wfds );
+						bHasWriteable = true;
+					}
 				} else
-				{
-					TFD_SET( iSock, &rfds );
-					TFD_SET( iSock, &wfds );
-					bHasWriteable = true;
-				}
-
+					pcSock->Accept();
 			}
 			
 			// now select on them
@@ -444,39 +549,50 @@ public:
 				
 				if ( iSel == 0 )
 				{
-					m_errno = SUCCESS;
+					m_errno = SELECT_TIMEOUT;
 					return( NULL );
 				}
 				
-				if ( ( iSel == -1 ) && ( errno != EINTR ) )
+				if ( ( iSel == -1 ) && ( errno == EINTR ) )
 				{
-					m_errno = SELECT_ERR;
-					return( NULL );
-				
+					m_errno = SELECT_TRYAGAIN;
+					return( NULL );				
 				}
 				
-				if ( iSel > 0 )
+				// find out wich one is ready
+				for( unsigned int i = 0; i < size(); i++ )
 				{
-					// find out wich one is ready
-					for( unsigned int i = 0; i < size(); i++ )
-					{
-						Csock *pcSock = (*this)[i];
-						int & iSock = pcSock->GetSock();
+					T *pcSock = (*this)[i];
+					int & iSock = pcSock->GetSock();
 						
-						if ( TFD_ISSET( iSock, &rfds ) )
-							return( pcSock );
-						else if ( TFD_ISSET( iSock, &wfds ) )
+					if ( TFD_ISSET( iSock, &rfds ) )
+					{
+						if ( iSel > 0 )
+							m_errno = SUCCESS;
+						else
+							m_errno = SELECT_ERROR;
+							
+						return( pcSock );
+						
+					} else if ( TFD_ISSET( iSock, &wfds ) )
+					{
+						if ( iSel > 0 )
 						{
+							m_errno = SUCCESS;
 							pcSock->setWrite( true );
-							return( pcSock );
-						}
+							// Call the Connected Event
+							pcSock->Connected();
+						
+						} else
+							m_errno = SELECT_ERROR;
 
+						return( pcSock );
 					}
-					
-					// it said one was ready, but none of them were :(
-					m_errno = SELECT_ERR;	
-					return( NULL );
+
 				}
+				// it said one was ready, but none of them were :(
+				m_errno = SELECT_ERROR;	
+				return( NULL );
 			}
 			
 			return( NULL );
@@ -484,7 +600,7 @@ public:
 				
 		void DelSock( T *pcSock )
 		{
-			vector<T *>::iterator p;
+			iterator p;
 			
 			for( unsigned int i = 0; i < size(); i++ )
 			{
@@ -499,7 +615,99 @@ public:
 			cerr << "WARNING!!! Could not find " << (unsigned int *)pcSock << endl;
 		}
 
-		int getErr() { return( m_errno ); }
+		//
+		// Loop, calling the call backs. Good if you Derive from Csock
+		//
+		// Pass false if you don't want it to exit on an empty container ( no socks )
+		//
+		void Loop ( bool bBreak = true )
+		{
+			while( true )
+			{
+				T *pcSock = Select();
+				
+				switch( m_errno )
+				{
+					case SUCCESS:
+					{
+						pcSock->ResetTimer();	// reset the timeout timer
+						
+						// read in data
+						char buff[64];
+						int bytes = pcSock->Read( buff, 64 );
+
+						switch( bytes )
+						{
+							case 0:
+							{
+								// EOF
+								pcSock->CloseSock();
+								DelSock( pcSock );
+								break;
+							}
+							
+							case -1:
+							{
+								pcSock->SockError();
+								pcSock->CloseSock();
+								DelSock( pcSock );
+								break;
+							}
+							
+							case -2:
+								break;
+								
+							default:
+							{
+								pcSock->PushBuff( buff, bytes );
+								pcSock->ReadData( buff, bytes );
+								break;
+							}								
+						}
+						break;
+					}
+				
+					case SELECT_ERROR:
+					{
+						// a socket came back with an error
+						// usually means it was closed
+						close( pcSock->GetSock() );
+						DelSock( pcSock );
+						break;
+					}
+					case SELECT_TIMEOUT:
+					{
+						// call timeout on all the sockets
+						for( unsigned int i = 0; i < size(); i++ )
+						{
+							if ( (*this)[i]->GetType() == T::LISTENER )
+								break;
+								
+							(*this)[i]->Jobs();
+							if ( (*this)[i]->CheckTimeout() )
+							{
+								// socket timeout, close the socket
+								(*this)[i]->CloseSock();
+							}
+						}
+						break;
+					}
+					
+					default	:
+						break;
+				}
+			
+				if ( ( this->empty() ) && ( bBreak ) )
+					return;
+			}
+		}
+
+		void AddSock( T *pcSock )
+		{
+			push_back( pcSock );
+		}
+				
+		int GetErrno() { return( m_errno ); }
 private:
 
 		int			m_errno;
