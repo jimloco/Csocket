@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.94 $
+* $Revision: 1.95 $
 */
 
 #ifndef _HAS_CSOCKET_
@@ -525,6 +525,9 @@ namespace Csocket
 		*/
 		virtual int WriteSelect()
 		{
+			if ( m_iWriteSock < 0 )
+				return( SEL_ERR );
+
 			struct timeval tv;
 			fd_set wfds;
 
@@ -556,6 +559,9 @@ namespace Csocket
 		*/
 		virtual int ReadSelect()
 		{
+			if ( m_iReadSock < 0 )
+				return( SEL_ERR );
+
 			struct timeval tv;
 			fd_set rfds;
 
@@ -2296,10 +2302,17 @@ namespace Csocket
 
 				T *pcSock = (*this)[i];
 
+				int & iRSock = pcSock->GetRSock();
+				int & iWSock = pcSock->GetWSock();
+		
+				if ( ( iRSock < 0 ) || ( iWSock < 0 ) )
+				{
+					SelectSock( mpeSocks, SUCCESS, pcSock );
+					continue;	// invalid sock fd
+				}
+
 				if ( pcSock->GetType() != T::LISTENER )
 				{
-					int & iRSock = pcSock->GetRSock();
-					int & iWSock = pcSock->GetWSock();
 					
 					if ( ( pcSock->GetSSL() ) && ( pcSock->GetType() == T::INBOUND ) && ( !pcSock->FullSSLAccept() ) )
 					{
@@ -2331,7 +2344,7 @@ namespace Csocket
 					}
 
 				} else
-					TFD_SET( pcSock->GetRSock(), &rfds );
+					TFD_SET( iRSock, &rfds );
 			}
 		
 			// first check to see if any ssl sockets are ready for immediate read
@@ -2398,7 +2411,15 @@ namespace Csocket
 				int & iRSock = pcSock->GetRSock();
 				int & iWSock = pcSock->GetWSock();
 				EMessages iErrno = SUCCESS;
-				
+			
+				if ( ( iRSock < 0 ) || ( iWSock < 0 ) )
+				{
+					// trigger a success so it goes through the normal motions
+					// and an error is produced
+					SelectSock( mpeSocks, SUCCESS, pcSock );
+					continue; // watch for invalid socks
+				}
+
 				if ( TFD_ISSET( iWSock, &wfds ) )
 				{
 					if ( iSel > 0 )
