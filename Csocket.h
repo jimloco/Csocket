@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.112 $
+* $Revision: 1.113 $
 */
 
 #ifndef _HAS_CSOCKET_
@@ -54,6 +54,7 @@
 #ifdef HAVE_LIBSSL
 #include <openssl/ssl.h>
 #include <openssl/err.h>
+#include <openssl/rand.h>
 #endif /* HAVE_LIBSSL */
 
 #ifdef __sun
@@ -93,12 +94,46 @@
 
 using namespace std;
 
+
 #ifndef _NO_CSOCKET_NS // some people may not want to use a namespace
 namespace Csocket
 {
 #endif /* _NO_CSOCKET_NS */
 	const u_int CS_BLOCKSIZE = 4096;
 	template <class T> inline void CS_Delete( T * & p ) { if( p ) { delete p; p = NULL; } }
+
+#ifdef HAVE_LIBSSL
+	/**
+	 * @brief You HAVE to call this in order to use the SSL library
+	 * @param bEnableCompression enables compression for this application
+	 * @return true on success
+	 */
+	inline bool InitSSL( bool bEnableCompression = false )
+	{
+		bool bReturn = true;
+		SSL_load_error_strings();
+		if ( SSL_library_init() != 1 )
+		{
+			CS_DEBUG( "SSL_library_init() failed!" );
+			return( false );
+		}
+
+		if ( access( "/dev/urandom", R_OK ) == 0 )
+			RAND_load_file( "/dev/urandom", 1024 );
+		else if( access( "/dev/random", R_OK ) == 0 )
+			RAND_load_file( "/dev/random", 1024 );
+		else
+		{
+			CS_DEBUG( "Unable to locate entropy location! Tried /dev/urandom and /dev/random" );
+			bReturn = false;
+		}
+		
+		if ( bEnableCompression )
+			SSL_COMP_add_compression_method( 1, COMP_zlib() );
+
+		return( bReturn );
+	}
+#endif /* HAVE_LIBSSL */
 
 	// wrappers for FD_SET and such to work in templates
 	inline void TFD_ZERO( fd_set *set )
@@ -714,8 +749,6 @@ namespace Csocket
 			FREE_SSL();
 			FREE_CTX();
 
-			SSLeay_add_ssl_algorithms();
-		
 			switch( m_iMethod )
 			{
 				case SSL2:
@@ -747,7 +780,6 @@ namespace Csocket
 					break;
 			}
 
-			SSL_load_error_strings ();
 			// wrap some warnings in here
 			m_ssl_ctx = SSL_CTX_new ( m_ssl_method );
 			if ( !m_ssl_ctx )
@@ -796,8 +828,6 @@ namespace Csocket
 			FREE_SSL();			
 			FREE_CTX();
 					
-			SSLeay_add_ssl_algorithms();
-		
 			switch( m_iMethod )
 			{
 				case SSL2:
@@ -829,7 +859,6 @@ namespace Csocket
 					break;
 			}
 
-			SSL_load_error_strings ();
 			// wrap some warnings in here
 			m_ssl_ctx = SSL_CTX_new ( m_ssl_method );
 			if ( !m_ssl_ctx )
