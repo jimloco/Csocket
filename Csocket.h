@@ -270,14 +270,6 @@ public:
 			Zzap( m_vcCrons[i] );
 	}
 
-	//! Pauses this sock, in the sense that it won't go through the select loop
-	//! iTimeout is how long it will pause before continuing
-	void Pause( u_int iTimeout = 60 ) { m_iPauseTime = time( NULL ) + iTimeout; }
-	//! UnPauses this sock, and allows it to continue normally
-	void UnPause() { m_iPauseTime = 0; }
-	bool IsPaused() { return( ( m_iPauseTime != 0 ) ); }
-	time_t PauseTimeout() { return( m_iPauseTime ); }
-
 	enum ETConn
 	{
 		OUTBOUND	= 0,		//!< outbound connection
@@ -540,14 +532,10 @@ public:
 	//! Accept an inbound connection, this is used internally
 	virtual int Accept( Cstring & sHost, int & iRPort )
 	{
-		if ( !IncomingConnection() )
-			return( -1 );
-
 		struct sockaddr_in client;
 		socklen_t clen = sizeof(struct sockaddr);
 		
 		int iSock = accept( m_iReadSock , (struct sockaddr *) &client, &clen );
-		
 		if ( iSock != -1 )
 		{
 			if ( !m_bBLOCK )
@@ -1469,14 +1457,6 @@ public:
 	 */
 	virtual void ConnectionRefused() {}
 
-	/**
-	 * Override these functions for an easy interface when using the Socket Manager
-	 * return false if you want it to stop from accepting the connection
-	 * constantly returning false on this will probably cause a CPU spike, so it is best to use this
-	 * with Pause and UnPause to basically defer the connection til later
-	 */
-	virtual bool IncomingConnection() { return( true ); }
-	
 	//! return the data imediatly ready for read
 	virtual int GetPending()
 	{
@@ -1494,7 +1474,6 @@ public:
 		
 private:
 	int			m_iReadSock, m_iWriteSock, m_itimeout, m_iport, m_iConnType, m_iTcount, m_iMethod;
-	u_int		m_iPauseTime;
 	bool		m_bssl, m_bhaswrite, m_bNeverWritten, m_bClosed, m_bBLOCK, m_bFullsslAccept;
 	bool		m_bsslEstablished, m_bEnableReadLine, m_bRequireClientCert;
 	Cstring		m_shostname, m_sbuffer, m_sSockName, m_sPemFile, m_sCipherType, m_sParentName;
@@ -1581,7 +1560,6 @@ private:
 		m_bRequireClientCert = false;
 		m_iMaxStoredBufferLength = 1024;
 		m_iConnType = INBOUND;
-		m_iPauseTime = 0;
 	}
 };
 
@@ -1975,14 +1953,6 @@ private:
 
 			T *pcSock = (*this)[i];
 
-			if ( pcSock->IsPaused() )
-			{
-				if ( pcSock->PauseTimeout() >= time( NULL ) )
-					pcSock->UnPause();
-				else
-					continue;
-			}
-						
 			if ( pcSock->GetType() != T::LISTENER )
 			{
 				int & iRSock = pcSock->GetRSock();
@@ -2017,53 +1987,7 @@ private:
 				}
 
 			} else
-			{
-				Cstring sHost;
-				int port;
-				int inSock = pcSock->Accept( sHost, port );
-				
-				if ( inSock != -1 )
-				{
-					// if we have a new sock, then add it
-					T *NewpcSock = (T *)pcSock->GetSockObj( sHost, port );
-
-					if ( !NewpcSock )
-						NewpcSock = new T( sHost, port );
-
-					NewpcSock->BlockIO( false );
-					
-					NewpcSock->SetType( T::INBOUND );
-					NewpcSock->SetRSock( inSock );
-					NewpcSock->SetWSock( inSock );
-					
-					bool bAddSock = true;
-#ifdef HAVE_LIBSSL						
-					//
-					// is this ssl ?
-					if ( pcSock->GetSSL() )
-					{
-						NewpcSock->SetCipher( pcSock->GetCipher() );
-						NewpcSock->SetPemLocation( pcSock->GetPemLocation() );
-						NewpcSock->SetPemPass( pcSock->GetPemPass() );
-						NewpcSock->SetRequiresClientCert( pcSock->RequiresClientCert() );
-						bAddSock = NewpcSock->AcceptSSL();
-					}
-							
-#endif /* HAVE_LIBSSL */
-					if ( bAddSock )
-					{
-						// set the name of the listener
-						NewpcSock->SetParentSockName( pcSock->GetSockName() );
-						NewpcSock->SetRate( pcSock->GetRateBytes(), pcSock->GetRateTime() );
-						if ( NewpcSock->GetSockName().empty() )
-							AddSock( NewpcSock,  sHost + ":" + Cstring::num2Cstring( port ) );
-						else
-							AddSock( NewpcSock, NewpcSock->GetSockName() );
-					
-					} else
-						Zzap( NewpcSock );
-				}
-			}
+				TFD_SET( pcSock->GetRSock(), &rfds );
 		}
 	
 		// first check to see if any ssl sockets are ready for immediate read
@@ -2158,8 +2082,57 @@ private:
 				else
 					iErrno = SELECT_ERROR;
 
-				AddstSock( &vRet, iErrno, pcSock );
-			}						
+				if ( pcSock->GetType() != T::LISTENER )
+					AddstSock( &vRet, iErrno, pcSock );
+				else // someone is coming in!
+				{
+					Cstring sHost;
+					int port;
+					int inSock = pcSock->Accept( sHost, port );
+					
+					if ( inSock != -1 )
+					{
+						// if we have a new sock, then add it
+						T *NewpcSock = (T *)pcSock->GetSockObj( sHost, port );
+
+						if ( !NewpcSock )
+							NewpcSock = new T( sHost, port );
+
+						NewpcSock->BlockIO( false );
+						
+						NewpcSock->SetType( T::INBOUND );
+						NewpcSock->SetRSock( inSock );
+						NewpcSock->SetWSock( inSock );
+						
+						bool bAddSock = true;
+#ifdef HAVE_LIBSSL						
+						//
+						// is this ssl ?
+						if ( pcSock->GetSSL() )
+						{
+							NewpcSock->SetCipher( pcSock->GetCipher() );
+							NewpcSock->SetPemLocation( pcSock->GetPemLocation() );
+							NewpcSock->SetPemPass( pcSock->GetPemPass() );
+							NewpcSock->SetRequiresClientCert( pcSock->RequiresClientCert() );
+							bAddSock = NewpcSock->AcceptSSL();
+						}
+								
+#endif /* HAVE_LIBSSL */
+						if ( bAddSock )
+						{
+							// set the name of the listener
+							NewpcSock->SetParentSockName( pcSock->GetSockName() );
+							NewpcSock->SetRate( pcSock->GetRateBytes(), pcSock->GetRateTime() );
+							if ( NewpcSock->GetSockName().empty() )
+								AddSock( NewpcSock,  sHost + ":" + Cstring::num2Cstring( port ) );
+							else
+								AddSock( NewpcSock, NewpcSock->GetSockName() );
+						
+						} else
+							Zzap( NewpcSock );
+					}
+				}
+			}
 		}
 
 		return( vRet );
