@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.102 $
+* $Revision: 1.103 $
 */
 
 #ifndef _HAS_CSOCKET_
@@ -374,7 +374,8 @@ namespace Csocket
 			READ_EOF			= 0,			//!< End Of File, done reading
 			READ_ERR			= -1,			//!< Error on the socket, socket closed, done reading
 			READ_EAGAIN			= -2,			//!< Try to get data again
-			READ_CONNREFUSED	= -3	//!< Connection Refused
+			READ_CONNREFUSED	= -3,			//!< Connection Refused
+			READ_TIMEDOUT		= -4			//!< Connection timed out
 			
 		};
 		
@@ -1091,6 +1092,7 @@ namespace Csocket
 		* Returns READ_ERR for ERROR
 		* Returns READ_EAGAIN for Try Again ( EAGAIN )
 		* Returns READ_CONNREFUSED for connection refused
+		* Returns READ_TIMEDOUT for a connection that timed out at the TCP level
 		* Otherwise returns the bytes read into data
 		*/
 		virtual int Read( char *data, int len )
@@ -1103,8 +1105,15 @@ namespace Csocket
 
 			if ( m_bBLOCK )
 			{
-				if ( ReadSelect() != SEL_OK )
-					return( READ_ERR );
+				switch( ReadSelect() )
+				{
+					case SEL_OK:
+						break;
+					case SEL_TIMEOUT:
+						return( READ_TIMEDOUT );
+					default:
+						return( READ_ERR );
+				}
 			}
 			
 #ifdef HAVE_LIBSSL
@@ -1118,7 +1127,10 @@ namespace Csocket
 			{
 				if ( errno == ECONNREFUSED )
 					return( READ_CONNREFUSED );	
-				
+			
+				if ( errno == ETIMEDOUT )
+					return( READ_TIMEDOUT );
+
 				if ( ( errno == EINTR ) || ( errno == EAGAIN ) )
 					return( READ_EAGAIN );
 #ifdef HAVE_LIBSSL
@@ -2051,7 +2063,8 @@ namespace Csocket
 		
 							int bytes = pcSock->Read( buff, iLen );
 
-							if ( ( bytes != T::READ_CONNREFUSED ) && ( !pcSock->IsConnected() ) )
+							if ( ( bytes != T::READ_TIMEDOUT ) && ( bytes != T::READ_CONNREFUSED ) 
+								&& ( !pcSock->IsConnected() ) )
 							{
 								pcSock->SetIsConnected( true );
 								pcSock->Connected();
@@ -2077,6 +2090,11 @@ namespace Csocket
 								
 								case T::READ_CONNREFUSED:
 									pcSock->ConnectionRefused();
+									DelSockByAddr( pcSock );
+									break;
+
+								case T::READ_TIMEDOUT:
+									pcSock->Timeout();
 									DelSockByAddr( pcSock );
 									break;
 
