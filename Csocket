@@ -68,6 +68,7 @@ public:
 			m_bNeverWritten = true;
 			m_iTcount = 0;
 			m_sbuffer.clear();
+			m_bClosed = false;
 		}
 	
 		virtual ~Csock()
@@ -447,6 +448,10 @@ public:
 		Cstring & GetHostName() { return( m_shostname ); }
 		int GetPort() { return( m_iport ); }
 		
+		// just mark us as closed, the parent can pick it up
+		void Close() { m_bClosed = true; }
+		bool isClosed() { return( m_bClosed ); }
+		
 		//
 		// Override these functions for an easy interface
 		// 
@@ -471,7 +476,7 @@ public:
 				
 private:
 		int			m_isock, m_itimeout, m_iport, m_iConnType, m_iTcount;
-		bool		m_bssl, m_bhaswrite, m_bNeverWritten;
+		bool		m_bssl, m_bhaswrite, m_bNeverWritten, m_bClosed;
 		Cstring		m_shostname, m_sbuffer, m_sSockName;
 
 		struct hostent		*m_hent, m_hentbuff;
@@ -586,6 +591,10 @@ public:
 			TFD_ZERO( &wfds );
 
 			// before we go any further, see which socks are scheduled for destruction
+			for( unsigned int i = 0; i < size(); i++ )
+				if ( (*this)[i]->isClosed() )
+					DestroySock( (*this)[i] );
+			
 			for( unsigned int i = 0; i < m_pcDestroySocks.size(); i++ )
 				DelSock( m_pcDestroySocks[i] );
 			
