@@ -5,8 +5,8 @@
 *
 *    CVS Info:
 *       $Author: imaginos $
-*       $Date: 2003/09/06 18:16:30 $
-*       $Revision: 1.30 $
+*       $Date: 2003/09/06 19:42:52 $
+*       $Revision: 1.31 $
 */
 
 #ifndef _HAS_CSOCKET_
@@ -976,8 +976,8 @@ public:
 	*/
 	virtual void PushBuff( const char *data, int len )
 	{
-		if ( m_bDontStoreBuffer )
-			return;	// In the event we don't want a buffer store, skip this step. Ofcourse ReadLine() event never occurs
+		if ( !m_bEnableReadLine )
+			return;	// If the ReadLine event is disabled, just ditch here
 
 		if ( data )
 			m_sbuffer.append( data, len );
@@ -995,16 +995,18 @@ public:
 			} else
 				break;
 		}
+
+		if ( ( m_iMaxStoredBufferLength > 0 ) && ( m_sbuffer.length() > m_iMaxStoredBufferLength ) )
+			ReachedMaxBuffer(); // call the max read buffer event
+
 	}
 
 	//! This gives access to the internal buffer, if your
 	//! not going to use GetLine(), then you may want to clear this out
 	//! (if its binary data and not many '\n'
 	Cstring & GetInternalByffer() { return( m_sbuffer ); }	
-
-	//! set the value of m_bDontStoreBuffer to true, we don't want to store a buffer for ReadLine
-	void DontStoreBuff() { m_bDontStoreBuffer = true; }
-	void OKStoreBuff() { m_bDontStoreBuffer = false; }
+	void SetMaxBufferThreshold( u_int iThreshold ) { m_iMaxStoredBufferLength = iThreshold; }
+	u_int GetMaxBufferThreshold() { return( m_iMaxStoredBufferLength ); }
 
 	//! Returns the connection type from enum eConnType
 	int GetType() { return( m_iConnType ); }
@@ -1144,12 +1146,29 @@ public:
 	/**
 	* Override these functions for an easy interface when using the Socket Manager
 	* Don't bother using these callbacks if you are using this class directly (without Socket Manager)
-	* as the Socket Manager calls most of these callbacks With ReadLine, if your not going to use it
-	* IE a data stream, then it is probably best to set m_bDontStoreBuffer to true. @see DontStoreBuff()
+	* as the Socket Manager calls most of these callbacks.
+	*  With ReadLine, if your not going to use it IE a data stream, @see EnableReadLine()
 	*
 	* Ready to Read a full line event
 	*/
 	virtual void ReadLine( const Cstring & sLine ) {}
+    //! set the value of m_bEnableReadLine to true, we don't want to store a buffer for ReadLine, unless we want it
+	void EnableReadLine() { m_bEnableReadLine = true; }
+	void DisableReadLine() { m_bEnableReadLine = false; }
+
+	/**
+	 * Override these functions for an easy interface when using the Socket Manager
+	 * Don't bother using these callbacks if you are using this class directly (without Socket Manager)
+	 * as the Socket Manager calls most of these callbacks
+	 * This WARNING event is called when your buffer for readline exceeds the warning threshold
+	 * and triggers this event. Either Override it and do nothing, or @SetMaxBufferThreshold( int )
+	 * This event will only get called if m_bEnableReadLine is enabled
+	 */
+	virtual void ReachedMaxBuffer()
+	{
+		cerr << "Warning, Max Buffer length Warning Threshold has been hit" << endl;
+		cerr << "If you don't care, then set SetMaxBufferThreshold to 0" << endl;
+	}
 	/**
 	* Override these functions for an easy interface when using the Socket Manager
 	* Don't bother using these callbacks if you are using this class directly (without Socket Manager)
@@ -1187,12 +1206,12 @@ public:
 		
 private:
 	int			m_isock, m_itimeout, m_iport, m_iConnType, m_iTcount, m_iMethod;
-	bool		m_bssl, m_bhaswrite, m_bNeverWritten, m_bClosed, m_bBLOCK, m_bFullsslAccept, m_bsslEstablished, m_bDontStoreBuffer;
+	bool		m_bssl, m_bhaswrite, m_bNeverWritten, m_bClosed, m_bBLOCK, m_bFullsslAccept, m_bsslEstablished, m_bEnableReadLine;
 	Cstring		m_shostname, m_sbuffer, m_sSockName, m_sPemFile, m_sCipherType, m_sParentName;
 	Cstring		m_sSend;
 
 	unsigned long long	m_iMaxMilliSeconds, m_iLastSendTime;
-	unsigned int		m_iMaxBytes, m_iLastSend;
+	unsigned int		m_iMaxBytes, m_iLastSend, m_iMaxStoredBufferLength;
 	
 	struct sockaddr_in 	m_address;
 	
@@ -1269,7 +1288,8 @@ private:
 		m_iLastSend = 0;
 		m_bFullsslAccept = false;
 		m_bsslEstablished = false;
-		m_bDontStoreBuffer = false;
+		m_bEnableReadLine = false;
+		m_iMaxStoredBufferLength = 1024;
 	}
 };
 
