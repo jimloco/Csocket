@@ -1,6 +1,6 @@
 /**
 *
-*    Copyright (c) 1999-2003 Jim Hull <imaginos@imaginos.net>
+*    Copyright (c) 1999-2004 Jim Hull <imaginos@imaginos.net>
 *    All rights reserved
 *    
 * Redistribution and use in source and binary forms, with or without modification, 
@@ -28,6 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
+* $Revision: 1.87 $
 */
 
 #ifndef _HAS_CSOCKET_
