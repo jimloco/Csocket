@@ -1989,7 +1989,10 @@ private:
 						// set the name of the listener
 						NewpcSock->SetParentSockName( pcSock->GetSockName() );
 						NewpcSock->SetRate( pcSock->GetRateBytes(), pcSock->GetRateTime() );
-						AddSock( NewpcSock,  sHost + ":" + Cstring::num2Cstring( port ) );
+						if ( NewpcSock->GetSockName().empty() )
+							AddSock( NewpcSock,  sHost + ":" + Cstring::num2Cstring( port ) );
+						else
+							AddSock( NewpcSock, NewpcSock->GetSockName() );
 					
 					} else
 						Zzap( NewpcSock );
