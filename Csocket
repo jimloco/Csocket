@@ -16,6 +16,7 @@
 #include <ctype.h>
 #include <assert.h>
 #include <sys/ioctl.h>
+#include <sys/timeb.h>
 
 #ifdef HAVE_LIBSSL
 #include <openssl/ssl.h>
@@ -681,12 +682,43 @@ public:
 					return( false );
 
 			}
+			// rate shaping
+			u_int iBytesToSend = 0;
 			
+			if ( ( m_iMaxBytes > 0 ) && ( m_iMaxMilliSeconds > 0 ) )
+			{
+				unsigned long long iNOW = GetMillTime();
+				// figure out the shaping here				
+				// if NOW - m_iLastSendTime > m_iMaxMilliSeconds then send a full length of ( iBytesToSend )
+				if ( ( iNOW - m_iLastSendTime ) > m_iMaxMilliSeconds )
+				{
+					m_iLastSendTime = iNOW;
+					iBytesToSend = m_iMaxBytes;
+					m_iLastSend = 0;
+				
+				} else // otherwise send m_iMaxBytes - m_iLastSend
+					iBytesToSend = m_iMaxBytes - m_iLastSend;
+
+				// take which ever is lesser
+				if ( m_sSend.length() < iBytesToSend )
+					iBytesToSend = 	m_sSend.length();
+								
+				// add up the bytes sent
+				m_iLastSend += iBytesToSend;
+				
+				// so, are we ready to send anything ?
+				if ( iBytesToSend == 0 )
+					return( true );
+
+			//cerr << "RATE SHAPING, only sending " << iBytesToSend << " bytes!" << endl;	
+			} else
+				iBytesToSend = m_sSend.length();
+				
 			m_bNeverWritten = false;
-#ifdef HAVE_LIBSSL		
+#ifdef HAVE_LIBSSL	
 			if ( m_bssl )
 			{
-				int iErr = SSL_write( m_ssl, m_sSend.c_str(), m_sSend.length() );
+				int iErr = SSL_write( m_ssl, m_sSend.c_str(), iBytesToSend );
 				switch( SSL_get_error( m_ssl, iErr ) )
 				{
 					case SSL_ERROR_NONE:
@@ -717,7 +749,7 @@ public:
 				return( true );
 			}
 #endif /* HAVE_LIBSSL */
-			int bytes = write( m_isock, m_sSend.c_str(), m_sSend.length() );
+			int bytes = write( m_isock, m_sSend.c_str(), iBytesToSend );
 		
 			if ( ( bytes <= 0 ) && ( errno != EAGAIN ) )
 				return( false );
@@ -918,6 +950,12 @@ public:
 		void SetParentSockName( const Cstring & sParentName ) { m_sParentName = sParentName; }
 		const Cstring & GetParentSockName() { return( m_sParentName ); }
 		
+		void SetRate( u_int iBytes, unsigned long long iMilliseconds )
+		{
+			m_iMaxBytes = iBytes;
+			m_iMaxMilliSeconds = iMilliseconds;
+		}
+		
 		//
 		// Cron caller
 		// Once we have the cron, we'll delete it
@@ -981,6 +1019,9 @@ private:
 		bool		m_bssl, m_bhaswrite, m_bNeverWritten, m_bClosed, m_bBLOCK;
 		Cstring		m_shostname, m_sbuffer, m_sSockName, m_sPemFile, m_sCipherType, m_sParentName;
 		Cstring		m_sSend;
+
+		unsigned long long	m_iMaxMilliSeconds, m_iLastSendTime;
+		unsigned int		m_iMaxBytes, m_iLastSend;
 		
 		struct hostent		*m_hent, m_hentbuff;
 		struct sockaddr_in 	m_address;
@@ -1053,7 +1094,22 @@ private:
 			m_iMethod = SSL23;
 			m_sCipherType = "ALL";
 			m_sPemFile = "server.pem";
+			m_iMaxBytes = 0;
+			m_iMaxMilliSeconds = 0;
+			m_iLastSendTime = 0;
+			m_iLastSend = 0;
 		}
+		
+		unsigned long long GetMillTime()
+		{
+			struct timeb tp;
+			unsigned long long iTime = 0;
+			ftime( &tp );
+			iTime = tp.time * 1000;
+			iTime += tp.millitm;			
+			return( iTime );
+		}
+		
 };
 
 //
