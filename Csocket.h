@@ -96,16 +96,17 @@ inline bool GetHostByName( const Cstring & sHostName, struct in_addr *paddr )
 	int err;
 	while( true )
 	{
-	memset( (char *)hbuff, '\0', 2048 );
-	int iRet = gethostbyname_r( sHostName.c_str(), &hentbuff, hbuff, 2048, &hent, &err );
+		memset( (char *)hbuff, '\0', 2048 );
+		int iRet = gethostbyname_r( sHostName.c_str(), &hentbuff, hbuff, 2048, &hent, &err );
 	
-	if ( iRet == 0 )
-	{
-		bRet = true;
-		break;
-	}	
-	if ( iRet != EAGAIN )
-		break;
+		if ( iRet == 0 )
+		{
+			bRet = true;
+			break;
+		}	
+
+		if ( err != TRY_AGAIN )
+			break;
 	}
 
 #else
