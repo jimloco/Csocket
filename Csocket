@@ -375,7 +375,7 @@ public:
 
 		//
 		// misc functions
-		//				
+		//
 		bool hasWrite() { return( m_bhaswrite ); }
 		void setWrite( bool b ) { m_bhaswrite = b; }	
 		
@@ -405,7 +405,7 @@ public:
 			// close the socket
 			close( m_isock );
 			// flush the buffer
-			PushBuff( "\n", 1 );
+			PushBuff( "", 0 );
 			// call disconnect event
 			Disconnected();
 		}
