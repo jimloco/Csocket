@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.107 $
+* $Revision: 1.108 $
 */
 
 #ifndef _HAS_CSOCKET_
@@ -1905,7 +1905,7 @@ namespace Csocket
 
 		void clear()
 		{
-			for( unsigned int i = 0; i < size(); i++ )
+			for( unsigned int i = 0; i < this->size(); i++ )
 				CS_Delete( (*this)[i] );
 
 			vector<T *>::clear();
@@ -2157,7 +2157,7 @@ namespace Csocket
 			{
 				m_iCallTimeouts = iMilliNow;
 				// call timeout on all the sockets that recieved no data
-				for( unsigned int i = 0; i < size(); i++ )
+				for( unsigned int i = 0; i < this->size(); i++ )
 				{
 					if ( (*this)[i]->CheckTimeout() )
 						DelSock( i-- );
@@ -2180,7 +2180,7 @@ namespace Csocket
 		//! returns a pointer to the FIRST sock found by port or NULL on no match
 		virtual T * FindSockByRemotePort( int iPort )
 		{
-			for( unsigned int i = 0; i < size(); i++ )
+			for( unsigned int i = 0; i < this->size(); i++ )
 			{
 				if ( (*this)[i]->GetRemotePort() == iPort )
 					return( (*this)[i] );
@@ -2192,7 +2192,7 @@ namespace Csocket
 		//! returns a pointer to the FIRST sock found by port or NULL on no match
 		virtual T * FindSockByLocalPort( int iPort )
 		{
-			for( unsigned int i = 0; i < size(); i++ )
+			for( unsigned int i = 0; i < this->size(); i++ )
 				if ( (*this)[i]->GetLocalPort() == iPort )
 					return( (*this)[i] );
 
@@ -2202,7 +2202,7 @@ namespace Csocket
 		//! returns a pointer to the FIRST sock found by name or NULL on no match
 		virtual T * FindSockByName( const CS_STRING & sName )
 		{
-			for( unsigned int i = 0; i < size(); i++ )
+			for( unsigned int i = 0; i < this->size(); i++ )
 				if ( (*this)[i]->GetSockName() == sName )
 					return( (*this)[i] );
 			
@@ -2213,7 +2213,7 @@ namespace Csocket
 		{
 			vector<T *> vpSocks;
 			
-			for( unsigned int i = 0; i < size(); i++ )
+			for( unsigned int i = 0; i < this->size(); i++ )
 				if ( (*this)[i]->GetSockName() == sName )
 					vpSocks.push_back( (*this)[i] );
 
@@ -2225,7 +2225,7 @@ namespace Csocket
 		{
 			vector<T *> vpSocks;
 			
-			for( unsigned int i = 0; i < size(); i++ )
+			for( unsigned int i = 0; i < this->size(); i++ )
 				if ( (*this)[i]->GetHostName() == sHostname )
 					vpSocks.push_back( (*this)[i] );
 			
@@ -2296,7 +2296,7 @@ namespace Csocket
 		//! and its instance is removed from the manager
 		virtual void DelSockByAddr( T *pcSock )
 		{
-			for( u_int a = 0; a < size(); a++ )
+			for( u_int a = 0; a < this->size(); a++ )
 			{
 				if ( pcSock == (*this)[a] )
 				{
@@ -2312,7 +2312,7 @@ namespace Csocket
 		//! ie for( u_int a = 0; a < size(); a++ ) DelSock( a-- );
 		virtual void DelSock( u_int iPos )
 		{
-			if ( iPos >= size() )
+			if ( iPos >= this->size() )
 			{
 				CS_DEBUG( "Invalid Sock Position Requested! [" << iPos << "]" );
 				return;
@@ -2321,7 +2321,7 @@ namespace Csocket
 				(*this)[iPos]->Disconnected(); // only call disconnected event if connected event was called (IE IsConnected was set)
 					
 			CS_Delete( (*this)[iPos] );
-			erase( begin() + iPos );
+			this->erase( this->begin() + iPos );
 		}
 
 	private:
@@ -2348,7 +2348,7 @@ namespace Csocket
 			TFD_ZERO( &wfds );
 
 			// before we go any further, Process work needing to be done on the job
-			for( unsigned int i = 0; i < size(); i++ )
+			for( unsigned int i = 0; i < this->size(); i++ )
 			{
 				if ( (*this)[i]->isClosed() )
 					DelSock( i-- ); // close any socks that have requested it
@@ -2358,7 +2358,7 @@ namespace Csocket
 
 			bool bHasWriteable = false;
 
-			for( unsigned int i = 0; i < size(); i++ )
+			for( unsigned int i = 0; i < this->size(); i++ )
 			{
 
 				T *pcSock = (*this)[i];
@@ -2418,7 +2418,7 @@ namespace Csocket
 		
 			// first check to see if any ssl sockets are ready for immediate read
 			// a mini select() type deal for ssl
-			for( unsigned int i = 0; i < size(); i++ )
+			for( unsigned int i = 0; i < this->size(); i++ )
 			{
 				T *pcSock = (*this)[i];
 		
@@ -2474,7 +2474,7 @@ namespace Csocket
 			}							
 			
 			// find out wich one is ready
-			for( unsigned int i = 0; i < size(); i++ )
+			for( unsigned int i = 0; i < this->size(); i++ )
 			{
 				T *pcSock = (*this)[i];
 				int & iRSock = pcSock->GetRSock();
