@@ -234,8 +234,16 @@ public:
 	
 	virtual ~Csock()
 	{
-		close( m_iReadSock );
-		close( m_iWriteSock );
+		if ( m_iReadSock != m_iWriteSock )
+		{
+			close( m_iReadSock );
+			close( m_iWriteSock );
+		} else
+			close( m_iReadSock );
+
+		m_iReadSock = -1;
+		m_iWriteSock = -1;
+
 #ifdef HAVE_LIBSSL
 		FREE_SSL();
 		FREE_CTX();
@@ -336,7 +344,6 @@ public:
 	{
 		// create the socket
 		m_iReadSock = m_iWriteSock = SOCKET();
-			
 		m_address.sin_family = PF_INET;
 		m_address.sin_port = htons( m_iport );
 
@@ -376,14 +383,15 @@ public:
 		// set it none blocking
 		int fdflags = fcntl (m_iReadSock, F_GETFL, 0);
 		fcntl( m_iReadSock, F_SETFL, fdflags|O_NONBLOCK );
-
 		m_iConnType = OUTBOUND;
 		
 		// connect
 		int ret = connect( m_iReadSock, (struct sockaddr *)&m_address, sizeof( m_address ) );
-
 		if ( ( ret == -1 ) && ( errno != EINPROGRESS ) )
+		{
+			WARN( "ERROR [" + Cstring::num2Cstring( errno ) + "] [" + Cstring::num2Cstring( m_iReadSock ) + "]" );
 			return( false );
+		}
 
 		if ( m_bBLOCK )
 		{	
@@ -1381,19 +1389,18 @@ private:
 	//! Create the socket
 	virtual int SOCKET( bool bListen = false )
 	{
-		int iRet = 0;
-		while( iRet == 0 )
-			iRet = socket( PF_INET, SOCK_STREAM, IPPROTO_TCP );
-		
+		int iRet = socket( PF_INET, SOCK_STREAM, IPPROTO_TCP );
+
 		if ( ( iRet > -1 ) && ( bListen ) )
 		{
 			const int on = 1;
 
-                        	if ( setsockopt( iRet, SOL_SOCKET, SO_REUSEADDR, &on, sizeof( on ) ) != 0 )
+			if ( setsockopt( iRet, SOL_SOCKET, SO_REUSEADDR, &on, sizeof( on ) ) != 0 )
 			{
 				WARN( "SOCKET: Could not set SO_REUSEADDR" );
 			}
-		}
+		} else if ( iRet == -1 )
+			WARN( "UNABLE to create SOCKET [" + Cstring::num2Cstring( errno ) + "]" );
 
 		return( iRet );
 	}
