@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.101 $
+* $Revision: 1.102 $
 */
 
 #ifndef _HAS_CSOCKET_
@@ -2029,12 +2029,8 @@ namespace Csocket
 						T * pcSock = itSock->first;
 						EMessages iErrno = itSock->second;
 						
-						// mark that this sock was ready
-						spReadySocks.insert( pcSock );
 						if ( iErrno == SUCCESS )
 						{					
-							pcSock->ResetTimer();	// reset the timeout timer
-							
 							// read in data
 							// if this is a 
 							char *buff;
@@ -2086,6 +2082,7 @@ namespace Csocket
 
 								default:
 								{
+									pcSock->ResetTimer();	// reset the timeout timer
 									pcSock->PushBuff( buff, bytes );
 									pcSock->ReadData( buff, bytes );
 									break;
@@ -2117,19 +2114,8 @@ namespace Csocket
 				// call timeout on all the sockets that recieved no data
 				for( unsigned int i = 0; i < size(); i++ )
 				{
-					if ( (*this)[i]->GetType() != T::LISTENER )
-					{
-						// are we in the map of found socks ?
-						if ( spReadySocks.find( (*this)[i] ) == spReadySocks.end() )
-						{
-							if ( (*this)[i]->CheckTimeout() )
-								DelSock( i-- );
-						}
-					} else
-					{
-						if ( (*this)[i]->CheckTimeout() )
-							DelSock( i-- );
-					}
+					if ( (*this)[i]->CheckTimeout() )
+						DelSock( i-- );
 				}
 			}
 			// run any Manager Crons we may have
