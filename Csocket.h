@@ -2071,6 +2071,7 @@ private:
 					iErrno = SUCCESS;
 					if ( !pcSock->HasWrite() )
 					{
+						pcSock->ResetTimer();	// reset the timer on connect
 						pcSock->SetWrite( true );
 						// Call the Connected Event
 						pcSock->Connected();
