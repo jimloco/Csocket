@@ -171,7 +171,54 @@ public:
 			SSL3	= 3
 		
 		} eSSLMethods;
-		
+
+		//
+		// stream operators
+		Csock & operator<<( const Cstring & s ) 
+		{
+			Write( s );
+			return( *this );
+		}
+		Csock & operator<<( ostream & ( *io )( ostream & ) )
+		{
+			Write( "\n" );
+			return( *this );
+		}			
+		Csock & operator<<( int i ) 
+		{
+			Write( Cstring::num2Cstring( i ) );
+			return( *this );
+		}
+		Csock & operator<<( unsigned int i ) 
+		{
+			Write( Cstring::num2Cstring( i ) );
+			return( *this );
+		}
+		Csock & operator<<( long i ) 
+		{ 
+			Write( Cstring::num2Cstring( i ) );
+			return( *this );
+		}
+		Csock & operator<<( unsigned long i ) 
+		{
+			Write( Cstring::num2Cstring( i ) );
+			return( *this );
+		}
+		Csock & operator<<( unsigned long long i ) 
+		{
+			Write( Cstring::num2Cstring( i ) );
+			return( *this );
+		}
+		Csock & operator<<( float i ) 
+		{
+			Write( Cstring::num2Cstring( i ) );
+			return( *this );
+		}
+		Csock & operator<<( double i ) 
+		{
+			Write( Cstring::num2Cstring( i ) );
+			return( *this );
+		}		
 		//
 		// Resolve the name into m_hent
 		//
@@ -621,7 +668,10 @@ public:
 
 			if ( m_sSend.empty() )
 			{
-				cerr << "ER, NOT Sending DATA!?" << endl;
+#ifdef _DEBUG_
+				// maybe eventually make a __DEBUG_ONLY()
+				cerr << "ER, NOT Sending DATA!? [" << GetSockName() << "]" << endl;
+#endif /* _DEBUG_ */
 				return( true );
 			}
 			
