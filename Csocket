@@ -376,7 +376,7 @@ public:
 		T *Select( int iTime_sec = 1, int iTime_usec = 0 )
 		{		
 			struct timeval tv;
-			fd_set 		rfds, wfds;
+			fd_set rfds, wfds;
 			
 			tv.tv_sec = iTime_sec;	// one second timeout, good for clocks
 			tv.tv_usec = iTime_usec;
