@@ -1620,7 +1620,7 @@ template<class T>
 class TSocketManager : public vector<T *>
 {
 public:
-	TSocketManager() 
+	TSocketManager() : vector<T *>()
 	{ 
 		m_errno = SUCCESS; 
 		m_iCallTimeouts = GetMillTime();
@@ -1629,12 +1629,20 @@ public:
 
 	virtual ~TSocketManager() 
 	{
+		clear();
+	}
+
+	void clear()
+	{
 		for( unsigned int i = 0; i < size(); i++ )
 		{
 			if ( (*this)[i] )
 				Zzap( (*this)[i] );
 		}
+		vector<T *>::clear();
 	}
+
+	virtual void Cleanup() { clear(); }
 
 	enum EMessages
 	{
@@ -1645,12 +1653,12 @@ public:
 		
 	};
 
-	typedef struct
+	struct stSock
 	{
 		T			*pcSock;
 		EMessages	eErrno;
 	
-	} stSock;		
+	};
 
 	/**
 	* Create a connection
