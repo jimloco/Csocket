@@ -476,8 +476,7 @@ namespace Csocket
 			{	
 				// unset the flags afterwords, rather than have connect block
 				int fdflags = fcntl (m_iReadSock, F_GETFL, 0); 
-				
-				fdflags -= ( fdflags & O_NONBLOCK );
+				fdflags &= ~O_NONBLOCK;	
 				fcntl( m_iReadSock, F_SETFL, fdflags );
 				
 			}
@@ -873,9 +872,7 @@ namespace Csocket
 			{	
 				// unset the flags afterwords, rather then have connect block
 				int fdflags = fcntl (m_iReadSock, F_GETFL, 0); 
-				
-				fdflags -= ( fdflags & O_NONBLOCK );
-
+				fdflags &= ~O_NONBLOCK;	
 				fcntl( m_iReadSock, F_SETFL, fdflags );
 				
 			}				
