@@ -70,14 +70,16 @@ public:
 		{
 			if ( ( m_bActive ) && ( time( NULL ) >= m_iTime ) )
 			{
+			
 				RunJob();
-				
+
 				if ( m_bOnlyOnce )
 					m_bActive = false;
 				else
 					m_iTime = time( NULL ) + m_iTimeSequence;
 			}
 		}
+		
 		void Start( int TimeSequence, bool bOnlyOnce = true ) 
 		{
 			m_iTimeSequence = TimeSequence;
@@ -93,6 +95,7 @@ public:
 		bool isValid() { return( m_bActive ); }
 		
 protected:
+
 		virtual void RunJob()
 		{
 			cerr << "Override me." << endl;
@@ -870,19 +873,27 @@ public:
 		// Once we have the cron, we'll delete it
 		void Cron()
 		{
-			vector<CCron *>::iterator p;
+			vector<CCron *>::iterator p = m_vcCrons.begin();
 
-			for ( p = m_vcCrons.begin(); p != m_vcCrons.end(); p++ )
+			while( true )
 			{
+				if ( p == m_vcCrons.end() )
+					break;
+					
 				CCron *pcCron = *p;
 
 				if ( !pcCron->isValid() )
 				{
 					Zzap( pcCron );
 					m_vcCrons.erase( p );
-
+					// start from the beginning again
+					p = m_vcCrons.begin();
+					
 				} else
+				{
 					pcCron->run();
+					p++;
+				}
 			}
 		}
 		
@@ -1394,28 +1405,36 @@ public:
 		
 		void AddCron( CCron *pcCron )
 		{
-			m_vpcCrons.push_back( pcCron );
+			m_vcCrons.push_back( pcCron );
 		}
 
 		//
 		// these crons get ran in Loop()
 		void Cron()
 		{
-			vector<CCron *>::iterator p;
+			vector<CCron *>::iterator p = m_vcCrons.begin();
 
-			for ( p = m_vcCrons.begin(); p != m_vcCrons.end(); p++ )
+			while( true )
 			{
+				if ( p == m_vcCrons.end() )
+					break;
+					
 				CCron *pcCron = *p;
 
 				if ( !pcCron->isValid() )
 				{
 					Zzap( pcCron );
 					m_vcCrons.erase( p );
-
+					// start from the beginning again
+					p = m_vcCrons.begin();
+					
 				} else
+				{
 					pcCron->run();
+					p++;
+				}
 			}
-		}
+		}		
 
 private:
 
