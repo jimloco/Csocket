@@ -25,16 +25,16 @@
 
 //
 // The thought behind this class, is to use it as a main loop
-// derive from it, override its events to handle stuff
+// derive from it, override its events to handle stuff, it also wraps SSL, just pass it as true when you
+// run it and use the class normally
 //
-// I prefer threads over an overcomplicated single threaded app
-// If you need more then one outbound socket, thread it, it will be faster anyway :)
+// You can also do it yourself with Select(), Read(), and Write()
 //
 
-class CTCPConn : public Cmutex
+class CConn : public Cmutex
 {
 public:
-		CTCPConn() : Cmutex()
+		CConn() : Cmutex()
 		{
 			m_isSSL = false;
 			m_iTimeout = 60;
@@ -46,7 +46,7 @@ public:
 			Init();
 		}
 
-		virtual ~CTCPConn() 
+		virtual ~CConn() 
 		{
 			close( m_sock );
 #ifdef _HAS_SSL
@@ -82,7 +82,8 @@ public:
 			}
 			
 			// create the socket
-			m_sock = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
+			m_sock = socket( PF_INET, SOCK_STREAM, IPPROTO_TCP );
+				
 			m_address.sin_family = PF_INET;
 			m_address.sin_port = htons( iPort );
 			m_address.sin_addr = *(struct in_addr *)m_hent->h_addr;
@@ -159,33 +160,57 @@ public:
 			
 #endif /* _HAS_SSL */
 			
-			Connected();
+		}
+		
+		//
+		// returns result from select
+		// 0 == timeout, -1 == error, anything else is good to go
+		//
+		
+		int Select( int iTime_sec = 1, int iTime_usec = 0 )
+		{		
+			struct timeval tv;
+			tv.tv_sec = iTime_sec;	// one second timeout, good for clocks
+			tv.tv_usec = iTime_usec;
+			
+			int iSel;
+			if ( m_bHasWrite )
+			{
+				FD_ZERO( &m_rfds );
+				FD_SET( m_sock, &m_rfds );
+			
+				iSel = select(FD_SETSIZE, &m_rfds, NULL, NULL, &tv);
+			
+			} else
+			{
+				FD_ZERO( &m_rfds );
+				FD_ZERO( &m_wfds );
+				FD_SET( m_sock, &m_rfds );
+				FD_SET( m_sock, &m_wfds );
+				iSel = select(FD_SETSIZE, &m_rfds, &m_wfds, NULL, &tv);
+			}
+			
+			if ( ( iSel == -1 ) && ( errno == EINTR ) )
+				return( -2 );
+				
+				
+			return( iSel );
+		}			
+		//
+		// basically, this jumps into the select loop
+		// taking control of your app.
+		// Override the events below
+		//
+
+		void SelectLoop()
+		{
+		
 			// settle into the select loop
-			fd_set rfds, wfds;
 			bool binprog = true;
 			
 			while ( binprog )
 			{
-				struct timeval tv;
-				tv.tv_sec = 1;	// one second timeout, good for clocks
-				tv.tv_usec = 0;
-				
-				int iSel;
-				if ( m_bHasWrite )
-				{
-					FD_ZERO( &rfds );
-					FD_SET( m_sock, &rfds );
-				
-					iSel = select(FD_SETSIZE, &rfds, NULL, NULL, &tv);
-				
-				} else
-				{
-					FD_ZERO( &rfds );
-					FD_ZERO( &wfds );
-					FD_SET( m_sock, &rfds );
-					FD_SET( m_sock, &wfds );
-					iSel = select(FD_SETSIZE, &rfds, &wfds, NULL, &tv);
-				}
+				int iSel = Select();
 				
 				switch( iSel )
 				{
@@ -201,73 +226,46 @@ public:
 						break;
 					
 					case -1:
-						if ( errno != EINTR )
-						{
 							SelectError();
-							Disconnected();
 							close( m_sock );
 							binprog = false;
 							break;
-						}
 
 					case 1:
 					{
 						// something is ready for working on
 						m_iTimeoutPasses = 0;
-						if ( FD_ISSET( m_sock, &rfds ) )
-						{
-							char buff[65];
-							int bytes = 0;
-		
-							memset( ( char *)buff, '\0', 65 );
-							// socket ready for reading
-#ifdef _HAS_SSL							
-							if ( m_isSSL )							
-								bytes = SSL_read( m_ssl, buff, 64 );
-							else
-#endif /* _HAS_SSL */							
-							bytes = read( m_sock, buff, 64 );
 						
+						if ( ReadyForRead() )
+						{
+							char buff[64];
+							
+							int bytes = Read( buff, 64 );
+							
 							if ( bytes > 0 )
 							{
 								ReadyRead( buff, bytes );
 								PushBuff( buff, bytes );
 								
-							} else if ( ( bytes == 0 ) && ( errno != EAGAIN ) )
+							} else if ( bytes == 0 )
 							{
-								// all done reading, we're a success!
+								// EOF
 								ReadEOF();
 								Disconnected();
 								close( m_sock );
 								binprog = false;
 							
-							} else if ( ( bytes == -1 ) && ( errno != EINTR ) && ( errno != EAGAIN ) )
+							} else if ( bytes == -1 )
 							{
-#ifdef _HAS_SSL
-								int iErr = 0;
-								if ( m_isSSL )
-								{
-									iErr = SSL_get_error( m_ssl, bytes );
-									if ( ( iErr != SSL_ERROR_WANT_READ ) && ( iErr != SSL_ERROR_WANT_WRITE ) )
-									{
-										Disconnected();
-										close( m_sock );
-										binprog = false;
-									}
-								}
-#endif /* _HAS_SSL */								
-								if  ( !m_isSSL )
-								{
-									Disconnected();
-									close( m_sock );
-									binprog = false;
-								}
+								Disconnected();
+								close( m_sock );
+								binprog = false;
 							}
 							
 						} else
 						{
 							m_bHasWrite = true;
-							ReadyFirstWrite();
+							Connected();
 						}
 						break;
 					}
@@ -275,7 +273,10 @@ public:
 			}
 		}
 		
-		bool Send( const char *data, int len )
+		//
+		// Write to the socket
+		//
+		bool Write( const char *data, int len )
 		{
 			// I know this seems silly, but if you setup string right, it can handle binary data
 			// and ultimatly its easier to work with
@@ -333,15 +334,94 @@ public:
 			}
 			return( true );
 		}
-				
-		void Send( const Cstring & sData )
+		
+		//
+		// Write to the socket
+		//	
+		void Write( const Cstring & sData )
 		{
-			Send( sData.c_str(), sData.length() );
+			Write( sData.c_str(), sData.length() );
 		}
+
+		//
+		// Read from the socket
+		// Just pass in a pointer, big enough to hold len bytes
+		//
+		// Returns 0 for EOF
+		// Returns -1 for ERROR
+		// Returns -2 for Try Again ( EAGAIN )
+		// Otherwise returns the bytes read into buff
+		//
+		int Read( char *data, int len )
+		{
+			int bytes = 0;
+			memset( (char *)data, '\0', len );
+			
+#ifdef _HAS_SSL							
+			if ( m_isSSL )							
+				bytes = SSL_read( m_ssl, data, len );
+			else
+#endif /* _HAS_SSL */							
+				bytes = read( m_sock, data, len );
+			
+			if ( bytes == 0 )
+			{
+			 	if ( errno != EAGAIN )
+					return( 0 );
+				else
+					return( -2 );
+					
+			} else if ( bytes == -1 )
+			{
+				if ( ( errno == EINTR ) || ( errno != EAGAIN ) )
+					return( -2 );
+#ifdef _HAS_SSL
+				if ( m_isSSL )
+				{
+					int iErr = SSL_get_error( m_ssl, bytes );
+					if ( ( iErr != SSL_ERROR_WANT_READ ) && ( iErr != SSL_ERROR_WANT_WRITE ) )
+						return( -1 );
+					else
+						return( -2 );
+				}
+#else
+				return( -1 );
+#endif /* _HAS_SSL */								
+			}
+			
+			return( bytes );
+		}
+						
+		//
+		// Returns true if socket is ready to be read from
+		//
+		bool ReadyForRead()
+		{
+			if ( FD_ISSET( m_sock, &m_rfds ) )
+				return( true );
+			
+			return( false );
+		}
+		
+		//
+		// Returns true if socket is ready to be written too
+		//
+		bool ReadyForWrite()
+		{
+			if ( FD_ISSET( m_sock, &m_wfds ) )
+				return( true );
+			
+			return( false );
+		}
+		void SetTimeout( int iTimeout ) { m_iTimeout = iTimeout; }
+		int GetSock() { return( m_sock ); }
 		
 protected:
 	
+		//
 		// override these events
+		// Only use if going into SelectLoop()
+		// Otherwise you have control
 		virtual void Connected() {}										// Socket Connected Event
 		virtual void ConnectionFailed( int iFailure ) {}				// Socket Failed Event
 		virtual void Disconnected() {}									// Socket Disconnected Event
@@ -349,14 +429,14 @@ protected:
 		virtual void LineBuffer( const Cstring & sLine ) {}				// Full Line read event, without Trailing newline
 		
 		virtual void ReadyRead( const char *data, int len ) {}			// Ready to read event
-		virtual void ReadyFirstWrite() {}								// Ready to write for first time event
 		
 		virtual void ReadEOF() {}					// EOF event
 		
 		virtual void Timeout() {}				// overall timeout
 		virtual void SelectTimeout() {}			// Select timeout event, good place for chores
 		virtual void SelectError() {}			// Select Error event
-
+		///////////// End Events ////////////////////
+		
 private:
 		void PushBuff( const char *data, int len )
 		{
@@ -420,6 +500,7 @@ private:
 		SSL_METHOD			*m_ssl_method;
 #endif /* _HAS_SSL */
 
+		fd_set 		m_rfds, m_wfds;
 };
 
 #endif /* _HAS_CSOCKET_ */
