@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.104 $
+* $Revision: 1.105 $
 */
 
 #ifndef _HAS_CSOCKET_
@@ -1458,6 +1458,7 @@ namespace Csocket
 		
 		//! Get the send buffer
 		const CS_STRING & GetWriteBuffer() { return( m_sSend ); }
+		void ClearWriteBuffer() { m_sSend.clear(); }
 
 		//! is SSL_accept finished ?
 		bool FullSSLAccept() { return ( m_bFullsslAccept ); }
