@@ -23,6 +23,25 @@
 #include <Cstring>
 #include <Cthreads>
 
+// wrappers for FD_SET and such to work in templates
+
+void TFD_ZERO( fd_set *set )
+{
+	FD_ZERO( set );
+}
+
+void TFD_SET( int iSock, fd_set *set )
+{
+	FD_SET( iSock, set );
+}
+
+bool TFD_ISSET( int iSock, fd_set *set )
+{
+	if ( FD_ISSET( iSock, set ) )
+		return( true );
+		
+	return( false );
+}
 
 class Csock
 {
@@ -285,10 +304,7 @@ public:
 
 		bool needsWrite()
 		{
-			if ( !m_bNeverWritten )
-				return( true );
-			else
-				return( false );
+			return( m_bNeverWritten );
 		}
 		
 		//
@@ -373,17 +389,16 @@ public:
 		// returns NULL if none are ready, check getErr() for the error, if not SUCCESS Select() failed
 		//
 		
-		T *Select( int iTime_sec = 1, int iTime_usec = 0 )
+		T * Select( int iTime_sec = 1, int iTime_usec = 0 )
 		{		
 			struct timeval tv;
 			fd_set rfds, wfds;
 			
 			tv.tv_sec = iTime_sec;	// one second timeout, good for clocks
 			tv.tv_usec = iTime_usec;
-			
-
-			FD_ZERO( &rfds );						
-			FD_ZERO( &wfds );
+		
+			TFD_ZERO( &rfds );						
+			TFD_ZERO( &wfds );
 			
 			bool bHasWriteable = false;
 			
@@ -391,15 +406,18 @@ public:
 			{
 				Csock *pcSock = (*this)[i];
 				int & iSock = pcSock->GetSock();
-				
-				if ( !pcSock->hasWrite() )
-					FD_SET( iSock, &rfds );
-				else
+
+				if ( pcSock->hasWrite() )
 				{
-					FD_SET( iSock, &rfds );
-					FD_SET( iSock, &wfds );
+					TFD_SET( iSock, &rfds );
+					
+				} else
+				{
+					TFD_SET( iSock, &rfds );
+					TFD_SET( iSock, &wfds );
 					bHasWriteable = true;
 				}
+
 			}
 			
 			// now select on them
@@ -433,13 +451,14 @@ public:
 						Csock *pcSock = (*this)[i];
 						int & iSock = pcSock->GetSock();
 						
-						if ( FD_ISSET( iSock, &rfds ) )
+						if ( TFD_ISSET( iSock, &rfds ) )
 							return( pcSock );
-						else if ( FD_ISSET( iSock, &wfds ) )
+						else if ( TFD_ISSET( iSock, &wfds ) )
 						{
 							pcSock->setWrite( true );
 							return( pcSock );
 						}
+
 					}
 					
 					// it said one was ready, but none of them were :(
@@ -447,9 +466,10 @@ public:
 					return( NULL );
 				}
 			}
+			
+			return( NULL );
 		}			
-		
-		
+				
 		void DelSock( T *pcSock )
 		{
 			vector<T *>::iterator p;
