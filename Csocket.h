@@ -5,8 +5,8 @@
 *
 *    CVS Info:
 *       $Author: imaginos $
-*       $Date: 2003/04/14 00:56:52 $
-*       $Revision: 1.8 $
+*       $Date: 2003/04/14 03:12:12 $
+*       $Revision: 1.9 $
 */
 
 #ifndef _HAS_CSOCKET_
@@ -1254,6 +1254,13 @@ public:
 			
 		};
 
+		typedef struct
+		{
+			T			*pcSock;
+			EMessages	eErrno;
+		
+		} stSock;		
+
 		/**
 		* Create a connection
 		*
@@ -1265,10 +1272,11 @@ public:
 		* \param sBindHost the host to bind too
 		* \return true on success
 		*/
-		bool Connect( const Cstring & sHostname, int iPort , const Cstring & sSockName, int iTimeout = 60, bool isSSL = false, const Cstring & sBindHost = "" )
+		bool Connect( const Cstring & sHostname, int iPort , const Cstring & sSockName, int iTimeout = 60, bool isSSL = false, const Cstring & sBindHost = "", T *pcSock = NULL )
 		{
 			// create the new object
-			T *pcSock = new T( sHostname, iPort, iTimeout );
+			if ( !pcSock )
+				pcSock = new T( sHostname, iPort, iTimeout );
 			
 			// make it NON-Blocking IO
 			pcSock->BlockIO( false );
@@ -1305,18 +1313,18 @@ public:
 		* convience function
 		* @see Connect()
 		*/
-		bool QuickConnect( const Cstring & sHostname, int iPort, int iTimeout = 60 )
+		bool QuickConnect( const Cstring & sHostname, int iPort, int iTimeout = 60, T *pcSock = NULL )
 		{
-			return( Connect( sHostname, iPort, "QuickConnect", iTimeout ) );
+			return( Connect( sHostname, iPort, "QuickConnect", iTimeout, false, pcSock ) );
 		}
 		/**
 		* convience function
 		* @see Connect()
 		*/
-		bool QuickSSLConnect( const Cstring & sHostname, int iPort, int iTimeout = 60 )
+		bool QuickSSLConnect( const Cstring & sHostname, int iPort, int iTimeout = 60, T *pcSock = NULL )
 		{
 #ifdef HAVE_LIBSSL		
-			return( Connect( sHostname, iPort, "QuickConnect", iTimeout, true ) );
+			return( Connect( sHostname, iPort, "QuickConnect", iTimeout, true, pcSock ) );
 #else
 			return( false );
 #endif /* HAVE_LIBSSL */
@@ -1331,9 +1339,10 @@ public:
 		* \param iMaxConns the maximum amount of connections to accept
 		* \return true on success
 		*/
-		bool AddListener( int iPort, const Cstring & sSockName, int isSSL = false, int iMaxConns = SOMAXCONN )
+		bool AddListener( int iPort, const Cstring & sSockName, int isSSL = false, int iMaxConns = SOMAXCONN, T *pcSock = NULL )
 		{
-			T * pcSock = new T();
+			if ( !pcSock )
+				pcSock = new T();
 
 			pcSock->BlockIO( false );
 
@@ -1348,13 +1357,161 @@ public:
 			return( false );
 		}
 	
-		typedef struct
+
+		/*
+		* Best place to call this class for running, all the call backs are called
+		* You should through this in your main while loop (long as its not blocking)
+		* all the events are called as needed
+		*/ 
+		void Loop ()
 		{
-			T			*pcSock;
-			EMessages	eErrno;
-		
-		} stSock;
+			vector<stSock> vstSock = Select();
+			map<T *, bool> mstSock;
 			
+			switch( m_errno )
+			{
+				case SUCCESS:
+				{
+					for( unsigned int a = 0; a < vstSock.size(); a++ )
+					{
+						T * pcSock = vstSock[a].pcSock;
+						EMessages iErrno = vstSock[a].eErrno;
+						
+						// mark that this sock was ready
+						mstSock[pcSock] = true;			
+						if ( iErrno == SUCCESS )
+						{					
+							pcSock->ResetTimer();	// reset the timeout timer
+							
+							// read in data
+							// if this is a 
+							char *buff;
+							int iLen = 0;
+		
+							if ( pcSock->GetSSL() )
+								iLen = pcSock->GetPending();
+		
+							if ( iLen > 0 )
+							{
+								buff = (char *)malloc( iLen );
+							} else
+							{
+								iLen = CS_BLOCKSIZE;
+								buff = (char *)malloc( CS_BLOCKSIZE );
+						
+							}
+		
+							int bytes = pcSock->Read( buff, iLen );
+		
+							switch( bytes )
+							{
+								case 0:
+								{
+									// EOF
+									DelSock( pcSock );
+									break;
+								}
+								
+								case -1:
+								{
+									pcSock->SockError();
+									DelSock( pcSock );
+									break;
+								}
+								
+								case -2:
+									break;
+									
+								default:
+								{
+									pcSock->PushBuff( buff, bytes );
+									pcSock->ReadData( buff, bytes );
+									break;
+								}						
+							}
+							// free up the buff
+							free( buff );
+						
+						} else if ( iErrno == SELECT_ERROR )
+						{
+							// a socket came back with an error
+							// usually means it was closed
+							DestroySock( pcSock );
+						}
+					}
+					break;
+				}
+				
+				case SELECT_TIMEOUT:
+				case SELECT_ERROR:
+				default	:
+					break;
+			}
+			
+			
+			if ( ( GetMillTime() - m_iCallTimeouts ) > 1000 )
+			{
+				m_iCallTimeouts = GetMillTime();
+				// call timeout on all the sockets that recieved no data
+				for( unsigned int i = 0; i < size(); i++ )
+				{
+					if ( (*this)[i]->GetType() != T::LISTENER )
+					{
+						// are we in the map of found socks ?
+						if ( mstSock.find( (*this)[i] ) == mstSock.end() )
+						{
+							if ( (*this)[i]->CheckTimeout() )
+								DestroySock( (*this)[i] );
+						}
+					}
+				}
+			}
+			// run any Manager Crons we may have
+			Cron();
+		}
+
+		/*
+		* Make this method virtual, so you can override it when a socket is added
+		* Assuming you might want to do some extra stuff
+		*/
+		virtual void AddSock( T *pcSock, const Cstring & sSockName )
+		{
+			pcSock->SetSockName( sSockName );
+			push_back( pcSock );
+		}
+		
+		//! returns a pointer to the sock found by name or NULL on no match
+		T * FindSockByName( const Cstring & sName )
+		{
+			for( unsigned int i = 0; i < size(); i++ )
+				if ( (*this)[i]->GetSockName() == sName )
+					return( (*this)[i] );
+			
+			return( NULL );
+		}
+		
+		//! returns a vector of pointers to socks with sHostname as being connected
+		vector<T *> FindSocksByRemoteHost( const Cstring & sHostname )
+		{
+			vector<T *> vpSocks;
+			
+			for( unsigned int i = 0; i < size(); i++ )
+				if ( (*this)[i]->GetHostName() == sHostname )
+					vpSocks.push_back( (*this)[i] );
+			
+			return( vpSocks );
+		}
+		
+		//! return the last known error as set by this class
+		int GetErrno() { return( m_errno ); }
+
+		//! add a cronjob at the manager level
+		void AddCron( CCron *pcCron )
+		{
+			m_vcCrons.push_back( pcCron );
+		}
+
+private:
 		/**
 		* returns a pointer to the ready Csock class thats available
 		* returns empty vector if none are ready, check GetErrno() for the error, if not SUCCESS Select() failed
@@ -1600,160 +1757,19 @@ public:
 			cerr << "WARNING!!! Could not find " << (unsigned int *)pcSock << endl;
 		}
 
-
-		/*
-		* Best place to call this class for running, all the call backs are called
-		* You should through this in your main while loop (long as its not blocking)
-		* all the events are called as needed
-		*/ 
-		void Loop ()
+		//! internal use only
+		void AddstSock( vector<stSock> * pcvSt, EMessages eErrno, T * pcSock )
 		{
-			vector<stSock> vstSock = Select();
-			map<T *, bool> mstSock;
-			
-			switch( m_errno )
+			for( unsigned int i = 0; i < pcvSt->size(); i++ )
 			{
-				case SUCCESS:
-				{
-					for( unsigned int a = 0; a < vstSock.size(); a++ )
-					{
-						T * pcSock = vstSock[a].pcSock;
-						EMessages iErrno = vstSock[a].eErrno;
-						
-						// mark that this sock was ready
-						mstSock[pcSock] = true;			
-						if ( iErrno == SUCCESS )
-						{					
-							pcSock->ResetTimer();	// reset the timeout timer
-							
-							// read in data
-							// if this is a 
-							char *buff;
-							int iLen = 0;
-		
-							if ( pcSock->GetSSL() )
-								iLen = pcSock->GetPending();
-		
-							if ( iLen > 0 )
-							{
-								buff = (char *)malloc( iLen );
-							} else
-							{
-								iLen = CS_BLOCKSIZE;
-								buff = (char *)malloc( CS_BLOCKSIZE );
-						
-							}
-		
-							int bytes = pcSock->Read( buff, iLen );
-		
-							switch( bytes )
-							{
-								case 0:
-								{
-									// EOF
-									DelSock( pcSock );
-									break;
-								}
-								
-								case -1:
-								{
-									pcSock->SockError();
-									DelSock( pcSock );
-									break;
-								}
-								
-								case -2:
-									break;
-									
-								default:
-								{
-									pcSock->PushBuff( buff, bytes );
-									pcSock->ReadData( buff, bytes );
-									break;
-								}						
-							}
-							// free up the buff
-							free( buff );
-						
-						} else if ( iErrno == SELECT_ERROR )
-						{
-							// a socket came back with an error
-							// usually means it was closed
-							DestroySock( pcSock );
-						}
-					}
-					break;
-				}
-				
-				case SELECT_TIMEOUT:
-				case SELECT_ERROR:
-				default	:
-					break;
+				if ( (*pcvSt)[i].pcSock == pcSock )
+					return;
 			}
+			stSock stPB;
+			stPB.eErrno = eErrno;
+			stPB.pcSock = pcSock;
 			
-			
-			if ( ( GetMillTime() - m_iCallTimeouts ) > 1000 )
-			{
-				m_iCallTimeouts = GetMillTime();
-				// call timeout on all the sockets that recieved no data
-				for( unsigned int i = 0; i < size(); i++ )
-				{
-					if ( (*this)[i]->GetType() != T::LISTENER )
-					{
-						// are we in the map of found socks ?
-						if ( mstSock.find( (*this)[i] ) == mstSock.end() )
-						{
-							if ( (*this)[i]->CheckTimeout() )
-								DestroySock( (*this)[i] );
-						}
-					}
-				}
-			}
-			// run any Manager Crons we may have
-			Cron();
-		}
-
-		/*
-		* Make this method virtual, so you can override it when a socket is added
-		* Assuming you might want to do some extra stuff
-		*/
-		virtual void AddSock( T *pcSock, const Cstring & sSockName )
-		{
-			pcSock->SetSockName( sSockName );
-			push_back( pcSock );
-		}
-		
-		//! returns a pointer to the sock found by name or NULL on no match
-		T * FindSockByName( const Cstring & sName )
-		{
-			for( unsigned int i = 0; i < size(); i++ )
-				if ( (*this)[i]->GetSockName() == sName )
-					return( (*this)[i] );
-			
-			return( NULL );
-		}
-		
-		//! returns a vector of pointers to socks with sHostname as being connected
-		vector<T *> FindSocksByRemoteHost( const Cstring & sHostname )
-		{
-			vector<T *> vpSocks;
-			
-			for( unsigned int i = 0; i < size(); i++ )
-				if ( (*this)[i]->GetHostName() == sHostname )
-					vpSocks.push_back( (*this)[i] );
-			
-			return( vpSocks );
-		}
-		
-		//! return the last known error as set by this class
-		int GetErrno() { return( m_errno ); }
-		//! only used internally
-		void DestroySock( T * pcClass ) { m_pcDestroySocks.push_back( pcClass ); }
-		
-		//! add a cronjob at the manager level
-		void AddCron( CCron *pcCron )
-		{
-			m_vcCrons.push_back( pcCron );
+			pcvSt->push_back( stPB );
 		}
 
 		//! these crons get ran and checked in Loop()
@@ -1773,26 +1789,17 @@ public:
 			}
 		}		
 
-private:
-		void AddstSock( vector<stSock> * pcvSt, EMessages eErrno, T * pcSock )
-		{
-			for( unsigned int i = 0; i < pcvSt->size(); i++ )
-			{
-				if ( (*pcvSt)[i].pcSock == pcSock )
-					return;
-			}
-			stSock stPB;
-			stPB.eErrno = eErrno;
-			stPB.pcSock = pcSock;
-			
-			pcvSt->push_back( stPB );
-		}
+		//! only used internally
+		void DestroySock( T * pcClass ) { m_pcDestroySocks.push_back( pcClass ); }
 		
 		EMessages			m_errno;
 		vector<T *>			m_pcDestroySocks;
 		vector<CCron *>		m_vcCrons;
 		unsigned long long	m_iCallTimeouts;	
 };
+
+//! basic socket class
+typedef TSocketManager<Csock> CSocketManager;
 
 #endif /* _HAS_CSOCKET_ */
 
