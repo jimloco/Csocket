@@ -5,8 +5,8 @@
 *
 *    CVS Info:
 *       $Author: imaginos $
-*       $Date: 2003/04/13 20:49:42 $
-*       $Revision: 1.7 $
+*       $Date: 2003/04/14 00:56:52 $
+*       $Revision: 1.8 $
 */
 
 #ifndef _HAS_CSOCKET_
@@ -36,6 +36,7 @@
 
 #include "Cstring.h"
 #include "Cthreads.h"
+#include "Cmisc.h"
 
 #define CS_BLOCKSIZE	64
 
@@ -909,14 +910,13 @@ public:
 		{
 			if ( m_itimeout > 0 )
 			{
-				if ( ( m_iTcount / 4 ) >= m_itimeout )
+				if ( m_iTcount >= m_itimeout )
 				{
 					Timeout();
 					return( true );
 				}
-									
-				m_iTcount++;	// since the select statement is in 1/4 second timeouts, increment them by four
-			
+				
+				m_iTcount++;
 			}	
 			return( false );
 		}
@@ -1210,18 +1210,6 @@ private:
 			m_bFullsslAccept = false;
 			m_bsslEstablished = false;
 		}
-		
-		//! Get current time in milliseconds
-		unsigned long long GetMillTime()
-		{
-			struct timeb tp;
-			unsigned long long iTime = 0;
-			ftime( &tp );
-			iTime = tp.time * 1000;
-			iTime += tp.millitm;			
-			return( iTime );
-		}
-		
 };
 
 /**
@@ -1242,13 +1230,19 @@ template<class T>
 class TSocketManager : public vector<T *>
 {
 public:
-		TSocketManager() { m_errno = SUCCESS; }
+		TSocketManager() 
+		{ 
+			m_errno = SUCCESS; 
+			m_iCallTimeouts = GetMillTime();
+		}
+
 		virtual ~TSocketManager() 
 		{
 			for( unsigned int i = 0; i < size(); i++ )
+			{
 				if ( (*this)[i] )
 					Zzap( (*this)[i] );
-
+			}
 		}
 
 		enum EMessages
@@ -1373,12 +1367,8 @@ public:
 			fd_set rfds, wfds;
 			vector<stSock> vRet;
 			
-			// 1/4 second timeouts, nice and easy
-			// if you decide to change this number, be sure to change the
-			// timeout counter above, or your timeouts will be off
-			// ( m_iTCount in Csock class )
 			tv.tv_sec = 0;
-			tv.tv_usec = ( 1000000 / 4 ); 
+			tv.tv_usec = ( 1000000 / 10 ); // 100 ms timeouts
 		
 			TFD_ZERO( &rfds );						
 			TFD_ZERO( &wfds );
@@ -1500,6 +1490,9 @@ public:
 			// old fashion select, go fer it
 			int iSel;
 
+			if ( !vRet.empty() )
+				tv.tv_usec = 5000;	// this won't be a timeout, 5 ms pause to see if anything else is ready
+				
 			if ( bHasWriteable )
 				iSel = select(FD_SETSIZE, &rfds, &wfds, NULL, &tv);
 			else
@@ -1616,6 +1609,8 @@ public:
 		void Loop ()
 		{
 			vector<stSock> vstSock = Select();
+			map<T *, bool> mstSock;
+			
 			switch( m_errno )
 			{
 				case SUCCESS:
@@ -1625,6 +1620,8 @@ public:
 						T * pcSock = vstSock[a].pcSock;
 						EMessages iErrno = vstSock[a].eErrno;
 						
+						// mark that this sock was ready
+						mstSock[pcSock] = true;			
 						if ( iErrno == SUCCESS )
 						{					
 							pcSock->ResetTimer();	// reset the timeout timer
@@ -1689,25 +1686,29 @@ public:
 				}
 				
 				case SELECT_TIMEOUT:
-				{
-					// call timeout on all the sockets
-					for( unsigned int i = 0; i < size(); i++ )
-					{
-						if ( (*this)[i]->GetType() != T::LISTENER )
-						{
-							if ( (*this)[i]->CheckTimeout() )
-							{
-								DestroySock( (*this)[i] );
-							}
-						}
-					}
-					break;
-				}
-
+				case SELECT_ERROR:
 				default	:
 					break;
 			}
-
+			
+			
+			if ( ( GetMillTime() - m_iCallTimeouts ) > 1000 )
+			{
+				m_iCallTimeouts = GetMillTime();
+				// call timeout on all the sockets that recieved no data
+				for( unsigned int i = 0; i < size(); i++ )
+				{
+					if ( (*this)[i]->GetType() != T::LISTENER )
+					{
+						// are we in the map of found socks ?
+						if ( mstSock.find( (*this)[i] ) == mstSock.end() )
+						{
+							if ( (*this)[i]->CheckTimeout() )
+								DestroySock( (*this)[i] );
+						}
+					}
+				}
+			}
 			// run any Manager Crons we may have
 			Cron();
 		}
@@ -1790,6 +1791,7 @@ private:
 		EMessages			m_errno;
 		vector<T *>			m_pcDestroySocks;
 		vector<CCron *>		m_vcCrons;
+		unsigned long long	m_iCallTimeouts;	
 };
 
 #endif /* _HAS_CSOCKET_ */
