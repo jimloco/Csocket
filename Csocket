@@ -15,6 +15,7 @@
 #include <string.h>
 #include <ctype.h>
 #include <assert.h>
+#include <sys/ioctl.h>
 
 #ifdef _HAS_SSL
 #include <openssl/ssl.h>
@@ -25,17 +26,17 @@
 #include <Cthreads>
 
 // wrappers for FD_SET and such to work in templates
-void TFD_ZERO( fd_set *set )
+inline void TFD_ZERO( fd_set *set )
 {
 	FD_ZERO( set );
 }
 
-void TFD_SET( int iSock, fd_set *set )
+inline void TFD_SET( int iSock, fd_set *set )
 {
 	FD_SET( iSock, set );
 }
 
-bool TFD_ISSET( int iSock, fd_set *set )
+inline bool TFD_ISSET( int iSock, fd_set *set )
 {
 	if ( FD_ISSET( iSock, set ) )
 		return( true );
@@ -43,6 +44,11 @@ bool TFD_ISSET( int iSock, fd_set *set )
 	return( false );
 }
 
+inline void TFD_CLR( int iSock, fd_set *set )
+{
+	FD_CLR( iSock, set );
+}
+	
 class Csock
 {
 public:
@@ -391,7 +397,7 @@ public:
 		
 		bool CheckTimeout()
 		{
-			if ( m_iTcount >= m_itimeout )
+			if ( ( m_itimeout > 0 ) && ( m_iTcount >= m_itimeout ) )
 			{
 				Timeout();
 				return( true );
@@ -428,12 +434,11 @@ public:
 				if ( iFind != Cstring::npos )
 				{
 					Cstring sBuff = m_sbuffer.substr( 0, iFind );
-				
-					if ( !sBuff.empty() )
-						ReadLine( sBuff + "\n" );
-				
 					m_sbuffer.erase( 0, iFind + 1 );
-				
+
+					if ( !sBuff.empty() )
+						ReadLine( sBuff + "\n" );				
+
 				} else
 					break;
 			}
@@ -500,7 +505,7 @@ public:
 			for( unsigned int i = 0; i < size(); i++ )
 				if ( (*this)[i] )
 				{
-					close( (*this)[i]->GetSock() );
+					(*this)[i]->CloseSock();
 					delete( (*this)[i] );
 					(*this)[i] = NULL;
 				}
@@ -596,6 +601,7 @@ public:
 				
 				if ( pcSock->GetType() != T::LISTENER )
 				{
+
 					int & iSock = pcSock->GetSock();
 
 					if ( pcSock->hasWrite() )
@@ -625,12 +631,12 @@ public:
 					}
 				}
 			}
-			
+		
 			// now select on them
 			while( true )
 			{
 				int iSel;
-				 
+
 				if ( bHasWriteable )
 					iSel = select(FD_SETSIZE, &rfds, &wfds, NULL, &tv);
 				else
@@ -660,7 +666,7 @@ public:
 							m_errno = SUCCESS;
 						else
 							m_errno = SELECT_ERROR;
-							
+
 						return( pcSock );
 						
 					} else if ( TFD_ISSET( iSock, &wfds ) )
