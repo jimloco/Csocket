@@ -5,8 +5,8 @@
 *
 *    CVS Info:
 *       $Author: imaginos $
-*       $Date: 2003/05/14 23:04:42 $
-*       $Revision: 1.19 $
+*       $Date: 2003/05/27 23:45:39 $
+*       $Revision: 1.20 $
 */
 
 #ifndef _HAS_CSOCKET_
@@ -64,6 +64,39 @@ inline void TFD_CLR( int iSock, fd_set *set )
 	FD_CLR( iSock, set );
 }
 
+bool GetHostByName( const Cstring & sHostName, struct in_addr *paddr )
+{
+	bool bRet = false;
+	struct hostent *hent = NULL;
+#ifdef __linux__
+	char hbuff[2048];
+	struct hostent hentbuff;
+	memset( (char *)hbuff, '\0', 2048 );
+			
+	int err;
+	if ( gethostbyname_r( sHostName.c_str(), &hentbuff, hbuff, 2048, &hent, &err ) == 0 )
+		bRet = true;
+
+#else
+	static Cmutex m;
+
+	m.lock();
+	hent = gethostbyname( sHostName.c_str() );
+
+	if ( mhent )
+		bRet = true;
+	
+#endif /* __linux__ */
+
+	if ( bRet )
+		*paddr = *(struct in_addr *)hent->h_addr; 
+
+#ifndef __linux__
+	m.unlock();
+#endif /* __linux__ */
+
+	return( bRet );
+}
 /**
 * @class CCron
 * @brief this is the main cron job class
@@ -250,26 +283,6 @@ public:
 			return( *this );
 		}		
 
-		//! Resolve the name, this is internal, don't use directly
-		bool Resolve()
-		{
-			char hbuff[2048];
-			memset( (char *)hbuff, '\0', 2048 );
-			
-#ifdef __linux__			
-			int err;
-			if ( gethostbyname_r( m_shostname.c_str(), &m_hentbuff, hbuff, 2048, &m_hent, &err ) != 0 )
-				return( false );
-#else
-			m_hent = gethostbyname( m_shostname.c_str() );
-			if ( !m_hent )
-				return( false );
-#endif /* __linux__ */
-			
-			return( true );
-			
-		}
-
 		/**
 		* Create the connection
 		*
@@ -281,55 +294,38 @@ public:
 			// create the socket
 			m_isock = SOCKET();
 				
-			if ( !m_hent )
-				if ( !Resolve() )
-					return( false );
-					
 			m_address.sin_family = PF_INET;
 			m_address.sin_port = htons( m_iport );
-			m_address.sin_addr = *(struct in_addr *)m_hent->h_addr;
+
+			if ( !GetHostByName( m_shostname, &(m_address.sin_addr) ) )
+				return( false );
 
 			// bind to a hostname if requested
 			if ( !sBindHost.empty() )
 			{
 				struct sockaddr_in vh;
-#ifdef __linux__
-				char hbuff[2048];
-				int iErr;
-				memset( (char *)hbuff, '\0', 2048 );
-				struct hostent hentbuff;
-				struct hostent *h;
-				if ( gethostbyname_r( sBindHost.c_str(), &hentbuff, hbuff, 2048, &h, &iErr ) != 0 )
+
+				vh.sin_family = PF_INET;
+				if ( !GetHostByName( sBindHost, &(vh.sin_addr) ) )
 					return( false );
-#else
-				struct hostent *h;
-				h = gethostbyname( sBindHost.c_str() );
-#endif /* __linux__ */
-					
-				if ( h )
+
+				// try to bind 3 times, otherwise exit failure
+				bool bBound = false;
+				for( int a = 0; a < 3; a++ )
 				{
-					vh.sin_family = PF_INET;
-					vh.sin_addr = *(struct in_addr *)h->h_addr;
-					
-					// try to bind 3 times, otherwise exit failure
-					bool bBound = false;
-					for( int a = 0; a < 3; a++ )
+					if ( bind( m_isock, (struct sockaddr *) &vh, sizeof( vh ) ) == 0 )
 					{
-						if ( bind( m_isock, (struct sockaddr *) &vh, sizeof( vh ) ) == 0 )
-						{
-							bBound = true;
-							break;
-						}
-						usleep( 5000 );	// quick pause, common lets BIND!)(!*!
+						bBound = true;
+						break;
 					}
+					usleep( 5000 );	// quick pause, common lets BIND!)(!*!
+				}
 					
-					if ( !bBound )
-					{
-						ERROR( "Failure to bind to " + sBindHost );
-						return( false );
-					}
-				} else
+				if ( !bBound )
+				{
+					ERROR( "Failure to bind to " + sBindHost );
 					return( false );
+				}
 			}
 			
 			// set it none blocking
@@ -1162,7 +1158,6 @@ private:
 		unsigned long long	m_iMaxMilliSeconds, m_iLastSendTime;
 		unsigned int		m_iMaxBytes, m_iLastSend;
 		
-		struct hostent		*m_hent, m_hentbuff;
 		struct sockaddr_in 	m_address;
 		
 #ifdef HAVE_LIBSSL
@@ -1229,7 +1224,6 @@ private:
 			m_sbuffer.clear();
 			m_bClosed = false;
 			m_bBLOCK = true;
-			m_hent = NULL;
 			m_iMethod = SSL23;
 			m_sCipherType = "ALL";
 			m_sPemFile = "server.pem";
