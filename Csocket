@@ -355,8 +355,10 @@ public:
 			
 		} eMessages;
 
-		virtual bool Connect( T * pcSock, bool isSSL = false )
+		virtual bool Connect( const Cstring & sHostname, int iPort , bool isSSL = false )
 		{
+			// create the new object
+			T *pcSock = new T( sHostname, iPort );
 			
 			// figure out the hostname we're connecting to.		
 			if ( !pcSock->Resolve() )
