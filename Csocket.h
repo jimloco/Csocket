@@ -466,7 +466,7 @@ public:
 	{
 		m_isock = SOCKET( true );
 
-		if ( m_isock == -1 )
+		if ( m_isock == 0 )
 			return( false );
 
 		m_address.sin_family = PF_INET;
@@ -732,7 +732,7 @@ public:
 	virtual bool ConnectSSL( const Cstring & sBindhost = "" )
 	{
 #ifdef HAVE_LIBSSL		
-		if ( m_isock == 0 )
+		if ( m_isock == -1 )
 			if ( !Connect( sBindhost ) )
 				return( false );
 
@@ -1068,6 +1068,12 @@ public:
 	//! Set the SSL method type
 	void SetSSLMethod( int iMethod ) { m_iMethod = iMethod; }
 	int GetSSLMethod() { return( m_iMethod ); }
+	
+#ifdef HAVE_LIBSSL
+	void SetSSLObject( SSL *ssl ) { m_ssl = ssl; }
+	void SetCTXObject( SSL_CTX *sslCtx ) { m_ssl_ctx = sslCtx; }
+	void SetFullSSLAccept() { m_bFullsslAccept = true; }
+#endif /* HAVE_LIBSSL */
 	
 	//! Get the send buffer
 	const Cstring & GetSendBuff() { return( m_sSend ); }
