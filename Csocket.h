@@ -62,12 +62,12 @@
 #include <set>
 
 
-#ifdef _HAS_CSTRING_
-#	define CS_STRING Cstring
-#endif /* _HAS_CSTRING_ */
-
 #ifndef CS_STRING
-#	define CS_STRING string
+#	ifdef _HAS_CSTRING_
+#		define CS_STRING Cstring
+#	else
+#		define CS_STRING string
+#	endif	/* _HAS_CSTRING_ */
 #endif /* CS_STRING */
 
 #ifndef CS_DEBUG
@@ -1288,9 +1288,6 @@ namespace Csocket
 		//! Use this to bind this socket to inetd
 		bool ConnectInetd( bool bIsSSL = false, const CS_STRING & sHostname = "" )
 		{
-			// set our socket type
-			SetType( INBOUND );
-
 			if ( !sHostname.empty() )
 				m_sSockName = sHostname;
 			
@@ -1309,22 +1306,42 @@ namespace Csocket
 				}
 			}
 
+			return( ConnectFD( 0, 1, m_sSockName, bIsSSL, INBOUND ) );
+		}
+
+		//! Tie this guy to an existing real file descriptor
+		bool ConnectFD( int iReadFD, int iWriteFD, const CS_STRING & sName, bool bIsSSL = false, ETConn eDirection = INBOUND )
+		{
+			if ( eDirection == LISTENER )
+			{
+				CS_DEBUG( "You can not use a LISTENER type here!" );
+				return( false );
+			}
+
+			// set our socket type
+			SetType( eDirection );
+
+			// set the hostname
+			m_sSockName = sName;
+			
 			// set the file descriptors
-			SetRSock( 0 );
-			SetWSock( 1 );
+			SetRSock( iReadFD );
+			SetWSock( iWriteFD );
 
 			// set it up as non-blocking io
 			NonBlockingIO();
 			
 			if ( bIsSSL )
 			{
-				if ( !AcceptSSL() )
+				if ( ( eDirection == INBOUND ) && ( !AcceptSSL() ) )
+					return( false );
+				else if ( ( eDirection == OUTBOUND ) && ( !ConnectSSL() ) )
 					return( false );
 			}
 
 			return( true );
 		}
-		
+
 		//! Get the peer's X509 cert
 #ifdef HAVE_LIBSSL
 		X509 *getX509()
@@ -1995,7 +2012,6 @@ namespace Csocket
 			TFD_ZERO( &wfds );
 
 			// before we go any further, Process work needing to be done on the job
-
 			for( unsigned int i = 0; i < size(); i++ )
 			{
 				if ( (*this)[i]->isClosed() )
