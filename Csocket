@@ -634,8 +634,15 @@ public:
 				fcntl( m_isock, F_SETFL, fdflags|O_NONBLOCK );
 			}	
 			
-			if ( ( SSL_connect( m_ssl ) < 0 ) && ( errno != EAGAIN ) )
-				bPass = false;
+			int iErr = SSL_connect( m_ssl );
+			if ( iErr != 1 )
+			{
+				int sslErr = SSL_get_error( m_ssl, iErr );
+
+				if ( ( sslErr != SSL_ERROR_WANT_READ ) && ( sslErr != SSL_ERROR_WANT_WRITE ) )
+					bPass = false;
+			} else
+				bPass = true;
 
 			if ( m_bBLOCK )
 			{	
