@@ -1399,6 +1399,7 @@ private:
 		m_bsslEstablished = false;
 		m_bEnableReadLine = false;
 		m_iMaxStoredBufferLength = 1024;
+		m_iConnType = INBOUND;
 	}
 };
 
