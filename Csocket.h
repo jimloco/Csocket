@@ -127,22 +127,15 @@ inline bool GetHostByName( const Cstring & sHostName, struct in_addr *paddr )
 	if ( !hent )
 		bRet = false;
 #else
-	static Cmutex m;
-
-	m.lock();
 	hent = gethostbyname( sHostName.c_str() );
 
 	if ( hent )
-	bRet = true;
+		bRet = true;
 	
 #endif /* __linux__ */
 
 	if ( bRet )
 		bcopy( hent->h_addr_list[0], &paddr->s_addr, 4 );
-
-#ifndef __linux__
-	m.unlock();
-#endif /* __linux__ */
 
 	return( bRet );
 }
