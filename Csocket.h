@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.108 $
+* $Revision: 1.109 $
 */
 
 #ifndef _HAS_CSOCKET_
@@ -1272,12 +1272,14 @@ namespace Csocket
 			if ( !m_bEnableReadLine )
 				return;	// If the ReadLine event is disabled, just ditch here
 
+			u_int iStartPos = ( m_sbuffer.empty() ? 0 : m_sbuffer.length() - 1 );
+
 			if ( data )
 				m_sbuffer.append( data, len );
 			
 			while( true )
 			{
-				u_int iFind = m_sbuffer.find( "\n" );
+				u_int iFind = m_sbuffer.find( "\n", iStartPos );
 			
 				if ( iFind != CS_STRING::npos )
 				{
