@@ -1127,7 +1127,7 @@ public:
 	//! This gives access to the internal buffer, if your
 	//! not going to use GetLine(), then you may want to clear this out
 	//! (if its binary data and not many '\n'
-	Cstring & GetInternalByffer() { return( m_sbuffer ); }	
+	Cstring & GetInternalBuffer() { return( m_sbuffer ); }	
 	void SetMaxBufferThreshold( u_int iThreshold ) { m_iMaxStoredBufferLength = iThreshold; }
 	u_int GetMaxBufferThreshold() { return( m_iMaxStoredBufferLength ); }
 
@@ -1434,7 +1434,7 @@ public:
 	*
 	* A sock error occured event
 	*/
-	virtual void SockError() {}
+	virtual void SockError( int iErrno ) {}
 	/**
 	* Override these functions for an easy interface when using the Socket Manager
 	* Don't bother using these callbacks if you are using this class directly (without Socket Manager)
@@ -1753,7 +1753,7 @@ public:
 							
 							case -1:
 							{
-								pcSock->SockError();
+								pcSock->SockError( errno );
 								DelSock( pcSock );
 								break;
 							}
