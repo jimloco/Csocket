@@ -195,6 +195,9 @@ public:
 
 	//! returns true if cron is active
 	bool isValid() { return( m_bActive ); }
+
+	const Cstring & GetName() const { return( m_sName ); }
+	void SetName( const Cstring & sName ) { m_sName = sName; }
 	
 protected:
 
@@ -207,6 +210,7 @@ protected:
 	time_t	m_iTime;
 	bool	m_bOnlyOnce, m_bActive;
 	int		m_iTimeSequence;
+	Cstring	m_sName;
 };
 
 /**
@@ -660,12 +664,6 @@ public:
 				// print out to char, report naturally
 				SSLErrors();
 			}
-	/*	
-			if ( SSL_CTX_set_cipher_list( m_ssl_ctx, m_sCipherType.c_str() ) <= 0 )
-			{
-				WARN( "Could not assign cipher [" + m_sCipherType + "]" );
-			}
-	*/
 		}
 		
 		m_ssl = SSL_new ( m_ssl_ctx );
@@ -674,7 +672,8 @@ public:
 		
 		SSL_set_rfd( m_ssl, m_iReadSock );
 		SSL_set_wfd( m_ssl, m_iWriteSock );
-		
+		SSL_set_verify( m_ssl, SSL_VERIFY_PEER, CertVerifyCB );
+
 		return( true );
 #else
 		return( false );
