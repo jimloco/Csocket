@@ -5,8 +5,8 @@
 *
 *    CVS Info:
 *       $Author: imaginos $
-*       $Date: 2003/05/10 16:42:48 $
-*       $Revision: 1.16 $
+*       $Date: 2003/05/14 04:26:50 $
+*       $Revision: 1.17 $
 */
 
 #ifndef _HAS_CSOCKET_
@@ -1065,8 +1065,7 @@ public:
 				if ( !pcCron->isValid() )
 				{
 					Zzap( pcCron );
-					m_vcCrons.erase( p );
-					p--; // correctly set the iterator
+					IterErase( m_vcCrons, p );
 				} else
 					pcCron->run();
 			}
@@ -1819,8 +1818,7 @@ private:
 				if ( !pcCron->isValid() )
 				{
 					Zzap( pcCron );
-					m_vcCrons.erase( p );
-					p--;	// correctly set the iterator					
+					IterErase( m_vcCrons, p );
 				} else
 					pcCron->run();
 			}
