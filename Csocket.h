@@ -839,8 +839,13 @@ public:
 		m_bNeverWritten = false;
 #ifdef HAVE_LIBSSL	
 		if ( m_bssl )
-		{
-			int iErr = SSL_write( m_ssl, m_sSend.c_str(), iBytesToSend );
+		{ 
+
+			if ( m_sSSLBuffer.empty() ) // on retrying to write data, ssl wants the data in the SAME spot and the SAME size
+				m_sSSLBuffer.append( m_sSend.data(), iBytesToSend );
+			
+			int iErr = SSL_write( m_ssl, m_sSSLBuffer.data(), m_sSSLBuffer.length() );
+			
 			switch( SSL_get_error( m_ssl, iErr ) )
 			{
 				case SSL_ERROR_NONE:
@@ -862,17 +867,30 @@ public:
 				break;
 					
 				case SSL_ERROR_SSL:
+				{
+					char *pszError = ERR_error_string( ERR_peek_last_error(), NULL );
+					if ( pszError )
+					{
+						WARN( pszError );
+					} else
+					{
+						WARN( "unable to determine error!" );
+					}
+				}
 				return( false );
 				break;
 			}
 
 			if ( iErr > 0 )				
+			{
+				m_sSSLBuffer.clear();
 				m_sSend.erase( 0, iErr );
-			
+			}
+
 			return( true );
 		}
 #endif /* HAVE_LIBSSL */
-		int bytes = write( m_isock, m_sSend.c_str(), iBytesToSend );
+		int bytes = write( m_isock, m_sSend.data(), iBytesToSend );
 	
 		if ( ( bytes <= 0 ) && ( errno != EAGAIN ) )
 			return( false );
@@ -1235,7 +1253,7 @@ private:
 	int			m_isock, m_itimeout, m_iport, m_iConnType, m_iTcount, m_iMethod;
 	bool		m_bssl, m_bhaswrite, m_bNeverWritten, m_bClosed, m_bBLOCK, m_bFullsslAccept, m_bsslEstablished, m_bEnableReadLine;
 	Cstring		m_shostname, m_sbuffer, m_sSockName, m_sPemFile, m_sCipherType, m_sParentName;
-	Cstring		m_sSend;
+	Cstring		m_sSend, m_sSSLBuffer;
 
 	unsigned long long	m_iMaxMilliSeconds, m_iLastSendTime;
 	unsigned int		m_iMaxBytes, m_iLastSend, m_iMaxStoredBufferLength;
