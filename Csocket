@@ -128,7 +128,7 @@ public:
 			return( true );
 		}
 		
-		bool Listen( int iPort, int iMaxConns = SOMAXCONN, bool isSSL = false )
+		bool Listen( int iPort, int iMaxConns = SOMAXCONN )
 		{
 			m_isock = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
 			m_address.sin_family = PF_INET;
@@ -499,6 +499,20 @@ public:
 			return( true );
 		}
 		
+		virtual bool AddListener( int iPort, int iMaxConns = SOMAXCONN )
+		{
+			T * pcSock = new T();
+			
+			if ( pcSock->Listen( iPort, iMaxConns ) )
+			{
+				AddSock( pcSock );
+				return( true );
+			}
+			
+			delete( pcSock );
+			return( false );
+		}
+			
 		//
 		// returns a pointer to the ready Csock class thats available
 		// returns NULL if none are ready, check getErr() for the error, if not SUCCESS Select() failed
@@ -632,90 +646,84 @@ public:
 			cerr << "WARNING!!! Could not find " << (unsigned int *)pcSock << endl;
 		}
 
-		//
-		// Loop, calling the call backs. Good if you Derive from Csock
-		//
-		// Pass false if you don't want it to exit on an empty container ( no socks )
-		//
-		void Loop ( bool bBreak = true )
-		{
-			while( true )
-			{
-				T *pcSock = Select();
-				
-				switch( m_errno )
-				{
-					case SUCCESS:
-					{
-						pcSock->ResetTimer();	// reset the timeout timer
-						
-						// read in data
-						char buff[64];
-						int bytes = pcSock->Read( buff, 64 );
 
-						switch( bytes )
-						{
-							case 0:
-							{
-								// EOF
-								pcSock->CloseSock();
-								DelSock( pcSock );
-								break;
-							}
-							
-							case -1:
-							{
-								pcSock->SockError();
-								pcSock->CloseSock();
-								DelSock( pcSock );
-								break;
-							}
-							
-							case -2:
-								break;
-								
-							default:
-							{
-								pcSock->PushBuff( buff, bytes );
-								pcSock->ReadData( buff, bytes );
-								break;
-							}								
-						}
-						break;
-					}
-				
-					case SELECT_ERROR:
-					{
-						// a socket came back with an error
-						// usually means it was closed
-						close( pcSock->GetSock() );
-						DelSock( pcSock );
-						break;
-					}
-					case SELECT_TIMEOUT:
-					{
-						// call timeout on all the sockets
-						for( unsigned int i = 0; i < size(); i++ )
-						{
-							if ( (*this)[i]->GetType() == T::LISTENER )
-								break;
-								
-							(*this)[i]->Jobs();
-							if ( (*this)[i]->CheckTimeout() )
-							{
-								// socket timeout, close the socket
-								(*this)[i]->CloseSock();
-							}
-						}
-						break;
-					}
+		//
+		// Best place to call this class for running, all the call backs are called
+		// You should through this in your main while loop (long as its not blocking)
+		// 
+		void Loop ()
+		{
+			T *pcSock = Select();
+			
+			switch( m_errno )
+			{
+				case SUCCESS:
+				{
+					pcSock->ResetTimer();	// reset the timeout timer
 					
-					default	:
-						break;
+					// read in data
+					char buff[64];
+					int bytes = pcSock->Read( buff, 64 );
+
+					switch( bytes )
+					{
+						case 0:
+						{
+							// EOF
+							pcSock->CloseSock();
+							DelSock( pcSock );
+							break;
+						}
+						
+						case -1:
+						{
+							pcSock->SockError();
+							pcSock->CloseSock();
+							DelSock( pcSock );
+							break;
+						}
+						
+						case -2:
+							break;
+							
+						default:
+						{
+							pcSock->PushBuff( buff, bytes );
+							pcSock->ReadData( buff, bytes );
+							break;
+						}								
+					}
+					break;
 				}
 			
-				if ( ( this->empty() ) && ( bBreak ) )
-					return;
+				case SELECT_ERROR:
+				{
+					// a socket came back with an error
+					// usually means it was closed
+					close( pcSock->GetSock() );
+					DelSock( pcSock );
+					break;
+				}
+				case SELECT_TIMEOUT:
+				{
+					// call timeout on all the sockets
+					for( unsigned int i = 0; i < size(); i++ )
+					{
+						if ( (*this)[i]->GetType() == T::LISTENER )
+							break;
+							
+						(*this)[i]->Jobs();
+						if ( (*this)[i]->CheckTimeout() )
+						{
+							// socket timeout, close the socket
+							(*this)[i]->CloseSock();
+						}
+					}
+					break;
+				}
+				
+				default	:
+					break;
 			}
 		}
 
