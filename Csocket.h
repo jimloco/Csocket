@@ -5,8 +5,8 @@
 *
 *    CVS Info:
 *       $Author: imaginos $
-*       $Date: 2003/04/14 03:47:44 $
-*       $Revision: 1.10 $
+*       $Date: 2003/04/14 04:00:16 $
+*       $Revision: 1.11 $
 */
 
 #ifndef _HAS_CSOCKET_
@@ -958,6 +958,7 @@ public:
 		 
 		//! Returns the port
 		int GetPort() { return( m_iport ); }
+		void SetPort( int iPort ) { m_iport = iPort; }
 		
 		//! just mark us as closed, the parent can pick it up
 		void Close() { m_bClosed = true; }
@@ -1277,6 +1278,12 @@ public:
 			// create the new object
 			if ( !pcSock )
 				pcSock = new T( sHostname, iPort, iTimeout );
+			else
+			{
+				pcSock->GetHostName() = sHostname;
+				pcSock->SetPort( iPort );
+				pcSock->SetTimeout( iTimeout );
+			}
 			
 			// make it NON-Blocking IO
 			pcSock->BlockIO( false );
