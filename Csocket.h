@@ -2069,6 +2069,40 @@ namespace Csocket
 		void  SetSelectTimeout( u_int iTimeout ) { m_iSelectWait = iTimeout; }
 
 		vector<CCron *> & GetCrons() { return( m_vcCrons ); }
+		
+		//! Delete a sock by addr
+		//! its position is looked up
+		//! the socket is deleted, the appropriate call backs are peformed
+		//! and its instance is removed from the manager
+		virtual void DelSockByAddr( T *pcSock )
+		{
+			for( u_int a = 0; a < size(); a++ )
+			{
+				if ( pcSock == (*this)[a] )
+				{
+					DelSock( a );
+					return;
+				}
+			}
+		}
+		//! Delete a sock by position in the vector
+		//! the socket is deleted, the appropriate call backs are peformed
+		//! and its instance is removed from the manager
+		//! deleting in a loop can be tricky, be sure you watch your position.
+		//! ie for( u_int a = 0; a < size(); a++ ) DelSock( a-- );
+		virtual void DelSock( u_int iPos )
+		{
+			if ( iPos >= size() )
+			{
+				CS_DEBUG( "Invalid Sock Position Requested! [" << iPos << "]" );
+				return;
+			}
+			if ( (*this)[iPos]->IsConnected() )
+				(*this)[iPos]->Disconnected(); // only call disconnected event if connected event was called (IE IsConnected was set)
+					
+			CS_Delete( (*this)[iPos] );
+			erase( begin() + iPos );
+		}
 
 	private:
 		/**
@@ -2293,30 +2327,6 @@ namespace Csocket
 			return( vRet );
 		}			
 
-		virtual void DelSockByAddr( T *pcSock )
-		{
-			for( u_int a = 0; a < size(); a++ )
-			{
-				if ( pcSock == (*this)[a] )
-				{
-					DelSock( a );
-					return;
-				}
-			}
-		}
-		virtual void DelSock( u_int iPos )
-		{
-			if ( iPos >= size() )
-			{
-				CS_DEBUG( "Invalid Sock Position Requested! [" << iPos << "]" );
-				return;
-			}
-			if ( (*this)[iPos]->IsConnected() )
-				(*this)[iPos]->Disconnected(); // only call disconnected event if connected event was called (IE IsConnected was set)
-					
-			CS_Delete( (*this)[iPos] );
-			erase( begin() + iPos );
-		}
 
 		//! internal use only
 		virtual void AddstSock( vector<stSock> * pcvSt, EMessages eErrno, T * pcSock )
