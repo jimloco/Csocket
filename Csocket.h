@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.100 $
+* $Revision: 1.101 $
 */
 
 #ifndef _HAS_CSOCKET_
@@ -55,6 +55,11 @@
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 #endif /* HAVE_LIBSSL */
+
+#ifdef __sun
+#include <strings.h>
+#include <fcntl.h>
+#endif /* __sun */
 
 #include <vector>
 #include <iostream>
@@ -121,12 +126,16 @@ namespace Csocket
 
 	inline void __Perror( const CS_STRING & s )
 	{
+#ifdef __sun
+		CS_DEBUG( s << ": " << strerror( errno ) );
+#else
 		char buff[512];
 		memset( (char *)buff, '\0', 512 );
 		if ( strerror_r( errno, buff, 511 ) == 0 )
 			CS_DEBUG( s << ": " << buff );
 		else
 			CS_DEBUG( s << ": Unknown Error Occured" );
+#endif /* __sun */
 	}
 	inline unsigned long long millitime()
 	{
