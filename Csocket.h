@@ -1115,7 +1115,7 @@ namespace Csocket
 			struct sockaddr_in mRemoteAddr;
 			socklen_t mRemoteLen = sizeof(struct sockaddr);
 			if ( getpeername( iSock, (struct sockaddr *) &mRemoteAddr, &mRemoteLen ) == 0 )
-				m_sRemoteIp = inet_ntoa( mRemoteAddr.sin_addr );
+				m_sRemoteIP = inet_ntoa( mRemoteAddr.sin_addr );
 
 			return( m_sRemoteIP );
 		}
@@ -1228,7 +1228,7 @@ namespace Csocket
 					m_iRemotePort = ntohs( mAddr.sin_port );
 			}
 
-			return( iPort );
+			return( m_iRemotePort );
 		}
 
 		//! Returns the local port
