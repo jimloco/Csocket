@@ -211,11 +211,11 @@ public:
 			if ( gethostbyname_r( m_shostname.c_str(), &m_hentbuff, hbuff, 2048, &m_hent, &err ) != 0 )
 				return( false );
 #endif /* __linux__ */
-#ifdef __FreeBSD__
+#if defined(__FreeBSD__) || defined(__sun)
 			m_hent = gethostbyname( m_shostname.c_str() );
 			if ( !m_hent )
 				return( false );
-#endif /* __FreeBSD__ */
+#endif /* __FreeBSD__ || __sun */
 			
 			return( true );
 			
