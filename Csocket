@@ -399,7 +399,7 @@ public:
 		int Accept( Cstring & sHost, int & iRPort )
 		{
 			struct sockaddr_in client;
-			socklen_t clen = sizeof(struct sockaddr *);
+			socklen_t clen = sizeof(struct sockaddr);
 			
 			int iSock = accept( m_isock , (struct sockaddr *) &client, &clen );
 			
@@ -771,7 +771,7 @@ public:
 		//
 		int Read( char *data, int len )
 		{
-		
+	
 			if ( m_bBLOCK )
 			{
 				if ( ReadSelect() != SEL_OK )
@@ -781,8 +781,8 @@ public:
 			int bytes = 0;
 			memset( (char *)data, '\0', len );
 			
-#ifdef HAVE_LIBSSL							
-			if ( m_bssl )							
+#ifdef HAVE_LIBSSL
+			if ( m_bssl )
 				bytes = SSL_read( m_ssl, data, len );
 			else
 #endif /* HAVE_LIBSSL */
@@ -1359,16 +1359,7 @@ public:
 					T *pcSock = (*this)[i];
 					int & iSock = pcSock->GetSock();
 					
-					if ( TFD_ISSET( iSock, &rfds ) )
-					{
-						if ( iSel > 0 )
-							m_errno = SUCCESS;
-						else
-							m_errno = SELECT_ERROR;
-
-						return( pcSock );
-						
-					} else if ( TFD_ISSET( iSock, &wfds ) )
+					if ( TFD_ISSET( iSock, &wfds ) )
 					{
 						if ( iSel > 0 )
 						{
@@ -1388,8 +1379,16 @@ public:
 							m_errno = SELECT_ERROR;
 
 						return( pcSock );
-					}
 
+					} else if ( TFD_ISSET( iSock, &rfds ) )
+					{
+						if ( iSel > 0 )
+							m_errno = SUCCESS;
+						else
+							m_errno = SELECT_ERROR;
+
+						return( pcSock );
+					}						
 				}
 				// it said one was ready, but none of them were :(
 				m_errno = SELECT_ERROR;	
