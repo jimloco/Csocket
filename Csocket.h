@@ -5,8 +5,8 @@
 *
 *    CVS Info:
 *       $Author: imaginos $
-*       $Date: 2003/05/28 00:37:31 $
-*       $Revision: 1.21 $
+*       $Date: 2003/06/02 18:42:39 $
+*       $Revision: 1.22 $
 */
 
 #ifndef _HAS_CSOCKET_
@@ -83,7 +83,7 @@ inline bool GetHostByName( const Cstring & sHostName, struct in_addr *paddr )
 	m.lock();
 	hent = gethostbyname( sHostName.c_str() );
 
-	if ( mhent )
+	if ( hent )
 		bRet = true;
 	
 #endif /* __linux__ */
