@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.96 $
+* $Revision: 1.97 $
 */
 
 #ifndef _HAS_CSOCKET_
@@ -458,6 +458,10 @@ namespace Csocket
 		{
 			// create the socket
 			m_iReadSock = m_iWriteSock = SOCKET();
+
+			if ( m_iReadSock == -1 )
+				return( false );
+
 			m_address.sin_family = PF_INET;
 			m_address.sin_port = htons( m_iport );
 
@@ -599,7 +603,7 @@ namespace Csocket
 			m_iConnType = LISTENER;
 			m_itimeout = iTimeout;
 
-			if ( m_iReadSock == 0 )
+			if ( m_iReadSock == -1 )
 				return( false );
 
 			m_address.sin_family = PF_INET;
