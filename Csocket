@@ -426,41 +426,32 @@ public:
 		
 		bool AcceptSSL()
 		{
-			bool bAccepted = false;
 #ifdef HAVE_LIBSSL
 			if ( !m_ssl )
 				if ( !SSLServerSetup() )
 					return( false );
 				
 			
-			while( true )
-			{
-				int err = SSL_accept( m_ssl );
-				
-				if ( err == 1 )
-				{
-					bAccepted = true;
-					break;
-				
-				} else
-				{
-					if ( errno != EAGAIN )
-					{
-						int sslErr = SSL_get_error( m_ssl, err );
+			int err = SSL_accept( m_ssl );
 
-						if ( ( sslErr != SSL_ERROR_WANT_READ ) && ( sslErr != SSL_ERROR_WANT_WRITE ) )
-						{
-							ERR_print_errors_fp ( stderr );
-							bAccepted = false;
-							break;
-						}
-					}
-				}
+			if ( err == 1 )
+			{
+				m_bFullsslAccept = true;
+				return( true );				
 			}
+
+			m_bFullsslAccept = false;
+
+			int sslErr = SSL_get_error( m_ssl, err );
+
+			if ( ( sslErr == SSL_ERROR_WANT_READ ) || ( sslErr == SSL_ERROR_WANT_WRITE ) )
+				return( true );
+
+			ERR_print_errors_fp ( stderr );
 			
 #endif /* HAVE_LIBSSL */
 			
-			return( bAccepted );	
+			return( false );	
 		}
 
 		bool SSLClientSetup()
@@ -946,6 +937,9 @@ public:
 		const Cstring & GetSendBuff() { return( m_sSend ); }
 
 		//
+		// is SSL_accept finished ?
+		bool FullSSLAccept() { return ( m_bFullsslAccept ); }
+		//
 		// Get the peer's X509 cert
 #ifdef HAVE_LIBSSL
 		X509 *getX509()
@@ -1028,7 +1022,7 @@ public:
 				
 private:
 		int			m_isock, m_itimeout, m_iport, m_iConnType, m_iTcount, m_iMethod;
-		bool		m_bssl, m_bhaswrite, m_bNeverWritten, m_bClosed, m_bBLOCK;
+		bool		m_bssl, m_bhaswrite, m_bNeverWritten, m_bClosed, m_bBLOCK, m_bFullsslAccept;
 		Cstring		m_shostname, m_sbuffer, m_sSockName, m_sPemFile, m_sCipherType, m_sParentName;
 		Cstring		m_sSend;
 
@@ -1110,6 +1104,7 @@ private:
 			m_iMaxMilliSeconds = 0;
 			m_iLastSendTime = 0;
 			m_iLastSend = 0;
+			m_bFullsslAccept = false;
 		}
 		
 		unsigned long long GetMillTime()
@@ -1280,7 +1275,13 @@ public:
 				{
 					int & iSock = pcSock->GetSock();
 
-					if ( ( pcSock->hasWrite() ) && ( pcSock->GetSendBuff().empty() ) )
+					if ( ( pcSock->GetSSL() ) && ( pcSock->GetType() == T::INBOUND ) && ( !pcSock->FullSSLAccept() ) )
+					{
+						// try accept on this socket again
+						if ( !pcSock->AcceptSSL() )
+							pcSock->Close();
+
+					} else if ( ( pcSock->hasWrite() ) && ( pcSock->GetSendBuff().empty() ) )
 					{
 						TFD_SET( iSock, &rfds );
 					
@@ -1297,7 +1298,7 @@ public:
 					int inSock = pcSock->Accept( sHost, port );
 					
 					if ( inSock != -1 )
-					{	
+					{
 						// if we have a new sock, then add it
 						T * NewpcSock = new T( sHost, port );
 						
@@ -1357,7 +1358,7 @@ public:
 				{
 					T *pcSock = (*this)[i];
 					int & iSock = pcSock->GetSock();
-						
+					
 					if ( TFD_ISSET( iSock, &rfds ) )
 					{
 						if ( iSel > 0 )
