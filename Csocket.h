@@ -234,7 +234,8 @@ public:
 	
 	virtual ~Csock()
 	{
-		close( m_isock );
+		close( m_iReadSock );
+		close( m_iWriteSock );
 #ifdef HAVE_LIBSSL
 		FREE_SSL();
 		FREE_CTX();
@@ -333,7 +334,7 @@ public:
 	virtual bool Connect( const Cstring & sBindHost = "" )
 	{
 		// create the socket
-		m_isock = SOCKET();
+		m_iReadSock = m_iWriteSock = SOCKET();
 			
 		m_address.sin_family = PF_INET;
 		m_address.sin_port = htons( m_iport );
@@ -356,7 +357,7 @@ public:
 			bool bBound = false;
 			for( int a = 0; a < 3; a++ )
 			{
-				if ( bind( m_isock, (struct sockaddr *) &vh, sizeof( vh ) ) == 0 )
+				if ( bind( m_iReadSock, (struct sockaddr *) &vh, sizeof( vh ) ) == 0 )
 				{
 					bBound = true;
 					break;
@@ -372,13 +373,13 @@ public:
 		}
 		
 		// set it none blocking
-		int fdflags = fcntl (m_isock, F_GETFL, 0);
-		fcntl( m_isock, F_SETFL, fdflags|O_NONBLOCK );
+		int fdflags = fcntl (m_iReadSock, F_GETFL, 0);
+		fcntl( m_iReadSock, F_SETFL, fdflags|O_NONBLOCK );
 
 		m_iConnType = OUTBOUND;
 		
 		// connect
-		int ret = connect( m_isock, (struct sockaddr *)&m_address, sizeof( m_address ) );
+		int ret = connect( m_iReadSock, (struct sockaddr *)&m_address, sizeof( m_address ) );
 
 		if ( ( ret == -1 ) && ( errno != EINPROGRESS ) )
 			return( false );
@@ -386,12 +387,12 @@ public:
 		if ( m_bBLOCK )
 		{	
 			// unset the flags afterwords, rather than have connect block
-			int fdflags = fcntl (m_isock, F_GETFL, 0); 
+			int fdflags = fcntl (m_iReadSock, F_GETFL, 0); 
 			
 			if ( O_NONBLOCK & fdflags )
 				fdflags -= O_NONBLOCK;
 				
-			fcntl( m_isock, F_SETFL, fdflags );
+			fcntl( m_iReadSock, F_SETFL, fdflags );
 			
 		}
 		
@@ -408,7 +409,7 @@ public:
 		fd_set wfds;
 
 		TFD_ZERO( &wfds );
-		TFD_SET( m_isock, &wfds );
+		TFD_SET( m_iWriteSock, &wfds );
 		
 		tv.tv_sec = m_itimeout;
 		tv.tv_usec = 0;
@@ -439,7 +440,7 @@ public:
 		fd_set rfds;
 
 		TFD_ZERO( &rfds );
-		TFD_SET( m_isock, &rfds );
+		TFD_SET( m_iReadSock, &rfds );
 
 		tv.tv_sec = m_itimeout;
 		tv.tv_usec = 0;
@@ -468,9 +469,9 @@ public:
 	*/
 	virtual bool Listen( int iPort, int iMaxConns = SOMAXCONN, const Cstring & sBindHost = "" )
 	{
-		m_isock = SOCKET( true );
+		m_iReadSock = m_iWriteSock = SOCKET( true );
 
-		if ( m_isock == 0 )
+		if ( m_iReadSock == 0 )
 			return( false );
 
 		m_address.sin_family = PF_INET;
@@ -484,19 +485,19 @@ public:
 		m_address.sin_port = htons( iPort );
 		bzero(&(m_address.sin_zero), 8);
 
-		if ( bind(m_isock, (struct sockaddr *) &m_address, sizeof( m_address ) ) == -1 )
+		if ( bind( m_iReadSock, (struct sockaddr *) &m_address, sizeof( m_address ) ) == -1 )
 		{
 			return( false );
 		}
         
-		if ( listen( m_isock, iMaxConns ) == -1 )
+		if ( listen( m_iReadSock, iMaxConns ) == -1 )
 			return( false );
 
 		if ( !m_bBLOCK )
 		{
 			// set it none blocking
-			int fdflags = fcntl (m_isock, F_GETFL, 0);
-			fcntl( m_isock, F_SETFL, fdflags|O_NONBLOCK );
+			int fdflags = fcntl ( m_iReadSock, F_GETFL, 0);
+			fcntl( m_iReadSock, F_SETFL, fdflags|O_NONBLOCK );
 		}
 		
 		m_iConnType = LISTENER;
@@ -509,7 +510,7 @@ public:
 		struct sockaddr_in client;
 		socklen_t clen = sizeof(struct sockaddr);
 		
-		int iSock = accept( m_isock , (struct sockaddr *) &client, &clen );
+		int iSock = accept( m_iReadSock , (struct sockaddr *) &client, &clen );
 		
 		if ( iSock != -1 )
 		{
@@ -622,7 +623,8 @@ public:
 		if ( !m_ssl )
 			return( false );
 		
-		SSL_set_fd( m_ssl, m_isock );
+		SSL_set_rfd( m_ssl, m_iReadSock );
+		SSL_set_wfd( m_ssl, m_iWriteSock );
 		
 		return( true );
 #else
@@ -718,7 +720,8 @@ public:
 		if ( !m_ssl )
 			return( false );
 		
-		SSL_set_fd( m_ssl, m_isock );
+		SSL_set_rfd( m_ssl, m_iReadSock );
+		SSL_set_wfd( m_ssl, m_iWriteSock );
 		SSL_set_accept_state( m_ssl );
 		
 		return( true );
@@ -736,7 +739,7 @@ public:
 	virtual bool ConnectSSL( const Cstring & sBindhost = "" )
 	{
 #ifdef HAVE_LIBSSL		
-		if ( m_isock == -1 )
+		if ( m_iReadSock == -1 )
 			if ( !Connect( sBindhost ) )
 				return( false );
 
@@ -748,8 +751,8 @@ public:
 		
 		if ( m_bBLOCK )
 		{
-			int fdflags = fcntl (m_isock, F_GETFL, 0);
-			fcntl( m_isock, F_SETFL, fdflags|O_NONBLOCK );
+			int fdflags = fcntl ( m_iReadSock, F_GETFL, 0);
+			fcntl( m_iReadSock, F_SETFL, fdflags|O_NONBLOCK );
 		}	
 		
 		int iErr = SSL_connect( m_ssl );
@@ -765,12 +768,12 @@ public:
 		if ( m_bBLOCK )
 		{	
 			// unset the flags afterwords, rather then have connect block
-			int fdflags = fcntl (m_isock, F_GETFL, 0); 
+			int fdflags = fcntl (m_iReadSock, F_GETFL, 0); 
 			
 			if ( O_NONBLOCK & fdflags )
 				fdflags -= O_NONBLOCK;
 				
-			fcntl( m_isock, F_SETFL, fdflags );
+			fcntl( m_iReadSock, F_SETFL, fdflags );
 			
 		}				
 		
@@ -894,7 +897,7 @@ public:
 			return( true );
 		}
 #endif /* HAVE_LIBSSL */
-		int bytes = write( m_isock, m_sSend.data(), iBytesToSend );
+		int bytes = write( m_iWriteSock, m_sSend.data(), iBytesToSend );
 	
 		if ( ( bytes <= 0 ) && ( errno != EAGAIN ) )
 			return( false );
@@ -945,7 +948,7 @@ public:
 			bytes = SSL_read( m_ssl, data, len );
 		else
 #endif /* HAVE_LIBSSL */
-			bytes = read( m_isock, data, len );
+			bytes = read( m_iReadSock, data, len );
 
 	    if ( bytes == -1 )
 		{
@@ -983,9 +986,14 @@ public:
 	}
 
 	//! returns a reference to the sock
-	int & GetSock() { return( m_isock ); }
-	void SetSock( int iSock ) { m_isock = iSock; }
+	int & GetRSock() { return( m_iReadSock ); }
+	void SetRSock( int iSock ) { m_iReadSock = iSock; }
+	int & GetWSock() { return( m_iWriteSock ); }
+	void SetWSock( int iSock ) { m_iWriteSock = iSock; }
 	
+	void SetSock( int iSock ) { m_iWriteSock = iSock; m_iReadSock = iSock; }
+	int & GetSock() { return( m_iReadSock ); }
+
 	//! resets the time counter
 	void ResetTimer() { m_iTcount = 0; }
 	
@@ -1074,7 +1082,22 @@ public:
 	
 	//! Set rather to NON Blocking IO on this socket, default is true
 	void BlockIO( bool bBLOCK ) { m_bBLOCK = bBLOCK; }
+	
+	//! Use this to change your fd's to blocking or none blocking
+	void NonBlockingIO()
+	{
+		int fdflags = fcntl ( m_iReadSock, F_GETFL, 0);
+		fcntl( m_iReadSock, F_SETFL, fdflags|O_NONBLOCK );
 
+		if ( m_iReadSock != m_iWriteSock )
+		{
+			fdflags = fcntl ( m_iWriteSock, F_GETFL, 0);
+			fcntl( m_iWriteSock, F_SETFL, fdflags|O_NONBLOCK );
+		}
+
+		BlockIO( false );
+	}
+	
 	//! if this connection type is ssl or not
 	bool GetSSL() { return( m_bssl ); }
 	void SetSSL( bool b ) { m_bssl = b; }
@@ -1107,6 +1130,42 @@ public:
 
 	//! returns the underlying buffer
 	Cstring & GetBuffer() { return( m_sSend ); }
+
+	//! Use this to bind this socket to inetd
+	bool ConnectInetd( bool bIsSSL = false, const Cstring & sHostname = "" )
+	{
+		// set our socket type
+		SetType( INBOUND );
+
+		if ( !sHostname.empty() )
+			m_sSockName = sHostname;
+		
+		// set our hostname
+		if ( m_sSockName.empty() )
+		{
+			struct sockaddr_in client;
+			socklen_t clen = sizeof( client );
+			if ( getpeername( 0, (struct sockaddr *)&client, &clen ) < 0 )
+				m_sSockName = "0.0.0.0:0";
+			else
+				m_sSockName.Format( "%s:%d", inet_ntoa( client.sin_addr ), ntohs( client.sin_port ) );
+		}
+
+		// set the file descriptors
+		SetRSock( 0 );
+		SetWSock( 1 );
+
+		// set it up as non-blocking io
+		NonBlockingIO();
+		
+		if ( bIsSSL )
+		{
+			if ( !AcceptSSL() )
+				return( false );
+		}
+
+		return( true );
+	}
 	
 	//! Get the peer's X509 cert
 #ifdef HAVE_LIBSSL
@@ -1254,7 +1313,7 @@ public:
 	//////////////////////////////////////////////////	
 		
 private:
-	int			m_isock, m_itimeout, m_iport, m_iConnType, m_iTcount, m_iMethod;
+	int			m_iReadSock, m_iWriteSock, m_itimeout, m_iport, m_iConnType, m_iTcount, m_iMethod;
 	bool		m_bssl, m_bhaswrite, m_bNeverWritten, m_bClosed, m_bBLOCK, m_bFullsslAccept, m_bsslEstablished, m_bEnableReadLine;
 	Cstring		m_shostname, m_sbuffer, m_sSockName, m_sPemFile, m_sCipherType, m_sParentName;
 	Cstring		m_sSend, m_sSSLBuffer;
@@ -1317,7 +1376,8 @@ private:
 		m_ssl = NULL;
 		m_ssl_ctx = NULL;
 #endif /* HAVE_LIBSSL */		
-		m_isock = 0;
+		m_iReadSock = -1;
+		m_iWriteSock = -1;	
 		m_itimeout = itimeout;
 		m_bssl = false;
 		m_bhaswrite = false;
@@ -1687,8 +1747,9 @@ private:
 			
 			if ( pcSock->GetType() != T::LISTENER )
 			{
-				int & iSock = pcSock->GetSock();
-
+				int & iRSock = pcSock->GetRSock();
+				int & iWSock = pcSock->GetWSock();
+				
 				if ( ( pcSock->GetSSL() ) && ( pcSock->GetType() == T::INBOUND ) && ( !pcSock->FullSSLAccept() ) )
 				{
 					// try accept on this socket again
@@ -1697,21 +1758,21 @@ private:
 
 				} else if ( ( pcSock->HasWrite() ) && ( pcSock->GetSendBuff().empty() ) )
 				{
-					TFD_SET( iSock, &rfds );
+					TFD_SET( iRSock, &rfds );
 				
 				} else if ( ( pcSock->GetSSL() ) && ( !pcSock->SslIsEstablished() ) && ( !pcSock->GetSendBuff().empty() ) )
 				{
 					// do this here, cause otherwise ssl will cause a small
 					// cpu spike waiting for the handshake to finish
-					TFD_SET( iSock, &rfds );
+					TFD_SET( iRSock, &rfds );
 					// resend this data
 					if ( !pcSock->Write( "" ) )
 						pcSock->Close();
 	
 				} else 
 				{
-					TFD_SET( iSock, &rfds );
-					TFD_SET( iSock, &wfds );
+					TFD_SET( iRSock, &rfds );
+					TFD_SET( iWSock, &wfds );
 					bHasWriteable = true;
 				}
 			} else
@@ -1731,7 +1792,8 @@ private:
 					NewpcSock->BlockIO( false );
 					
 					NewpcSock->SetType( T::INBOUND );
-					NewpcSock->SetSock( inSock );
+					NewpcSock->SetRSock( inSock );
+					NewpcSock->SetWSock( inSock );
 					
 					bool bAddSock = true;
 #ifdef HAVE_LIBSSL						
@@ -1820,10 +1882,11 @@ private:
 		for( unsigned int i = 0; i < size(); i++ )
 		{
 			T *pcSock = (*this)[i];
-			int & iSock = pcSock->GetSock();
+			int & iRSock = pcSock->GetRSock();
+			int & iWSock = pcSock->GetWSock();
 			EMessages iErrno = SUCCESS;
 			
-			if ( TFD_ISSET( iSock, &wfds ) )
+			if ( TFD_ISSET( iWSock, &wfds ) )
 			{
 				if ( iSel > 0 )
 				{
@@ -1849,7 +1912,7 @@ private:
 
 				AddstSock( &vRet, iErrno, pcSock );
 
-			} else if ( TFD_ISSET( iSock, &rfds ) )
+			} else if ( TFD_ISSET( iRSock, &rfds ) )
 			{
 				if ( iSel > 0 )
 					iErrno = SUCCESS;
