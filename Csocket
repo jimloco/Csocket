@@ -157,12 +157,8 @@ public:
 #endif /* HAVE_LIBSSL */				
 			// delete any left over crons
 			for( unsigned int i = 0; i < m_vcCrons.size(); i++ )
-			{
-				if ( m_vcCrons[i] )
-					delete( m_vcCrons[i] );
-					
-				m_vcCrons[i] = NULL;
-			}
+				Zzap( m_vcCrons[i] );
+
 		}
 
 		typedef enum
@@ -920,7 +916,7 @@ public:
 				if ( !m_vcCrons[i]->isValid() )
 				{
 					vKillCrons.push_back( i );
-					delete( m_vcCrons[i] );
+					Zzap( m_vcCrons[i] );
 					
 				} else
 					m_vcCrons[i]->run();
@@ -999,10 +995,8 @@ public:
 		{
 			for( unsigned int i = 0; i < size(); i++ )
 				if ( (*this)[i] )
-				{
-					delete( (*this)[i] );
-					(*this)[i] = NULL;
-				}
+					Zzap( (*this)[i] );
+
 		}
 
 		typedef enum
@@ -1025,13 +1019,13 @@ public:
 			// figure out the hostname we're connecting to.		
 			if ( !pcSock->Resolve() )
 			{
-				delete( pcSock );
+				Zzap( pcSock );
 				return( false );
 			}
 			
 			if ( !pcSock->Connect( sBindHost ) )
 			{
-				delete( pcSock );
+				Zzap( pcSock );
 				return( false );
 			}
 	
@@ -1040,7 +1034,7 @@ public:
 			{
 				if ( !pcSock->ConnectSSL() )
 				{
-					delete( pcSock );
+					Zzap( pcSock );
 					return( false );
 				}
 			}
@@ -1078,7 +1072,7 @@ public:
 				return( true );
 			}
 			
-			delete( pcSock );
+			Zzap( pcSock );
 			return( false );
 		}
 			
@@ -1178,7 +1172,7 @@ public:
 							AddSock( NewpcSock,  sHost + ":" + Cstring::num2Cstring( port ) );
 						
 						} else
-							delete( NewpcSock );
+							Zzap( NewpcSock );
 					}
 				}
 			}
@@ -1263,7 +1257,7 @@ public:
 					(*this)[i]->Disconnected();
 					
 					p = this->begin() + i;
-					delete( (*this)[i] );
+					Zzap( (*this)[i] );
 					this->erase( p );
 					return;
 				}
