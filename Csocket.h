@@ -5,8 +5,8 @@
 *
 *    CVS Info:
 *       $Author: imaginos $
-*       $Date: 2003/09/06 09:25:10 $
-*       $Revision: 1.29 $
+*       $Date: 2003/09/06 18:16:30 $
+*       $Revision: 1.30 $
 */
 
 #ifndef _HAS_CSOCKET_
@@ -976,6 +976,9 @@ public:
 	*/
 	virtual void PushBuff( const char *data, int len )
 	{
+		if ( m_bDontStoreBuffer )
+			return;	// In the event we don't want a buffer store, skip this step. Ofcourse ReadLine() event never occurs
+
 		if ( data )
 			m_sbuffer.append( data, len );
 		
@@ -998,6 +1001,10 @@ public:
 	//! not going to use GetLine(), then you may want to clear this out
 	//! (if its binary data and not many '\n'
 	Cstring & GetInternalByffer() { return( m_sbuffer ); }	
+
+	//! set the value of m_bDontStoreBuffer to true, we don't want to store a buffer for ReadLine
+	void DontStoreBuff() { m_bDontStoreBuffer = true; }
+	void OKStoreBuff() { m_bDontStoreBuffer = false; }
 
 	//! Returns the connection type from enum eConnType
 	int GetType() { return( m_iConnType ); }
@@ -1137,7 +1144,8 @@ public:
 	/**
 	* Override these functions for an easy interface when using the Socket Manager
 	* Don't bother using these callbacks if you are using this class directly (without Socket Manager)
-	* as the Socket Manager calls most of these callbacks
+	* as the Socket Manager calls most of these callbacks With ReadLine, if your not going to use it
+	* IE a data stream, then it is probably best to set m_bDontStoreBuffer to true. @see DontStoreBuff()
 	*
 	* Ready to Read a full line event
 	*/
@@ -1179,7 +1187,7 @@ public:
 		
 private:
 	int			m_isock, m_itimeout, m_iport, m_iConnType, m_iTcount, m_iMethod;
-	bool		m_bssl, m_bhaswrite, m_bNeverWritten, m_bClosed, m_bBLOCK, m_bFullsslAccept, m_bsslEstablished;
+	bool		m_bssl, m_bhaswrite, m_bNeverWritten, m_bClosed, m_bBLOCK, m_bFullsslAccept, m_bsslEstablished, m_bDontStoreBuffer;
 	Cstring		m_shostname, m_sbuffer, m_sSockName, m_sPemFile, m_sCipherType, m_sParentName;
 	Cstring		m_sSend;
 
@@ -1261,6 +1269,7 @@ private:
 		m_iLastSend = 0;
 		m_bFullsslAccept = false;
 		m_bsslEstablished = false;
+		m_bDontStoreBuffer = false;
 	}
 };
 
