@@ -22,8 +22,8 @@
 #include <openssl/err.h>
 #endif /* _HAS_SSL */
 
-#include <Cstring>
-#include <Cthreads>
+#include "Cstring"
+#include "Cthreads"
 
 // wrappers for FD_SET and such to work in templates
 inline void TFD_ZERO( fd_set *set )
