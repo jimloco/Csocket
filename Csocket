@@ -206,10 +206,16 @@ public:
 			char hbuff[2048];
 			memset( (char *)hbuff, '\0', 2048 );
 			
+#ifdef __linux__			
 			int err;
-			
 			if ( gethostbyname_r( m_shostname.c_str(), &m_hentbuff, hbuff, 2048, &m_hent, &err ) != 0 )
 				return( false );
+#endif /* __linux__ */
+#ifdef __FreeBSD__
+			m_hent = gethostbyname( m_shostname.c_str() );
+			if ( !m_hent )
+				return( false );
+#endif /* __FreeBSD__ */
 			
 			return( true );
 			
