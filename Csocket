@@ -48,7 +48,59 @@ inline void TFD_CLR( int iSock, fd_set *set )
 {
 	FD_CLR( iSock, set );
 }
-	
+
+//
+// Cronjob class
+//
+
+class CCron
+{
+public:
+		CCron() 
+		{
+			m_bOnlyOnce = true;
+			m_bActive = true;
+			m_iTime	= 0;
+		}
+		virtual ~CCron() {}
+		
+		virtual void run() 
+		{
+			if ( ( m_bActive ) && ( time( NULL ) >= m_iTime ) )
+			{
+				RunJob();
+				
+				if ( m_bOnlyOnce )
+					m_bActive = false;
+			}
+		}
+		void Start( int TimeSequence, bool bOnlyOnce = true ) 
+		{
+			m_iTime = time( NULL ) + TimeSequence;
+			m_bOnlyOnce = bOnlyOnce;
+		}
+
+		void Stop()
+		{
+			m_bActive = false;
+		}
+
+		bool isValid() { return( m_bActive ); }
+		
+protected:
+		virtual void RunJob()
+		{
+			cerr << "Override me." << endl;
+			// override me
+		}
+		
+		time_t	m_iTime;
+		bool	m_bOnlyOnce, m_bActive;
+};
+
+//
+// Basic Socket Class
+//
 class Csock
 {
 public:
@@ -90,7 +142,14 @@ public:
 			m_ssl_ctx = NULL;
 
 #endif /* _HAS_SSL */				
-			
+			// delete any left over crons
+			for( unsigned int i = 0; i < m_vcCrons.size(); i++ )
+			{
+				if ( m_vcCrons[i] )
+					delete( m_vcCrons[i] );
+					
+				m_vcCrons[i] = NULL;
+			}
 		}
 
 		typedef enum
@@ -559,16 +618,24 @@ public:
 		void ResetTimer() { m_iTcount = 0; }
 		
 		//
+		// Set the timeout, set to 0 to never timeout
+		void SetTimeout( int iTimeout ) { m_itimeout = iTimeout; }
+		
+		//
 		// returns true if the socket has timed out
 		bool CheckTimeout()
 		{
-			if ( ( m_itimeout > 0 ) && ( m_iTcount >= m_itimeout ) )
+			if ( m_itimeout > 0 )
 			{
-				Timeout();
-				return( true );
-			}
+				if ( ( m_iTcount / 4 ) >= m_itimeout )
+				{
+					Timeout();
+					return( true );
+				}
 									
-			m_iTcount++;
+				m_iTcount++;	// since the select statement is in 1/4 second timeouts, increment them by four
+			
+			}	
 			return( false );
 		}
 		
@@ -621,7 +688,39 @@ public:
 		//
 		// Set rather to NON Blocking IO on this socket, default is true
 		void BlockIO( bool bBLOCK ) { m_bBLOCK = bBLOCK; }
+
+		//
+		// Cron caller
+		// Once we have the cron, we'll delete it
+		void Cron()
+		{
+			vector<int> vKillCrons;
+					
+			for( unsigned int i = 0; i < m_vcCrons.size(); i++ )
+			{
+				if ( !m_vcCrons[i]->isValid() )
+				{
+					vKillCrons.push_back( i );
+					delete( m_vcCrons[i] );
+					
+				} else
+					m_vcCrons[i]->run();
+			}
+			
+			// delete any inactive crons
+			for( unsigned int i = 0; i < vKillCrons.size(); i++ )	
+				m_vcCrons.erase( m_vcCrons.begin() + i );
+
+		}
 		
+		//
+		// Insert the cronjob
+		// 
+		void AddCron( CCron * pcCron )
+		{
+			m_vcCrons.push_back( pcCron );
+		}
+				
 		//
 		// Override these functions for an easy interface
 		// 
@@ -631,8 +730,6 @@ public:
 		virtual void Disconnected() {}
 		// Timeout Event
 		virtual void Timeout() {}
-		// Jobs Event
-		virtual void Jobs() {}
 		// Data Ready for Read Event
 		virtual void ReadData( const char *data, int len ) {}
 		// Line Buffer Ready for Read Event
@@ -658,6 +755,7 @@ private:
 		SSL_METHOD			*m_ssl_method;
 #endif /* _HAS_SSL */
 
+		vector<CCron *>		m_vcCrons;
 };
 
 //
@@ -754,21 +852,32 @@ public:
 		// returns NULL if none are ready, check GetErrno() for the error, if not SUCCESS Select() failed
 		//
 		
-		T * Select( int iTime_sec = 1, int iTime_usec = 0 )
+		T * Select()
 		{		
 			struct timeval tv;
 			fd_set rfds, wfds;
 			
-			tv.tv_sec = iTime_sec;	// one second timeout, good for clocks
-			tv.tv_usec = iTime_usec;
+			// 1/4 second timeouts, nice and easy
+			// if you decide to change this number, be sure to change the
+			// timeout counter above, or your timeouts will be off
+			// ( m_iTCount in Csock class )
+			tv.tv_sec = 0;
+			tv.tv_usec = ( 1000000 / 4 ); 
 		
 			TFD_ZERO( &rfds );						
 			TFD_ZERO( &wfds );
 
-			// before we go any further, see which socks are scheduled for destruction
+			// before we go any further, Process work needing to be done on the job
 			for( unsigned int i = 0; i < size(); i++ )
+			{
 				if ( (*this)[i]->isClosed() )
 					DestroySock( (*this)[i] );
+				else
+				{
+					// call the Cron handler here
+					(*this)[i]->Cron();
+				}
+			}
 			
 			for( unsigned int i = 0; i < m_pcDestroySocks.size(); i++ )
 				DelSock( m_pcDestroySocks[i] );
@@ -828,7 +937,7 @@ public:
 					iSel = select(FD_SETSIZE, &rfds, &wfds, NULL, &tv);
 				else
 					iSel = select(FD_SETSIZE, &rfds, NULL, NULL, &tv);
-				
+
 				if ( iSel == 0 )
 				{
 					m_errno = SELECT_TIMEOUT;
@@ -955,26 +1064,23 @@ public:
 					DelSock( pcSock );
 					break;
 				}
+				
 				case SELECT_TIMEOUT:
 				{
 					// call timeout on all the sockets
 					for( unsigned int i = 0; i < size(); i++ )
 					{
-						if ( (*this)[i]->GetType() == T::LISTENER )
-							break;
-							
-						(*this)[i]->Jobs();
-						if ( (*this)[i]->CheckTimeout() )
+						if ( (*this)[i]->GetType() != T::LISTENER )
 						{
-							// socket timeout, close the socket
-							//FIX ME
-							//(*this)[i]->CloseSock();
-							DestroySock( (*this)[i] );
+							if ( (*this)[i]->CheckTimeout() )
+							{
+								DestroySock( (*this)[i] );
+							}
 						}
 					}
 					break;
 				}
-				
+
 				default	:
 					break;
 			}
