@@ -5,8 +5,8 @@
 *
 *    CVS Info:
 *       $Author: imaginos $
-*       $Date: 2003/06/02 18:42:39 $
-*       $Revision: 1.22 $
+*       $Date: 2003/06/17 23:39:25 $
+*       $Revision: 1.23 $
 */
 
 #ifndef _HAS_CSOCKET_
@@ -423,7 +423,7 @@ public:
 		* \param iPort the port to listen on
 		* \param iMaxConns the maximum amount of connections to allow
 		*/
-		bool Listen( int iPort, int iMaxConns = SOMAXCONN )
+		bool Listen( int iPort, int iMaxConns = SOMAXCONN, const Cstring & sBindHost = "" )
 		{
 			m_isock = SOCKET( true );
 
@@ -431,7 +431,13 @@ public:
 				return( false );
 
 			m_address.sin_family = PF_INET;
-			m_address.sin_addr.s_addr = htonl( INADDR_ANY );
+			if ( sBindHost.empty() )
+				m_address.sin_addr.s_addr = htonl( INADDR_ANY );
+			else
+			{
+				if ( !GetHostByName( sBindHost, &(m_address.sin_addr) ) )
+					return( false );
+			}
 			m_address.sin_port = htons( iPort );
 			bzero(&(m_address.sin_zero), 8);
 
@@ -1362,7 +1368,7 @@ public:
 		* \param iMaxConns the maximum amount of connections to accept
 		* \return true on success
 		*/
-		bool AddListener( int iPort, const Cstring & sSockName, int isSSL = false, int iMaxConns = SOMAXCONN, T *pcSock = NULL )
+		bool AddListener( int iPort, const Cstring & sSockName, const Cstring & sBindHost = "", int isSSL = false, int iMaxConns = SOMAXCONN, T *pcSock = NULL )
 		{
 			if ( !pcSock )
 				pcSock = new T();
@@ -1371,7 +1377,7 @@ public:
 
 			pcSock->SetSSL( isSSL );
 
-			if ( pcSock->Listen( iPort, iMaxConns ) )
+			if ( pcSock->Listen( iPort, iMaxConns, sBindHost ) )
 			{
 				AddSock( pcSock, sSockName );
 				return( true );
@@ -1380,6 +1386,10 @@ public:
 			return( false );
 		}
 	
+		bool AddListener( int iPort, const Cstring & sSockName, int isSSL = false, int iMaxConns = SOMAXCONN, T *pcSock = NULL )
+		{
+			return( AddListener( iPort, sSockName, "", isSSL, iMaxConns, pcSock ) );
+		}
 
 		/*
 		* Best place to call this class for running, all the call backs are called
