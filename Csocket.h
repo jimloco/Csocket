@@ -368,7 +368,7 @@ public:
 				
 			if ( !bBound )
 			{
-				ERROR( "Failure to bind to " + sBindHost );
+				WARN( "Failure to bind to " + sBindHost );
 				return( false );
 			}
 		}
@@ -585,7 +585,7 @@ public:
 				m_ssl_method = SSLv23_client_method();
 				if ( !m_ssl_method )
 				{
-					ERROR( "WARNING: MakeConnection .... SSLv23_client_method failed!" );
+					WARN( "WARNING: MakeConnection .... SSLv23_client_method failed!" );
 					return( false );
 				}
 				break;
@@ -594,7 +594,7 @@ public:
 				m_ssl_method = SSLv2_client_method();
 				if ( !m_ssl_method )
 				{
-					ERROR( "WARNING: MakeConnection .... SSLv2_client_method failed!" );
+					WARN( "WARNING: MakeConnection .... SSLv2_client_method failed!" );
 					return( false );
 				}
 				break;
@@ -603,13 +603,13 @@ public:
 				m_ssl_method = SSLv3_client_method();
 				if ( !m_ssl_method )
 				{
-					ERROR( "WARNING: MakeConnection .... SSLv3_client_method failed!" );
+					WARN( "WARNING: MakeConnection .... SSLv3_client_method failed!" );
 					return( false );
 				}		
 				break;
 		
 			default:
-				ERROR( "WARNING: MakeConnection .... invalid http_sslversion version!" );
+				WARN( "WARNING: MakeConnection .... invalid http_sslversion version!" );
 				return( false );
 				break;
 		}
@@ -650,7 +650,7 @@ public:
 				m_ssl_method = SSLv23_server_method();
 				if ( !m_ssl_method )
 				{
-					ERROR( "WARNING: MakeConnection .... SSLv23_server_method failed!" );
+					WARN( "WARNING: MakeConnection .... SSLv23_server_method failed!" );
 					return( false );
 				}
 				break;
@@ -659,7 +659,7 @@ public:
 				m_ssl_method = SSLv2_server_method();
 				if ( !m_ssl_method )
 				{
-					ERROR( "WARNING: MakeConnection .... SSLv2_server_method failed!" );
+					WARN( "WARNING: MakeConnection .... SSLv2_server_method failed!" );
 					return( false );
 				}
 				break;
@@ -668,13 +668,13 @@ public:
 				m_ssl_method = SSLv3_server_method();
 				if ( !m_ssl_method )
 				{
-					ERROR( "WARNING: MakeConnection .... SSLv3_server_method failed!" );
+					WARN( "WARNING: MakeConnection .... SSLv3_server_method failed!" );
 					return( false );
 				}		
 				break;
 		
 			default:
-				ERROR( "WARNING: MakeConnection .... invalid http_sslversion version!" ); 
+				WARN( "WARNING: MakeConnection .... invalid http_sslversion version!" ); 
 				return( false );
 				break;
 		}
@@ -687,7 +687,7 @@ public:
 		
 		if ( ( m_sPemFile.empty() ) || ( access( m_sPemFile.c_str(), R_OK ) != 0 ) )
 		{
-			ERROR( "There is a problem with [" + m_sPemFile + "]" );
+			WARN( "There is a problem with [" + m_sPemFile + "]" );
 			return( false );
 		}
 
@@ -695,7 +695,7 @@ public:
 		// set up the CTX
 		if ( SSL_CTX_use_certificate_file( m_ssl_ctx, m_sPemFile.c_str() , SSL_FILETYPE_PEM ) <= 0 )
 		{
-			ERROR( "Error with PEM file [" + m_sPemFile + "]" );
+			WARN( "Error with PEM file [" + m_sPemFile + "]" );
 			/* print to char, report our naturally */
 			ERR_print_errors_fp ( stderr );
 			return( false );
@@ -703,7 +703,7 @@ public:
 		
 		if ( SSL_CTX_use_PrivateKey_file( m_ssl_ctx, m_sPemFile.c_str(), SSL_FILETYPE_PEM ) <= 0 )
 		{
-			ERROR( "Error with PEM file [" + m_sPemFile + "]" );
+			WARN( "Error with PEM file [" + m_sPemFile + "]" );
 			// print out to char, report naturally
 			ERR_print_errors_fp ( stderr );
 			return( false );
@@ -711,7 +711,7 @@ public:
 		
 		if ( SSL_CTX_set_cipher_list( m_ssl_ctx, m_sCipherType.c_str() ) <= 0 )
 		{
-			ERROR( "Could not assign cipher [" + m_sCipherType + "]" );
+			WARN( "Could not assign cipher [" + m_sCipherType + "]" );
 			return( false );
 		}
 
@@ -803,7 +803,7 @@ public:
 		{
 #ifdef _DEBUG_
 			// maybe eventually make a __DEBUG_ONLY()
-			ERROR( "ER, NOT Sending DATA!? [" + GetSockName() + "]" );
+			WARN( "ER, NOT Sending DATA!? [" + GetSockName() + "]" );
 #endif /* _DEBUG_ */
 			return( true );
 		}
@@ -855,6 +855,12 @@ public:
 			
 			int iErr = SSL_write( m_ssl, m_sSSLBuffer.data(), m_sSSLBuffer.length() );
 			
+			if ( errno == ECONNREFUSED )
+			{	
+				ConnectionRefused();
+				return( false );
+			}
+
 			switch( SSL_get_error( m_ssl, iErr ) )
 			{
 				case SSL_ERROR_NONE:
@@ -863,10 +869,11 @@ public:
 				break;
 			
 				case SSL_ERROR_ZERO_RETURN:
-				// weird closer alert
-				return( false );
-				break;
-			
+				{
+					// weird closer alert
+					return( false );
+				}
+				
 				case SSL_ERROR_WANT_READ:
 				// retry
 				break;
@@ -887,7 +894,6 @@ public:
 					}
 				}
 				return( false );
-				break;
 			}
 
 			if ( iErr > 0 )				
@@ -900,6 +906,13 @@ public:
 		}
 #endif /* HAVE_LIBSSL */
 		int bytes = write( m_iWriteSock, m_sSend.data(), iBytesToSend );
+
+		if ( errno == ECONNREFUSED )
+		{
+			ConnectionRefused();
+			return( false );
+		}
+
 		if ( ( bytes <= 0 ) && ( errno != EAGAIN ) )
 			return( false );
 		
@@ -952,6 +965,9 @@ public:
 #endif /* HAVE_LIBSSL */
 			bytes = read( m_iReadSock, data, len );
 
+		if ( errno == ECONNREFUSED )
+			return( READ_CONNREFUSED );	
+
 	    if ( bytes == -1 )
 		{
 			if ( ( errno == EINTR ) || ( errno == EAGAIN ) )
@@ -970,12 +986,6 @@ public:
 #endif /* HAVE_LIBSSL */								
 		}
 	
-		if ( bytes == 0 )
-		{
-			if ( errno == ECONNREFUSED )
-				return( READ_CONNREFUSED );	
-		}
-
 		return( bytes );
 	}
 
@@ -1381,7 +1391,7 @@ private:
 
                         	if ( setsockopt( iRet, SOL_SOCKET, SO_REUSEADDR, &on, sizeof( on ) ) != 0 )
 			{
-				ERROR( "SOCKET: Could not set SO_REUSEADDR" );
+				WARN( "SOCKET: Could not set SO_REUSEADDR" );
 			}
 		}
 
@@ -1600,7 +1610,7 @@ public:
 						}
 	
 						int bytes = pcSock->Read( buff, iLen );
-	
+
 						switch( bytes )
 						{
 							case 0:
@@ -1798,9 +1808,6 @@ private:
 					// resend this data
 					if ( !pcSock->Write( "" ) )
 					{
-						if ( errno == ECONNREFUSED ) // call connection refused
-							pcSock->ConnectionRefused();
-						
 						pcSock->Close();
 					}
 	
@@ -1810,6 +1817,7 @@ private:
 					TFD_SET( iWSock, &wfds );
 					bHasWriteable = true;
 				}
+
 			} else
 			{
 				Cstring sHost;
@@ -1926,7 +1934,6 @@ private:
 				if ( iSel > 0 )
 				{
 					iErrno = SUCCESS;
-					
 					if ( !pcSock->HasWrite() )
 					{
 						pcSock->SetWrite( true );
@@ -1939,9 +1946,6 @@ private:
 						if ( !pcSock->Write( "" ) )
 						{
 							// write failed, sock died :(
-							if ( errno == ECONNREFUSED )
-								pcSock->ConnectionRefused();
-
 							iErrno = SELECT_ERROR;
 						}
 					}
