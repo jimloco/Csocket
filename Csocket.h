@@ -84,6 +84,18 @@ inline void TFD_CLR( int iSock, fd_set *set )
 {
 	FD_CLR( iSock, set );
 }
+inline void SSLErrors()
+{
+	unsigned long iSSLError = 0;
+	while( ( iSSLError = ERR_get_error() ) != 0 )
+	{
+		char szError[512];
+		memset( (char *) szError, '\0', 512 );
+		ERR_error_string_n( iSSLError, szError, 511 );
+		if ( strlen( szError ) > 0 )
+			WARN( szError );
+	}
+}
 
 inline bool GetHostByName( const Cstring & sHostName, struct in_addr *paddr )
 {
@@ -570,8 +582,8 @@ public:
 		if ( ( sslErr == SSL_ERROR_WANT_READ ) || ( sslErr == SSL_ERROR_WANT_WRITE ) )
 			return( true );
 
-		ERR_print_errors_fp ( stderr );
-		
+		SSLErrors();
+
 #endif /* HAVE_LIBSSL */
 		
 		return( false );	
@@ -709,7 +721,7 @@ public:
 		{
 			WARN( "Error with PEM file [" + m_sPemFile + "]" );
 			/* print to char, report our naturally */
-			ERR_print_errors_fp ( stderr );
+			SSLErrors();
 			return( false );
 		}
 		
@@ -717,7 +729,7 @@ public:
 		{
 			WARN( "Error with PEM file [" + m_sPemFile + "]" );
 			// print out to char, report naturally
-			ERR_print_errors_fp ( stderr );
+			SSLErrors();
 			return( false );
 		}
 		
@@ -896,16 +908,9 @@ public:
 					
 				case SSL_ERROR_SSL:
 				{
-					char *pszError = ERR_error_string( ERR_peek_last_error(), NULL );
-					if ( pszError )
-					{
-						WARN( pszError );
-					} else
-					{
-						WARN( "unable to determine error!" );
-					}
+					SSLErrors();
+					return( false );
 				}
-				return( false );
 			}
 
 			if ( iErr > 0 )				
