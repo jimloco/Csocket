@@ -639,6 +639,34 @@ public:
 		m_ssl_ctx = SSL_CTX_new ( m_ssl_method );
 		if ( !m_ssl_ctx )
 			return( false );
+	
+		if ( !m_sPemFile.empty() )
+		{	// are we sending a client cerificate ?
+			SSL_CTX_set_default_passwd_cb( m_ssl_ctx, PemPassCB );
+			SSL_CTX_set_default_passwd_cb_userdata( m_ssl_ctx, (void *)this );
+
+			//
+			// set up the CTX
+			if ( SSL_CTX_use_certificate_file( m_ssl_ctx, m_sPemFile.c_str() , SSL_FILETYPE_PEM ) <= 0 )
+			{
+				WARN( "Error with PEM file [" + m_sPemFile + "]" );
+				/* print to char, report our naturally */
+				SSLErrors();
+			}
+		
+			if ( SSL_CTX_use_PrivateKey_file( m_ssl_ctx, m_sPemFile.c_str(), SSL_FILETYPE_PEM ) <= 0 )
+			{
+				WARN( "Error with PEM file [" + m_sPemFile + "]" );
+				// print out to char, report naturally
+				SSLErrors();
+			}
+	/*	
+			if ( SSL_CTX_set_cipher_list( m_ssl_ctx, m_sCipherType.c_str() ) <= 0 )
+			{
+				WARN( "Could not assign cipher [" + m_sCipherType + "]" );
+			}
+	*/
+		}
 		
 		m_ssl = SSL_new ( m_ssl_ctx );
 		if ( !m_ssl )
@@ -749,6 +777,9 @@ public:
 		SSL_set_rfd( m_ssl, m_iReadSock );
 		SSL_set_wfd( m_ssl, m_iWriteSock );
 		SSL_set_accept_state( m_ssl );
+
+		if ( m_bRequireClientCert )
+			SSL_set_verify( m_ssl, SSL_VERIFY_FAIL_IF_NO_PEER_CERT|SSL_VERIFY_PEER, CertVerifyCB );
 
 		return( true );
 #else
@@ -1156,6 +1187,11 @@ public:
 		buf[size-1] = '\0';
 		return( strlen( buf ) );
 	}
+	static int CertVerifyCB( int preverify_ok, X509_STORE_CTX *x509_ctx )
+	{
+		/* return 1 always for now, probably want to add some code for cert verification */
+		return( 1 );
+	}
 	
 	//! Set the SSL method type
 	void SetSSLMethod( int iMethod ) { m_iMethod = iMethod; }
@@ -1282,6 +1318,9 @@ public:
 		} 
 		return( sKey );
 	}
+	bool RequiresClientCert() { return( m_bRequireClientCert ); }
+	void SetRequiresClientCert( bool bRequiresCert ) { m_bRequireClientCert = bRequiresCert; }
+
 #endif /* HAVE_LIBSSL */
 
 	//! Set The INBOUND Parent sockname
@@ -1430,7 +1469,7 @@ public:
 		
 private:
 	int			m_iReadSock, m_iWriteSock, m_itimeout, m_iport, m_iConnType, m_iTcount, m_iMethod;
-	bool		m_bssl, m_bhaswrite, m_bNeverWritten, m_bClosed, m_bBLOCK, m_bFullsslAccept, m_bsslEstablished, m_bEnableReadLine;
+	bool		m_bssl, m_bhaswrite, m_bNeverWritten, m_bClosed, m_bBLOCK, m_bFullsslAccept, m_bsslEstablished, m_bEnableReadLine, m_bRequireClientCert;
 	Cstring		m_shostname, m_sbuffer, m_sSockName, m_sPemFile, m_sCipherType, m_sParentName;
 	Cstring		m_sSend, m_sSSLBuffer, m_sPemPass;
 
@@ -1505,7 +1544,6 @@ private:
 		m_bBLOCK = true;
 		m_iMethod = SSL23;
 		m_sCipherType = "ALL";
-		m_sPemFile = "server.pem";
 		m_iMaxBytes = 0;
 		m_iMaxMilliSeconds = 0;
 		m_iLastSendTime = 0;
@@ -1513,6 +1551,7 @@ private:
 		m_bFullsslAccept = false;
 		m_bsslEstablished = false;
 		m_bEnableReadLine = false;
+		m_bRequireClientCert = false;
 		m_iMaxStoredBufferLength = 1024;
 		m_iConnType = INBOUND;
 	}
@@ -1934,6 +1973,7 @@ private:
 						NewpcSock->SetCipher( pcSock->GetCipher() );
 						NewpcSock->SetPemLocation( pcSock->GetPemLocation() );
 						NewpcSock->SetPemPass( pcSock->GetPemPass() );
+						NewpcSock->SetRequiresClientCert( pcSock->RequiresClientCert() );
 						bAddSock = NewpcSock->AcceptSSL();
 					}
 							
