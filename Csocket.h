@@ -1144,6 +1144,7 @@ public:
 	void SetSSLObject( SSL *ssl ) { m_ssl = ssl; }
 	void SetCTXObject( SSL_CTX *sslCtx ) { m_ssl_ctx = sslCtx; }
 	void SetFullSSLAccept() { m_bFullsslAccept = true; }
+	SSL_SESSION * GetSSLSession() { return( SSL_get_session( m_ssl ) ); }
 #endif /* HAVE_LIBSSL */
 	
 	//! Get the send buffer
