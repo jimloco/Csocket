@@ -51,8 +51,9 @@ inline void TFD_CLR( int iSock, fd_set *set )
 
 //
 // Cronjob class
+// To create a job, derive from this class, override RunJob with your code
+// add it to the Csock class with AddCron()
 //
-
 class CCron
 {
 public:
@@ -100,7 +101,11 @@ protected:
 
 //
 // Basic Socket Class
+// The most basic level socket class
+// You can use this class directly for quick things
+// or use the socket manager below
 //
+
 class Csock
 {
 public:
@@ -383,14 +388,14 @@ public:
 			return( iSock );
 		}
 		
-#ifdef _HAS_SSL
 		bool AcceptSSL()
 		{
+			bool bAccepted = false;
+#ifdef _HAS_SSL
 			if ( !m_ssl )
 				if ( !SSLServerSetup() )
 					return( false );
 				
-			bool bAccepted = false;
 			
 			while( true )
 			{
@@ -416,11 +421,15 @@ public:
 					}
 				}
 			}
+			
+#endif /* _HAS_SSL */
+			
 			return( bAccepted );	
 		}
 
 		bool SSLClientSetup()
 		{
+#ifdef _HAS_SSL		
 			m_bssl = true;
 			
 			if ( m_ssl )
@@ -485,11 +494,15 @@ public:
 			SSL_set_fd( m_ssl, m_isock );
 			
 			return( true );
-		
+#else
+			return( false );
+			
+#endif /* _HAS_SSL */		
 		}
 
 		bool SSLServerSetup()
 		{
+#ifdef _HAS_SSL		
 			m_bssl = true;
 			
 			if ( m_ssl )
@@ -579,11 +592,14 @@ public:
 			SSL_set_accept_state( m_ssl );
 			
 			return( true );
-		
+#else
+			return( false );
+#endif /* _HAS_SSL */		
 		}		
 		
 		bool ConnectSSL( const Cstring & sBindhost = "" )
 		{
+#ifdef _HAS_SSL		
 			if ( m_isock == 0 )
 				if ( !Connect( sBindhost ) )
 					return( false );
@@ -616,9 +632,11 @@ public:
 			}				
 			
 			return( bPass );
+#else
+			return( false );
+#endif /* _HAS_SSL */
 		}
 
-#endif /* _HAS_SSL */
 
 		//
 		// Write to the socket
@@ -833,12 +851,13 @@ public:
 		
 		//
 		// Returns a reference to the socket name
-		Cstring & GetSockName() { return( m_sSockName ); }
+		const Cstring & GetSockName() { return( m_sSockName ); }
 		void SetSockName( const Cstring & sName ) { m_sSockName = sName; }
 		
 		//
 		// Returns a reference to the host name
-		Cstring & GetHostName() { return( m_shostname ); }
+		const Cstring & GetHostName() { return( m_shostname ); }
+		 
 		// Returns the port
 		int GetPort() { return( m_iport ); }
 		
@@ -859,15 +878,22 @@ public:
 		//
 		// Set the cipher type ( openssl cipher [to see ciphers available] )
 		void SetCipher( const Cstring & sCipher ) { m_sCipherType = sCipher; }
-		Cstring & GetCipher() { return( m_sCipherType ); }
+		const Cstring & GetCipher() { return( m_sCipherType ); }
 		
 		//
 		// Set the pem file location
 		void SetPemLocation( const Cstring & sPemFile ) { m_sPemFile = sPemFile; }
-		Cstring & GetPemLocation() { return( m_sPemFile ); }
+		const Cstring & GetPemLocation() { return( m_sPemFile ); }
 		
+		//
 		// Set the SSL method type
-		void SetSSLMethod( int iMethod ) { m_iMethod = SSL23; }
+		void SetSSLMethod( int iMethod ) { m_iMethod = iMethod; }
+		int GetSSLMethod() { return( m_iMethod ); }
+		
+		//
+		// Set The INBOUND Parent sockname
+		void SetParentSockName( const Cstring & sParentName ) { m_sParentName = sParentName; }
+		const Cstring & GetParentSockName() { return( m_sParentName ); }
 		
 		//
 		// Cron caller
@@ -924,7 +950,7 @@ public:
 private:
 		int			m_isock, m_itimeout, m_iport, m_iConnType, m_iTcount, m_iMethod;
 		bool		m_bssl, m_bhaswrite, m_bNeverWritten, m_bClosed, m_bBLOCK;
-		Cstring		m_shostname, m_sbuffer, m_sSockName, m_sPemFile, m_sCipherType;
+		Cstring		m_shostname, m_sbuffer, m_sSockName, m_sPemFile, m_sCipherType, m_sParentName;
 
 		struct hostent		*m_hent, m_hentbuff;
 		struct sockaddr_in 	m_address;
@@ -939,14 +965,22 @@ private:
 };
 
 //
-// new it and forget it
+// TSocketManager
+// Best class to use to interact with the sockets
+// handles SSL and NON Blocking IO
+// Its a template class since Csock derives need to be new'd correctly
+// Makes it easier to use overall
+// Rather then use it directly, you'll probably get more use deriving from it
 //
+// class CBlahSock : public TSocketManager<SomeSock>
+//
+
 template<class T>
-class TConn : public vector<T *>
+class TSocketManager : public vector<T *>
 {
 public:
-		TConn() { m_errno = SUCCESS; }
-		virtual ~TConn() 
+		TSocketManager() { m_errno = SUCCESS; }
+		virtual ~TSocketManager() 
 		{
 			for( unsigned int i = 0; i < size(); i++ )
 				if ( (*this)[i] )
@@ -965,17 +999,7 @@ public:
 			
 		} eMessages;
 
-		bool QuickConnect( const Cstring & sHostname, int iPort, int iTimeout = 60 )
-		{
-			return( Connect( sHostname, iPort, "QuickConnect", iTimeout ) );
-		}
-		
-		bool QuickSSLConnect( const Cstring & sHostname, int iPort, int iTimeout = 60 )
-		{
-			return( Connect( sHostname, iPort, "QuickConnect", iTimeout, true ) );
-		}
-		
-		virtual bool Connect( const Cstring & sHostname, int iPort , const Cstring & sSockName, int iTimeout = 60, bool isSSL = false, const Cstring & sBindHost = "" )
+		bool Connect( const Cstring & sHostname, int iPort , const Cstring & sSockName, int iTimeout = 60, bool isSSL = false, const Cstring & sBindHost = "" )
 		{
 			// create the new object
 			T *pcSock = new T( sHostname, iPort, iTimeout );
@@ -1010,8 +1034,22 @@ public:
 			AddSock( pcSock, sSockName );
 			return( true );
 		}
-		
-		virtual bool AddListener( int iPort, const Cstring & sSockName, int isSSL = false, int iMaxConns = SOMAXCONN )
+
+		bool QuickConnect( const Cstring & sHostname, int iPort, int iTimeout = 60 )
+		{
+			return( Connect( sHostname, iPort, "QuickConnect", iTimeout ) );
+		}
+
+		bool QuickSSLConnect( const Cstring & sHostname, int iPort, int iTimeout = 60 )
+		{
+#ifdef _HAS_SSL		
+			return( Connect( sHostname, iPort, "QuickConnect", iTimeout, true ) );
+#else
+			return( false );
+#endif /* _HAS_SSL */
+		}		
+
+		bool AddListener( int iPort, const Cstring & sSockName, int isSSL = false, int iMaxConns = SOMAXCONN )
 		{
 			T * pcSock = new T();
 			
@@ -1119,8 +1157,12 @@ public:
 								
 #endif /* _HAS_SSL */
 						if ( bAddSock )
-							AddSock( NewpcSock,  sHost + "-" + Cstring::num2Cstring( port ) );
-						else
+						{
+							// set the name of the listener
+							NewpcSock->SetParentSockName( pcSock->GetSockName() );
+							AddSock( NewpcSock,  sHost + ":" + Cstring::num2Cstring( port ) );
+						
+						} else
 							delete( NewpcSock );
 					}
 				}
@@ -1187,7 +1229,7 @@ public:
 			return( NULL );
 		}			
 				
-		virtual void DelSock( T *pcSock )
+		void DelSock( T *pcSock )
 		{
 			iterator p;
 			
@@ -1284,6 +1326,9 @@ public:
 			}
 		}
 
+		//
+		// Make this method virtual, so you can override it when a socket is added
+		// Assuming you might want to do some extra stuff
 		virtual void AddSock( T *pcSock, const Cstring & sSockName )
 		{
 			pcSock->SetSockName( sSockName );
@@ -1319,7 +1364,5 @@ private:
 		int				m_errno;
 		vector<T *>		m_pcDestroySocks;
 };
-
-typedef TConn<Csock> CConn;
 
 #endif /* _HAS_CSOCKET_ */
