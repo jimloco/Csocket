@@ -62,6 +62,7 @@ public:
 			m_bOnlyOnce = true;
 			m_bActive = true;
 			m_iTime	= 0;
+			m_iTimeSequence = 60;
 		}
 		virtual ~CCron() {}
 		
@@ -73,11 +74,14 @@ public:
 				
 				if ( m_bOnlyOnce )
 					m_bActive = false;
+				else
+					m_iTime = time( NULL ) + m_iTimeSequence;
 			}
 		}
 		void Start( int TimeSequence, bool bOnlyOnce = true ) 
 		{
-			m_iTime = time( NULL ) + TimeSequence;
+			m_iTimeSequence = TimeSequence;
+			m_iTime = time( NULL ) + m_iTimeSequence;
 			m_bOnlyOnce = bOnlyOnce;
 		}
 
@@ -97,6 +101,7 @@ protected:
 		
 		time_t	m_iTime;
 		bool	m_bOnlyOnce, m_bActive;
+		int		m_iTimeSequence;
 };
 
 //
