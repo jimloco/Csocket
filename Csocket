@@ -477,8 +477,17 @@ template<class T>
 class TConn : public vector<T *>
 {
 public:
-		TConn() {}
-		virtual ~TConn() { m_errno = SUCCESS; }
+		TConn() { m_errno = SUCCESS; }
+		virtual ~TConn() 
+		{
+			for( unsigned int i = 0; i < size(); i++ )
+				if ( (*this)[i] )
+				{
+					close( (*this)[i]->GetSock() );
+					delete( (*this)[i] );
+					(*this)[i] = NULL;
+				}
+		}
 
 		typedef enum
 		{
