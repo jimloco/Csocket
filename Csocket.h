@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.88 $
+* $Revision: 1.89 $
 */
 
 #ifndef _HAS_CSOCKET_
@@ -990,6 +990,7 @@ namespace Csocket
 					// reset the timer on successful write (we have to set it here because the write
 					// bit might not always be set, so need to trigger)
 					ResetTimer();	
+					m_iBytesWritten += (unsigned long long)iErr;
 				}
 
 				return( true );
@@ -1011,6 +1012,7 @@ namespace Csocket
 			{
 				m_sSend.erase( 0, bytes );
 				ResetTimer();	// reset the timer on successful write
+				m_iBytesWritten += (unsigned long long)bytes;
 			}
 
 			return( true );
@@ -1079,6 +1081,8 @@ namespace Csocket
 #endif /* HAVE_LIBSSL */								
 			}
 		
+			m_iBytesRead += (unsigned long long)bytes;
+
 			return( bytes );
 		}
 
@@ -1212,6 +1216,20 @@ namespace Csocket
 		//! Returns a reference to the host name
 		const CS_STRING & GetHostName() { return( m_shostname ); }
 		void SetHostName( const CS_STRING & sHostname ) { m_shostname = sHostname; }
+
+
+		//! Gets the starting time of this socket
+		unsigned long long GetStartTime() const { return( m_iStartTime ); } 
+		//! Resets the start time
+		void ResetStartTime() { m_iStartTime = 0; }
+
+		//! Gets the amount of data read during the existence of the socket
+		unsigned long long GetBytesRead() const { return( m_iBytesRead ); }
+		void ResetBytesRead() { m_iBytesRead = 0; }
+		
+		//! Gets the amount of data written during the existence of the socket
+		unsigned long long GetBytesWritten() const { return( m_iBytesWritten ); }
+		void ResetBytesWritten() { m_iBytesWritten = 0; }
 
 		//! Returns the remote port
 		int GetRemotePort() 
@@ -1594,7 +1612,7 @@ namespace Csocket
 		CS_STRING	m_shostname, m_sbuffer, m_sSockName, m_sPemFile, m_sCipherType, m_sParentName;
 		CS_STRING	m_sSend, m_sSSLBuffer, m_sPemPass, m_sLocalIP, m_sRemoteIP;
 
-		unsigned long long	m_iMaxMilliSeconds, m_iLastSendTime;
+		unsigned long long	m_iMaxMilliSeconds, m_iLastSendTime, m_iBytesRead, m_iBytesWritten, m_iStartTime;
 		unsigned int		m_iMaxBytes, m_iLastSend, m_iMaxStoredBufferLength;
 		
 		struct sockaddr_in 	m_address;
@@ -1675,6 +1693,9 @@ namespace Csocket
 			m_iConnType = INBOUND;
 			m_iRemotePort = 0;
 			m_iLocalPort = 0;
+			m_iBytesRead = 0;
+			m_iBytesWritten = 0;
+			m_iStartTime = millitime();
 		}
 	};
 
