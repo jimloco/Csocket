@@ -84,6 +84,8 @@ inline void TFD_CLR( int iSock, fd_set *set )
 {
 	FD_CLR( iSock, set );
 }
+
+#ifdef HAVE_SSL
 inline void SSLErrors()
 {
 	unsigned long iSSLError = 0;
@@ -96,6 +98,7 @@ inline void SSLErrors()
 			WARN( szError );
 	}
 }
+#endif
 
 inline bool GetHostByName( const Cstring & sHostName, struct in_addr *paddr )
 {
@@ -1042,6 +1045,23 @@ public:
 		return( bytes );
 	}
 
+	Cstring GetLocalIP()
+	{
+		int iSock = GetSock();
+
+		if ( iSock <= 0 )
+		{
+			cerr << "What the hell is wrong with my fd!?" << endl;
+			return( "" );
+		}
+
+		struct sockaddr_in mLocalAddr;
+		socklen_t mLocalLen = sizeof(struct sockaddr);
+		getsockname( iSock, (struct sockaddr *) &mLocalAddr, &mLocalLen );
+
+		return( inet_ntoa( mLocalAddr.sin_addr ) );
+	}
+
 	//! Tells you if the socket is ready for write.
 	virtual bool HasWrite() { return( m_bhaswrite ); }
 	virtual void SetWrite( bool b ) { m_bhaswrite = b; }	
@@ -1174,6 +1194,7 @@ public:
 	bool GetSSL() { return( m_bssl ); }
 	void SetSSL( bool b ) { m_bssl = b; }
 	
+#ifdef HAVE_LIBSSL
 	//! Set the cipher type ( openssl cipher [to see ciphers available] )
 	void SetCipher( const Cstring & sCipher ) { m_sCipherType = sCipher; }
 	const Cstring & GetCipher() { return( m_sCipherType ); }
@@ -1202,7 +1223,6 @@ public:
 	void SetSSLMethod( int iMethod ) { m_iMethod = iMethod; }
 	int GetSSLMethod() { return( m_iMethod ); }
 	
-#ifdef HAVE_LIBSSL
 	void SetSSLObject( SSL *ssl ) { m_ssl = ssl; }
 	void SetCTXObject( SSL_CTX *sslCtx ) { m_ssl_ctx = sslCtx; }
 	void SetFullSSLAccept() { m_bFullsslAccept = true; }
