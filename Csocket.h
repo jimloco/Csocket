@@ -5,8 +5,8 @@
 *
 *    CVS Info:
 *       $Author: imaginos $
-*       $Date: 2003/08/29 10:36:59 $
-*       $Revision: 1.25 $
+*       $Date: 2003/08/29 22:42:48 $
+*       $Revision: 1.26 $
 */
 
 #ifndef _HAS_CSOCKET_
@@ -201,6 +201,9 @@ public:
 			Init( sHostname, iport, itimeout );
 		}
 		
+		// override this for accept sockets
+		virtual Csock *GetSockObj( const Cstring & sHostname, int iPort ) { return( new Csock( sHostname, iPort ) ); }
+		
 		virtual ~Csock()
 		{
 			close( m_isock );
@@ -299,7 +302,7 @@ public:
 		* \param sBindHost the ip you want to bind to locally
 		* \return true on success
 		*/
-		bool Connect( const Cstring & sBindHost = "" )
+		virtual bool Connect( const Cstring & sBindHost = "" )
 		{
 			// create the socket
 			m_isock = SOCKET();
@@ -316,6 +319,8 @@ public:
 				struct sockaddr_in vh;
 
 				vh.sin_family = PF_INET;
+				vh.sin_port = htons( 0 );
+
 				if ( !GetHostByName( sBindHost, &(vh.sin_addr) ) )
 					return( false );
 
@@ -369,7 +374,7 @@ public:
 		* WriteSelect on this socket
 		* Only good if JUST using this socket, otherwise use the TSocketManager
 		*/
-		int WriteSelect()
+		virtual int WriteSelect()
 		{
 			struct timeval tv;
 			fd_set wfds;
@@ -400,7 +405,7 @@ public:
 		* ReadSelect on this socket
 		* Only good if JUST using this socket, otherwise use the TSocketManager
 		*/
-		int ReadSelect()
+		virtual int ReadSelect()
 		{
 			struct timeval tv;
 			fd_set rfds;
@@ -433,7 +438,7 @@ public:
 		* \param iPort the port to listen on
 		* \param iMaxConns the maximum amount of connections to allow
 		*/
-		bool Listen( int iPort, int iMaxConns = SOMAXCONN, const Cstring & sBindHost = "" )
+		virtual bool Listen( int iPort, int iMaxConns = SOMAXCONN, const Cstring & sBindHost = "" )
 		{
 			m_isock = SOCKET( true );
 
@@ -471,7 +476,7 @@ public:
 		}
 		
 		//! Accept an inbound connection, this is used internally
-		int Accept( Cstring & sHost, int & iRPort )
+		virtual int Accept( Cstring & sHost, int & iRPort )
 		{
 			struct sockaddr_in client;
 			socklen_t clen = sizeof(struct sockaddr);
@@ -504,7 +509,7 @@ public:
 		}
 		
 		//! Accept an inbound SSL connection, this is used internally and called after Accept
-		bool AcceptSSL()
+		virtual bool AcceptSSL()
 		{
 #ifdef HAVE_LIBSSL
 			if ( !m_ssl )
@@ -535,7 +540,7 @@ public:
 		}
 
 		//! This sets up the SSL Client, this is used internally
-		bool SSLClientSetup()
+		virtual bool SSLClientSetup()
 		{
 #ifdef HAVE_LIBSSL		
 			m_bssl = true;
@@ -599,7 +604,7 @@ public:
 		}
 
 		//! This sets up the SSL Server, this is used internally
-		bool SSLServerSetup()
+		virtual bool SSLServerSetup()
 		{
 #ifdef HAVE_LIBSSL
 			m_bssl = true;
@@ -700,7 +705,7 @@ public:
 		* \param sBindhost the ip you want to bind to locally
 		* \return true on success
 		*/		
-		bool ConnectSSL( const Cstring & sBindhost = "" )
+		virtual bool ConnectSSL( const Cstring & sBindhost = "" )
 		{
 #ifdef HAVE_LIBSSL		
 			if ( m_isock == 0 )
@@ -757,7 +762,7 @@ public:
 		* \param data the data to send
 		* \param len the length of data
 		*/
-		bool Write( const char *data, int len )
+		virtual bool Write( const char *data, int len )
 		{
 			m_sSend.append( data, len );
 
@@ -859,7 +864,7 @@ public:
 		* convience function
 		* @see Write( const char *, int )
 		*/
-		bool Write( const Cstring & sData )
+		virtual bool Write( const Cstring & sData )
 		{
 			return( Write( sData.c_str(), sData.length() ) );
 		}
@@ -877,7 +882,7 @@ public:
 		* Returns READ_EAGAIN for Try Again ( EAGAIN )
 		* Otherwise returns the bytes read into data
 		*/
-		int Read( char *data, int len )
+		virtual int Read( char *data, int len )
 		{
 	
 			if ( m_bBLOCK )
@@ -918,15 +923,15 @@ public:
 		}
 
 		//! Tells you if the socket is ready for write.
-		bool HasWrite() { return( m_bhaswrite ); }
-		void SetWrite( bool b ) { m_bhaswrite = b; }	
+		virtual bool HasWrite() { return( m_bhaswrite ); }
+		virtual void SetWrite( bool b ) { m_bhaswrite = b; }	
 
 		/**
 		* has never been written too, you can easy use the two to find a first case scenario
 		* if ( ( HasWrite() ) && ( !NeedsWrite() ) )
 		*		first time write
 		*/		
-		bool NeedsWrite()
+		virtual bool NeedsWrite()
 		{
 			return( m_bNeverWritten );
 		}
@@ -947,7 +952,7 @@ public:
 		void SetTimeout( int iTimeout ) { m_itimeout = iTimeout; }
 		
 		//! returns true if the socket has timed out
-		bool CheckTimeout()
+		virtual bool CheckTimeout()
 		{
 			if ( m_itimeout > 0 )
 			{
@@ -966,7 +971,7 @@ public:
 		* pushes data up on the buffer, if a line is ready
 		* it calls the ReadLine event
 		*/
-		void PushBuff( const char *data, int len )
+		virtual void PushBuff( const char *data, int len )
 		{
 			if ( data )
 				m_sbuffer.append( data, len );
@@ -1049,7 +1054,7 @@ public:
 #endif /* HAVE_LIBSSL */
 
 		//! Set The INBOUND Parent sockname
-		void SetParentSockName( const Cstring & sParentName ) { m_sParentName = sParentName; }
+		virtual void SetParentSockName( const Cstring & sParentName ) { m_sParentName = sParentName; }
 		const Cstring & GetParentSockName() { return( m_sParentName ); }
 		
 		/*
@@ -1057,7 +1062,7 @@ public:
 		* \param iBytes the amount of bytes we can write
 		* \param iMilliseconds the amount of time we have to rate to iBytes
 		*/
-		void SetRate( u_int iBytes, unsigned long long iMilliseconds )
+		virtual void SetRate( u_int iBytes, unsigned long long iMilliseconds )
 		{
 			m_iMaxBytes = iBytes;
 			m_iMaxMilliSeconds = iMilliseconds;
@@ -1068,7 +1073,7 @@ public:
 		
 		
 		//! This has a garbage collecter, and is used internall to call the jobs
-		void Cron()
+		virtual void Cron()
 		{
 			for( unsigned int a = 0; a < m_vcCrons.size(); a++ )
 			{		
@@ -1084,7 +1089,7 @@ public:
 		}
 		
 		//! insert a newly created cron
-		void AddCron( CCron * pcCron )
+		virtual void AddCron( CCron * pcCron )
 		{
 			m_vcCrons.push_back( pcCron );
 		}
@@ -1150,7 +1155,7 @@ public:
 		virtual bool ConnectionFrom( const Cstring & sHost, int iPort ) { return( true ); }
 
 		//! return the data imediatly ready for read
-		int GetPending()
+		virtual int GetPending()
 		{
 #ifdef HAVE_LIBSSL
 			if( m_ssl )
@@ -1164,7 +1169,6 @@ public:
 
 		//////////////////////////////////////////////////	
 			
-				
 private:
 		int			m_isock, m_itimeout, m_iport, m_iConnType, m_iTcount, m_iMethod;
 		bool		m_bssl, m_bhaswrite, m_bNeverWritten, m_bClosed, m_bBLOCK, m_bFullsslAccept, m_bsslEstablished;
@@ -1181,7 +1185,7 @@ private:
 		SSL_CTX				*m_ssl_ctx;
 		SSL_METHOD			*m_ssl_method;
 
-		void FREE_SSL()
+		virtual void FREE_SSL()
 		{
 			if ( m_ssl )
 			{
@@ -1191,7 +1195,7 @@ private:
 			m_ssl = NULL;
 		}
 
-		void FREE_CTX()
+		virtual void FREE_CTX()
 		{
 			if ( m_ssl_ctx )
 				SSL_CTX_free( m_ssl_ctx );
@@ -1204,7 +1208,7 @@ private:
 		vector<CCron *>		m_vcCrons;
 
 		//! Create the socket
-		int SOCKET( bool bListen = false )
+		virtual int SOCKET( bool bListen = false )
 		{
 			int iRet = 0;
 			while( iRet == 0 )
@@ -1223,7 +1227,7 @@ private:
 			return( iRet );
 		}
 
-		void Init( const Cstring & sHostname, int iport, int itimeout = 60 )
+		virtual void Init( const Cstring & sHostname, int iport, int itimeout = 60 )
 		{
 #ifdef HAVE_LIBSSL	
 			m_ssl = NULL;
@@ -1313,7 +1317,7 @@ public:
 		* \param sBindHost the host to bind too
 		* \return true on success
 		*/
-		bool Connect( const Cstring & sHostname, int iPort , const Cstring & sSockName, int iTimeout = 60, bool isSSL = false, const Cstring & sBindHost = "", T *pcSock = NULL )
+		virtual bool Connect( const Cstring & sHostname, int iPort , const Cstring & sSockName, int iTimeout = 60, bool isSSL = false, const Cstring & sBindHost = "", T *pcSock = NULL )
 		{
 			// create the new object
 			if ( !pcSock )
@@ -1350,27 +1354,6 @@ public:
 		}
 
 		/**
-		* convience function
-		* @see Connect()
-		*/
-		bool Connect( const Cstring & sHostname, int iPort, int iTimeout = 60, T *pcSock = NULL, bool bSSL = false )
-		{
-			return( Connect( sHostname, iPort, "QuickConnect", iTimeout, bSSL, pcSock ) );
-		}
-		/**
-		* convience function
-		* @see Connect()
-		*/
-		bool SSLConnect( const Cstring & sHostname, int iPort, int iTimeout = 60, T *pcSock = NULL )
-		{
-#ifdef HAVE_LIBSSL		
-			return( Connect( sHostname, iPort, iTimeout, pcSock, true ) );
-#else
-			return( false );
-#endif /* HAVE_LIBSSL */
-		}		
-
-		/**
 		* Create a listening socket
 		* 
 		* \param iPort the port to listen on
@@ -1379,7 +1362,7 @@ public:
 		* \param iMaxConns the maximum amount of connections to accept
 		* \return true on success
 		*/
-		bool AddListener( int iPort, const Cstring & sSockName, const Cstring & sBindHost = "", int isSSL = false, int iMaxConns = SOMAXCONN, T *pcSock = NULL )
+		virtual bool ListenHost( int iPort, const Cstring & sSockName, const Cstring & sBindHost, int isSSL = false, int iMaxConns = SOMAXCONN, T *pcSock = NULL )
 		{
 			if ( !pcSock )
 				pcSock = new T();
@@ -1397,9 +1380,9 @@ public:
 			return( false );
 		}
 	
-		bool AddListener( int iPort, const Cstring & sSockName, int isSSL = false, int iMaxConns = SOMAXCONN, T *pcSock = NULL )
+		virtual bool ListenAll( int iPort, const Cstring & sSockName, int isSSL = false, int iMaxConns = SOMAXCONN, T *pcSock = NULL )
 		{
-			return( AddListener( iPort, sSockName, "", isSSL, iMaxConns, pcSock ) );
+			return( ListenHost( iPort, sSockName, "", isSSL, iMaxConns, pcSock ) );
 		}
 
 		/*
@@ -1407,7 +1390,7 @@ public:
 		* You should through this in your main while loop (long as its not blocking)
 		* all the events are called as needed
 		*/ 
-		void Loop ()
+		virtual void Loop ()
 		{
 			vector<stSock> vstSock = Select();
 			map<T *, bool> mstSock;
@@ -1525,7 +1508,7 @@ public:
 		}
 		
 		//! returns a pointer to the sock found by name or NULL on no match
-		T * FindSockByName( const Cstring & sName )
+		virtual T * FindSockByName( const Cstring & sName )
 		{
 			for( unsigned int i = 0; i < size(); i++ )
 				if ( (*this)[i]->GetSockName() == sName )
@@ -1535,7 +1518,7 @@ public:
 		}
 		
 		//! returns a vector of pointers to socks with sHostname as being connected
-		vector<T *> FindSocksByRemoteHost( const Cstring & sHostname )
+		virtual vector<T *> FindSocksByRemoteHost( const Cstring & sHostname )
 		{
 			vector<T *> vpSocks;
 			
@@ -1550,7 +1533,7 @@ public:
 		int GetErrno() { return( m_errno ); }
 
 		//! add a cronjob at the manager level
-		void AddCron( CCron *pcCron )
+		virtual void AddCron( CCron *pcCron )
 		{
 			m_vcCrons.push_back( pcCron );
 		}
@@ -1559,6 +1542,7 @@ public:
 		u_int GetSelectTimeout() { return( m_iSelectWait ); }
 		//! Set the Select Timeout in MILLISECONDS
 		void  SetSelectTimeout( u_int iTimeout ) { m_iSelectWait = iTimeout; }
+
 private:
 		/**
 		* returns a pointer to the ready Csock class thats available
@@ -1566,7 +1550,7 @@ private:
 		* each struct contains the socks error
 		* @see GetErrno()
 		*/
-		vector<stSock> Select()
+		virtual vector<stSock> Select()
 		{		
 			struct timeval tv;
 			fd_set rfds, wfds;
@@ -1651,8 +1635,8 @@ private:
 					if ( inSock != -1 )
 					{
 						// if we have a new sock, then add it
-						T * NewpcSock = new T( sHost, port );
-						
+						T *NewpcSock = (T *)pcSock->GetSockObj( sHost, port );
+
 						NewpcSock->BlockIO( false );
 						
 						NewpcSock->SetType( T::INBOUND );
@@ -1788,7 +1772,7 @@ private:
 			return( vRet );
 		}			
 				
-		void DelSock( T *pcSock )
+		virtual void DelSock( T *pcSock )
 		{
 			typename vector<T *>::iterator p;
 			
@@ -1809,7 +1793,7 @@ private:
 		}
 
 		//! internal use only
-		void AddstSock( vector<stSock> * pcvSt, EMessages eErrno, T * pcSock )
+		virtual void AddstSock( vector<stSock> * pcvSt, EMessages eErrno, T * pcSock )
 		{
 			for( unsigned int i = 0; i < pcvSt->size(); i++ )
 			{
@@ -1824,7 +1808,7 @@ private:
 		}
 
 		//! these crons get ran and checked in Loop()
-		void Cron()
+		virtual void Cron()
 		{
 			for( unsigned int a = 0; a < m_vcCrons.size(); a++ )
 			{		
@@ -1840,7 +1824,7 @@ private:
 		}
 
 		//! only used internally
-		void DestroySock( T * pcClass ) { m_pcDestroySocks.push_back( pcClass ); }
+		virtual void DestroySock( T * pcClass ) { m_pcDestroySocks.push_back( pcClass ); }
 		
 		EMessages			m_errno;
 		vector<T *>			m_pcDestroySocks;
