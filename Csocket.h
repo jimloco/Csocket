@@ -5,8 +5,8 @@
 *
 *    CVS Info:
 *       $Author: imaginos $
-*       $Date: 2003/05/27 23:45:39 $
-*       $Revision: 1.20 $
+*       $Date: 2003/05/28 00:37:31 $
+*       $Revision: 1.21 $
 */
 
 #ifndef _HAS_CSOCKET_
@@ -64,7 +64,7 @@ inline void TFD_CLR( int iSock, fd_set *set )
 	FD_CLR( iSock, set );
 }
 
-bool GetHostByName( const Cstring & sHostName, struct in_addr *paddr )
+inline bool GetHostByName( const Cstring & sHostName, struct in_addr *paddr )
 {
 	bool bRet = false;
 	struct hostent *hent = NULL;
@@ -1310,13 +1310,6 @@ public:
 			
 			// make it NON-Blocking IO
 			pcSock->BlockIO( false );
-			
-			// figure out the hostname we're connecting to.		
-			if ( !pcSock->Resolve() )
-			{
-				Zzap( pcSock );
-				return( false );
-			}
 			
 			if ( !pcSock->Connect( sBindHost ) )
 			{
