@@ -270,6 +270,14 @@ public:
 			Zzap( m_vcCrons[i] );
 	}
 
+	//! Pauses this sock, in the sense that it won't go through the select loop
+	//! iTimeout is how long it will pause before continuing
+	void Pause( u_int iTimeout = 60 ) { m_iPauseTime = time( NULL ) + iTimeout; }
+	//! UnPauses this sock, and allows it to continue normally
+	void UnPause() { m_iPauseTime = 0; }
+	bool IsPaused() { return( ( m_iPauseTime != 0 ) ); }
+	time_t PauseTimeout() { return( m_iPauseTime ); }
+
 	enum ETConn
 	{
 		OUTBOUND	= 0,		//!< outbound connection
@@ -532,6 +540,9 @@ public:
 	//! Accept an inbound connection, this is used internally
 	virtual int Accept( Cstring & sHost, int & iRPort )
 	{
+		if ( !IncomingConnection() )
+			return( -1 );
+
 		struct sockaddr_in client;
 		socklen_t clen = sizeof(struct sockaddr);
 		
@@ -1458,6 +1469,14 @@ public:
 	 */
 	virtual void ConnectionRefused() {}
 
+	/**
+	 * Override these functions for an easy interface when using the Socket Manager
+	 * return false if you want it to stop from accepting the connection
+	 * constantly returning false on this will probably cause a CPU spike, so it is best to use this
+	 * with Pause and UnPause to basically defer the connection til later
+	 */
+	virtual bool IncomingConnection() { return( true ); }
+	
 	//! return the data imediatly ready for read
 	virtual int GetPending()
 	{
@@ -1475,7 +1494,9 @@ public:
 		
 private:
 	int			m_iReadSock, m_iWriteSock, m_itimeout, m_iport, m_iConnType, m_iTcount, m_iMethod;
-	bool		m_bssl, m_bhaswrite, m_bNeverWritten, m_bClosed, m_bBLOCK, m_bFullsslAccept, m_bsslEstablished, m_bEnableReadLine, m_bRequireClientCert;
+	u_int		m_iPauseTime;
+	bool		m_bssl, m_bhaswrite, m_bNeverWritten, m_bClosed, m_bBLOCK, m_bFullsslAccept;
+	bool		m_bsslEstablished, m_bEnableReadLine, m_bRequireClientCert;
 	Cstring		m_shostname, m_sbuffer, m_sSockName, m_sPemFile, m_sCipherType, m_sParentName;
 	Cstring		m_sSend, m_sSSLBuffer, m_sPemPass;
 
@@ -1560,6 +1581,7 @@ private:
 		m_bRequireClientCert = false;
 		m_iMaxStoredBufferLength = 1024;
 		m_iConnType = INBOUND;
+		m_iPauseTime = 0;
 	}
 };
 
@@ -1951,8 +1973,16 @@ private:
 		for( unsigned int i = 0; i < size(); i++ )
 		{
 
-			Csock *pcSock = (*this)[i];
-			
+			T *pcSock = (*this)[i];
+
+			if ( pcSock->IsPaused() )
+			{
+				if ( pcSock->PauseTimeout() >= time( NULL ) )
+					pcSock->UnPause();
+				else
+					continue;
+			}
+						
 			if ( pcSock->GetType() != T::LISTENER )
 			{
 				int & iRSock = pcSock->GetRSock();
