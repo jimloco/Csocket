@@ -5,8 +5,8 @@
 *
 *    CVS Info:
 *       $Author: imaginos $
-*       $Date: 2003/04/12 20:26:08 $
-*       $Revision: 1.6 $
+*       $Date: 2003/04/13 20:49:42 $
+*       $Revision: 1.7 $
 */
 
 #ifndef _HAS_CSOCKET_
@@ -1353,16 +1353,25 @@ public:
 			Zzap( pcSock );
 			return( false );
 		}
+	
+		typedef struct
+		{
+			T			*pcSock;
+			EMessages	eErrno;
+		
+		} stSock;
 			
 		/**
 		* returns a pointer to the ready Csock class thats available
-		* returns NULL if none are ready, check GetErrno() for the error, if not SUCCESS Select() failed
+		* returns empty vector if none are ready, check GetErrno() for the error, if not SUCCESS Select() failed
+		* each struct contains the socks error
 		* @see GetErrno()
 		*/
-		T * Select()
+		vector<stSock> Select()
 		{		
 			struct timeval tv;
 			fd_set rfds, wfds;
+			vector<stSock> vRet;
 			
 			// 1/4 second timeouts, nice and easy
 			// if you decide to change this number, be sure to change the
@@ -1475,88 +1484,107 @@ public:
 				}
 			}
 		
-			// now select on them
-			while( true )
+			// first check to see if any ssl sockets are ready for immediate read
+			// a mini select() type deal for ssl
+			for( unsigned int i = 0; i < size(); i++ )
 			{
-				// first check to see if any ssl sockets are ready for immediate read
-				// a mini select() type deal for ssl
-				for( unsigned int i = 0; i < size(); i++ )
+				T *pcSock = (*this)[i];
+		
+				if ( ( pcSock->GetSSL() ) && ( pcSock->GetType() != Csock::LISTENER ) )
 				{
-					T *pcSock = (*this)[i];
-			
-					if ( ( pcSock->GetSSL() ) && ( pcSock->GetType() != Csock::LISTENER ) )
-					{
-						if ( pcSock->GetPending() > 0 )
-						{
-							m_errno = SUCCESS;
-							return( pcSock );
-						}
-					}
+					if ( pcSock->GetPending() > 0 )
+						AddstSock( &vRet, SUCCESS, pcSock );
 				}
+			}
 
-				// old fashion select loop, go fer it
-				int iSel;
+			// old fashion select, go fer it
+			int iSel;
 
-				if ( bHasWriteable )
-					iSel = select(FD_SETSIZE, &rfds, &wfds, NULL, &tv);
-				else
-					iSel = select(FD_SETSIZE, &rfds, NULL, NULL, &tv);
+			if ( bHasWriteable )
+				iSel = select(FD_SETSIZE, &rfds, &wfds, NULL, &tv);
+			else
+				iSel = select(FD_SETSIZE, &rfds, NULL, NULL, &tv);
 
-				if ( iSel == 0 )
-				{
+			if ( iSel == 0 )
+			{
+				if ( vRet.empty() )
 					m_errno = SELECT_TIMEOUT;
-					return( NULL );
-				}
+				else
+					m_errno = SUCCESS;
 				
-				if ( ( iSel == -1 ) && ( errno == EINTR ) )
-				{
-					m_errno = SELECT_TRYAGAIN;
-					return( NULL );				
-				}
-				
-				// find out wich one is ready
-				for( unsigned int i = 0; i < size(); i++ )
-				{
-					T *pcSock = (*this)[i];
-					int & iSock = pcSock->GetSock();
-					
-					if ( TFD_ISSET( iSock, &wfds ) )
-					{
-						if ( iSel > 0 )
-						{
-							m_errno = SUCCESS;
-							if ( !pcSock->HasWrite() )
-							{
-								pcSock->SetWrite( true );
-								// Call the Connected Event
-								pcSock->Connected();
-							}
-							// write whats in the socks send buffer
-							if ( !pcSock->GetSendBuff().empty() )
-								if ( !pcSock->Write( "" ) )
-									DestroySock( pcSock );	// write failed, sock died :(
-								
-						} else
-							m_errno = SELECT_ERROR;
-
-						return( pcSock );
-
-					} else if ( TFD_ISSET( iSock, &rfds ) )
-					{
-						if ( iSel > 0 )
-							m_errno = SUCCESS;
-						else
-							m_errno = SELECT_ERROR;
-
-						return( pcSock );
-					}						
-				}
-				// it said one was ready, but none of them were :(
-				m_errno = SELECT_ERROR;	
-				return( NULL );
+				return( vRet );
 			}
 			
-			return( NULL );
+			if ( ( iSel == -1 ) && ( errno == EINTR ) )
+			{
+				if ( vRet.empty() )
+					m_errno = SELECT_TRYAGAIN;
+				else
+					m_errno = SUCCESS;
+				
+				return( vRet );				
+			
+			} else if ( iSel == -1 )
+			{
+				cerr << "Select Error!" << endl;
+				
+				if ( vRet.empty() )
+					m_errno = SELECT_ERROR;
+				else
+					m_errno = SUCCESS;
+				
+				return( vRet );
+			
+			} else
+			{
+				m_errno = SUCCESS;
+			}							
+			
+			// find out wich one is ready
+			for( unsigned int i = 0; i < size(); i++ )
+			{
+				T *pcSock = (*this)[i];
+				int & iSock = pcSock->GetSock();
+				EMessages iErrno = SUCCESS;
+				
+				if ( TFD_ISSET( iSock, &wfds ) )
+				{
+					if ( iSel > 0 )
+					{
+						iErrno = SUCCESS;
+						
+						if ( !pcSock->HasWrite() )
+						{
+							pcSock->SetWrite( true );
+							// Call the Connected Event
+							pcSock->Connected();
+						}
+						// write whats in the socks send buffer
+						if ( !pcSock->GetSendBuff().empty() )
+						{
+							if ( !pcSock->Write( "" ) )
+							{
+								// write failed, sock died :(
+								iErrno = SELECT_ERROR;
+							}
+						}
+					} else
+						iErrno = SELECT_ERROR;
+
+					AddstSock( &vRet, iErrno, pcSock );
+
+				} else if ( TFD_ISSET( iSock, &rfds ) )
+				{
+					if ( iSel > 0 )
+						iErrno = SUCCESS;
+					else
+						iErrno = SELECT_ERROR;
+
+					AddstSock( &vRet, iErrno, pcSock );
+				}						
+			}
+
+			return( vRet );
 		}			
 				
 		void DelSock( T *pcSock )
@@ -1587,70 +1615,76 @@ public:
 		*/ 
 		void Loop ()
 		{
-			T *pcSock = Select();
-			
+			vector<stSock> vstSock = Select();
 			switch( m_errno )
 			{
 				case SUCCESS:
 				{
-					pcSock->ResetTimer();	// reset the timeout timer
-					
-					// read in data
-					// if this is a 
-					char *buff;
-					int iLen = 0;
-
-					if ( pcSock->GetSSL() )
-						iLen = pcSock->GetPending();
-
-					if ( iLen > 0 )
+					for( unsigned int a = 0; a < vstSock.size(); a++ )
 					{
-						buff = (char *)malloc( iLen );
-					} else
-					{
-						iLen = CS_BLOCKSIZE;
-						buff = (char *)malloc( CS_BLOCKSIZE );
-				
-					}
-
-					int bytes = pcSock->Read( buff, iLen );
-
-					switch( bytes )
-					{
-						case 0:
-						{
-							// EOF
-							DelSock( pcSock );
-							break;
-						}
+						T * pcSock = vstSock[a].pcSock;
+						EMessages iErrno = vstSock[a].eErrno;
 						
-						case -1:
-						{
-							pcSock->SockError();
-							DelSock( pcSock );
-							break;
-						}
-						
-						case -2:
-							break;
+						if ( iErrno == SUCCESS )
+						{					
+							pcSock->ResetTimer();	// reset the timeout timer
 							
-						default:
+							// read in data
+							// if this is a 
+							char *buff;
+							int iLen = 0;
+		
+							if ( pcSock->GetSSL() )
+								iLen = pcSock->GetPending();
+		
+							if ( iLen > 0 )
+							{
+								buff = (char *)malloc( iLen );
+							} else
+							{
+								iLen = CS_BLOCKSIZE;
+								buff = (char *)malloc( CS_BLOCKSIZE );
+						
+							}
+		
+							int bytes = pcSock->Read( buff, iLen );
+		
+							switch( bytes )
+							{
+								case 0:
+								{
+									// EOF
+									DelSock( pcSock );
+									break;
+								}
+								
+								case -1:
+								{
+									pcSock->SockError();
+									DelSock( pcSock );
+									break;
+								}
+								
+								case -2:
+									break;
+									
+								default:
+								{
+									pcSock->PushBuff( buff, bytes );
+									pcSock->ReadData( buff, bytes );
+									break;
+								}						
+							}
+							// free up the buff
+							free( buff );
+						
+						} else if ( iErrno == SELECT_ERROR )
 						{
-							pcSock->PushBuff( buff, bytes );
-							pcSock->ReadData( buff, bytes );
-							break;
-						}						
+							// a socket came back with an error
+							// usually means it was closed
+							DestroySock( pcSock );
+						}
 					}
-					// free up the buff
-					free( buff );
-					break;
-				}
-			
-				case SELECT_ERROR:
-				{
-					// a socket came back with an error
-					// usually means it was closed
-					DelSock( pcSock );
 					break;
 				}
 				
@@ -1739,9 +1773,22 @@ public:
 		}		
 
 private:
-
-		int				m_errno;
-		vector<T *>		m_pcDestroySocks;
+		void AddstSock( vector<stSock> * pcvSt, EMessages eErrno, T * pcSock )
+		{
+			for( unsigned int i = 0; i < pcvSt->size(); i++ )
+			{
+				if ( (*pcvSt)[i].pcSock == pcSock )
+					return;
+			}
+			stSock stPB;
+			stPB.eErrno = eErrno;
+			stPB.pcSock = pcSock;
+			
+			pcvSt->push_back( stPB );
+		}
+		
+		EMessages			m_errno;
+		vector<T *>			m_pcDestroySocks;
 		vector<CCron *>		m_vcCrons;
 };
 
