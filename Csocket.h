@@ -1743,26 +1743,31 @@ public:
 	
 						int bytes = pcSock->Read( buff, iLen );
 
+						if ( ( bytes != T::READ_CONNREFUSED ) && ( !pcSock->HasWrite() ) )
+						{
+							pcSock->SetWrite( true );
+							pcSock->Connected();
+						}
+
 						switch( bytes )
 						{
-							case 0:
+							case T::READ_EOF:
 							{
-								// EOF
 								DelSock( pcSock );
 								break;
 							}
 							
-							case -1:
+							case T::READ_ERR:
 							{
 								pcSock->SockError( errno );
 								DelSock( pcSock );
 								break;
 							}
 							
-							case -2:
+							case T::READ_EAGAIN:
 								break;
 							
-							case -3:
+							case T::READ_CONNREFUSED:
 								pcSock->ConnectionRefused();
 								DelSock( pcSock );
 								break;
@@ -2072,16 +2077,8 @@ private:
 				if ( iSel > 0 )
 				{
 					iErrno = SUCCESS;
-					if ( !pcSock->HasWrite() )
-					{
-						pcSock->ResetTimer();	// reset the timer on connect
-						pcSock->SetWrite( true );
-						// Call the Connected Event
-						pcSock->Connected();
-					}
-					// write whats in the socks send buffer
-					if ( !pcSock->GetSendBuff().empty() )
-					{
+					if ( ( !pcSock->GetSendBuff().empty() ) && ( pcSock->HasWrite() ) )
+					{ // write whats in the socks send buffer
 						if ( !pcSock->Write( "" ) )
 						{
 							// write failed, sock died :(
@@ -2116,7 +2113,8 @@ private:
 			if ( (*this)[i] == pcSock )
 			{
 				// clean up
-				(*this)[i]->Disconnected();
+				if ( (*this)[i]->HasWrite() )
+					(*this)[i]->Disconnected(); // only call disconnected event if connected event was called (IE HasWrite was set)
 				
 				p = this->begin() + i;
 				Zzap( (*this)[i] );
