@@ -62,6 +62,10 @@
 #include <set>
 
 
+#ifdef _HAS_CSTRING_
+#	define CS_STRING Cstring
+#endif /* _HAS_CSTRING_ */
+
 #ifndef CS_STRING
 #	define CS_STRING string
 #endif /* CS_STRING */
