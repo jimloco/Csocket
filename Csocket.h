@@ -5,8 +5,8 @@
 *
 *    CVS Info:
 *       $Author: imaginos $
-*       $Date: 2003/04/14 03:12:12 $
-*       $Revision: 1.9 $
+*       $Date: 2003/04/14 03:47:44 $
+*       $Revision: 1.10 $
 */
 
 #ifndef _HAS_CSOCKET_
@@ -1313,18 +1313,18 @@ public:
 		* convience function
 		* @see Connect()
 		*/
-		bool QuickConnect( const Cstring & sHostname, int iPort, int iTimeout = 60, T *pcSock = NULL )
+		bool Connect( const Cstring & sHostname, int iPort, int iTimeout = 60, T *pcSock = NULL, bool bSSL = false )
 		{
-			return( Connect( sHostname, iPort, "QuickConnect", iTimeout, false, pcSock ) );
+			return( Connect( sHostname, iPort, "QuickConnect", iTimeout, bSSL, pcSock ) );
 		}
 		/**
 		* convience function
 		* @see Connect()
 		*/
-		bool QuickSSLConnect( const Cstring & sHostname, int iPort, int iTimeout = 60, T *pcSock = NULL )
+		bool SSLConnect( const Cstring & sHostname, int iPort, int iTimeout = 60, T *pcSock = NULL )
 		{
 #ifdef HAVE_LIBSSL		
-			return( Connect( sHostname, iPort, "QuickConnect", iTimeout, true, pcSock ) );
+			return( Connect( sHostname, iPort, iTimeout, pcSock, true ) );
 #else
 			return( false );
 #endif /* HAVE_LIBSSL */
