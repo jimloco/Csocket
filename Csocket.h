@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.113 $
+* $Revision: 1.114 $
 */
 
 #ifndef _HAS_CSOCKET_
@@ -105,12 +105,10 @@ namespace Csocket
 #ifdef HAVE_LIBSSL
 	/**
 	 * @brief You HAVE to call this in order to use the SSL library
-	 * @param bEnableCompression enables compression for this application
 	 * @return true on success
 	 */
-	inline bool InitSSL( bool bEnableCompression = false )
+	inline bool InitSSL()
 	{
-		bool bReturn = true;
 		SSL_load_error_strings();
 		if ( SSL_library_init() != 1 )
 		{
@@ -125,13 +123,10 @@ namespace Csocket
 		else
 		{
 			CS_DEBUG( "Unable to locate entropy location! Tried /dev/urandom and /dev/random" );
-			bReturn = false;
+			return( false );
 		}
 		
-		if ( bEnableCompression )
-			SSL_COMP_add_compression_method( 1, COMP_zlib() );
-
-		return( bReturn );
+		return( true );
 	}
 #endif /* HAVE_LIBSSL */
 
