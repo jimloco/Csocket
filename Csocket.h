@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.90 $
+* $Revision: 1.91 $
 */
 
 #ifndef _HAS_CSOCKET_
@@ -1525,6 +1525,46 @@ namespace Csocket
 		{
 			m_vcCrons.push_back( pcCron );
 		}
+
+		//! delete cron(s) by name
+		virtual void DelCron( const CS_STRING & sName, bool bDeleteAll = true, bool bCaseSensitive = true )
+		{
+			for( u_int a = 0; a < m_vcCrons.size(); a++ )
+			{
+				if ( ( bCaseSensitive ? 
+							( m_vcCrons[a]->GetName().compare( sName ) == 0 ) : ( m_vcCrons[a]->GetName().casecompare( sName ) == 0 ) ) )
+				{
+					m_vcCrons[a]->Stop();
+					CS_Delete( m_vcCrons[a] );
+					m_vcCrons.erase( m_vcCrons.begin() + a-- );
+				}
+			}
+		}
+						
+		//! delete cron by idx
+		virtual void DelCron( u_int iPos )
+		{
+			if ( iPos < m_vcCrons.size() )
+			{
+				m_vcCrons[iPos]->Stop();
+				CS_Delete( m_vcCrons[iPos] );
+				m_vcCrons.erase( m_vcCrons.begin() + iPos );
+			}
+		}
+		//! delete cron by address
+		virtual void DelCronByAddr( CCron *pcCron )
+		{
+			for( u_int a = 0; a < m_vcCrons.size(); a++ )
+			{
+				if ( m_vcCrons[a] == pcCron )
+				{
+					m_vcCrons[a]->Stop();
+					CS_Delete( m_vcCrons[a] );
+					m_vcCrons.erase( m_vcCrons.begin() + a );
+					return;
+				}
+			}
+		}
 				
 		/**
 		* Override these functions for an easy interface when using the Socket Manager
@@ -2105,6 +2145,46 @@ namespace Csocket
 		virtual void AddCron( CCron *pcCron )
 		{
 			m_vcCrons.push_back( pcCron );
+		}
+
+		//! delete cron(s) by name
+		virtual void DelCron( const CS_STRING & sName, bool bDeleteAll = true, bool bCaseSensitive = true )
+		{
+			for( u_int a = 0; a < m_vcCrons.size(); a++ )
+			{
+				if ( ( bCaseSensitive ? 
+							( m_vcCrons[a]->GetName().compare( sName ) == 0 ) : ( m_vcCrons[a]->GetName().casecompare( sName ) == 0 ) ) )
+				{
+					m_vcCrons[a]->Stop();
+					CS_Delete( m_vcCrons[a] );
+					m_vcCrons.erase( m_vcCrons.begin() + a-- );
+				}
+			}
+		}
+						
+		//! delete cron by idx
+		virtual void DelCron( u_int iPos )
+		{
+			if ( iPos < m_vcCrons.size() )
+			{
+				m_vcCrons[iPos]->Stop();
+				CS_Delete( m_vcCrons[iPos] );
+				m_vcCrons.erase( m_vcCrons.begin() + iPos );
+			}
+		}
+		//! delete cron by address
+		virtual void DelCronByAddr( CCron *pcCron )
+		{
+			for( u_int a = 0; a < m_vcCrons.size(); a++ )
+			{
+				if ( m_vcCrons[a] == pcCron )
+				{
+					m_vcCrons[a]->Stop();
+					CS_Delete( m_vcCrons[a] );
+					m_vcCrons.erase( m_vcCrons.begin() + a );
+					return;
+				}
+			}
 		}
 
 		//! Get the Select Timeout in MILLISECONDS
