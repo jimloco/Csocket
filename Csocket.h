@@ -5,8 +5,8 @@
 *
 *    CVS Info:
 *       $Author: imaginos $
-*       $Date: 2003/09/06 19:42:52 $
-*       $Revision: 1.31 $
+*       $Date: 2003/09/09 07:53:57 $
+*       $Revision: 1.32 $
 */
 
 #ifndef _HAS_CSOCKET_
@@ -38,7 +38,7 @@
 #include "Cthreads.h"
 #include "Cmisc.h"
 
-#define CS_BLOCKSIZE	64
+#define CS_BLOCKSIZE	4096
 
 // wrappers for FD_SET and such to work in templates
 inline void TFD_ZERO( fd_set *set )
