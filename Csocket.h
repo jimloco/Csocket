@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.89 $
+* $Revision: 1.90 $
 */
 
 #ifndef _HAS_CSOCKET_
@@ -1230,6 +1230,30 @@ namespace Csocket
 		//! Gets the amount of data written during the existence of the socket
 		unsigned long long GetBytesWritten() const { return( m_iBytesWritten ); }
 		void ResetBytesWritten() { m_iBytesWritten = 0; }
+
+
+		//! Get Avg Read Speed in sample milliseconds (default is 1000 milliseconds or 1 second)
+		double GetAvgRead( unsigned long long iSample = 1000 )
+		{
+			unsigned long long iDifference = ( millitime() - m_iStartTime );
+			
+			if ( ( m_iBytesRead == 0 ) || ( iSample > iDifference ) )
+				return( (double)m_iBytesRead );
+
+			return( ( (double)m_iBytesRead / ( (double)iDifference / (double)iSample ) ) );
+		}
+
+		//! Get Avg Write Speed in sample milliseconds (default is 1000 milliseconds or 1 second)
+		double GetAvgWrite( unsigned long long iSample = 1000 )
+		{
+			unsigned long long iDifference = ( millitime() - m_iStartTime );
+			
+			if ( ( m_iBytesWritten == 0 ) || ( iSample > iDifference ) )
+				return( (double)m_iBytesRead );
+
+			return( ( (double)m_iBytesWritten / ( (double)iDifference / (double)iSample ) ) );
+		}
+			
 
 		//! Returns the remote port
 		int GetRemotePort() 
