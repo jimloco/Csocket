@@ -651,7 +651,10 @@ public:
 			m_sSend.append( data, len );
 
 			if ( m_sSend.empty() )
+			{
+				cerr << "ER, NOT Sending DATA!?" << endl;
 				return( true );
+			}
 			
 			if ( m_bBLOCK )
 			{
@@ -688,7 +691,10 @@ public:
 					return( false );
 					break;
 				}
-				m_sSend.erase( 0, iErr );
+
+				if ( iErr > 0 )				
+					m_sSend.erase( 0, iErr );
+				
 				return( true );
 			}
 #endif /* _HAS_SSL */
@@ -698,7 +704,8 @@ public:
 				return( false );
 			
 			// delete the bytes we sent
-			m_sSend.erase( 0, bytes );
+			if ( bytes > 0 )
+				m_sSend.erase( 0, bytes );
 
 			return( true );
 		}
