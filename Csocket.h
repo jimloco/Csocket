@@ -1049,9 +1049,9 @@ public:
 	{
 		int iSock = GetSock();
 
-		if ( iSock <= 0 )
+		if ( iSock < 0 )
 		{
-			cerr << "What the hell is wrong with my fd!?" << endl;
+			WARN( "What the hell is wrong with my fd!?" );
 			return( "" );
 		}
 
@@ -1729,8 +1729,9 @@ public:
 		{
 			int iSock = pNewSock->GetSock();	
 
-			if ( iSock <= 0 )
+			if ( iSock < 0 )
 			{
+				WARN( "What the hell is wrong with my fd!?" );
 				pcSock->Close();
 				return( 0 );
 			}
