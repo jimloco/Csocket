@@ -85,7 +85,9 @@ public:
 			
 			m_ssl = NULL;
 			m_ssl_ctx = NULL;
+
 #endif /* _HAS_SSL */				
+			
 		}
 
 		typedef enum
@@ -412,15 +414,6 @@ public:
 			return( m_bNeverWritten );
 		}
 		
-		void CloseSock()
-		{
-			// close the socket
-			close( m_isock );
-			// flush the buffer
-			PushBuff( "", 0 );
-			// call disconnect event
-			Disconnected();
-		}
 		
 		void PushBuff( const char *data, int len )
 		{
@@ -505,7 +498,6 @@ public:
 			for( unsigned int i = 0; i < size(); i++ )
 				if ( (*this)[i] )
 				{
-					(*this)[i]->CloseSock();
 					delete( (*this)[i] );
 					(*this)[i] = NULL;
 				}
@@ -592,6 +584,14 @@ public:
 		
 			TFD_ZERO( &rfds );						
 			TFD_ZERO( &wfds );
+
+			// before we go any further, see which socks are scheduled for destruction
+			for( unsigned int i = 0; i < m_pcDestroySocks.size(); i++ )
+				DelSock( m_pcDestroySocks[i] );
+			
+			m_pcDestroySocks.clear();
+			
+			// on with the show
 			
 			bool bHasWriteable = false;
 
@@ -701,6 +701,9 @@ public:
 			{
 				if ( (*this)[i] == pcSock )
 				{
+					// clean up
+					(*this)[i]->Disconnected();
+					
 					p = this->begin() + i;
 					delete( (*this)[i] );
 					this->erase( p );
@@ -734,7 +737,6 @@ public:
 						case 0:
 						{
 							// EOF
-							pcSock->CloseSock();
 							DelSock( pcSock );
 							break;
 						}
@@ -742,7 +744,6 @@ public:
 						case -1:
 						{
 							pcSock->SockError();
-							pcSock->CloseSock();
 							DelSock( pcSock );
 							break;
 						}
@@ -764,7 +765,6 @@ public:
 				{
 					// a socket came back with an error
 					// usually means it was closed
-					close( pcSock->GetSock() );
 					DelSock( pcSock );
 					break;
 				}
@@ -780,7 +780,9 @@ public:
 						if ( (*this)[i]->CheckTimeout() )
 						{
 							// socket timeout, close the socket
-							(*this)[i]->CloseSock();
+							//FIX ME
+							//(*this)[i]->CloseSock();
+							DestroySock( (*this)[i] );
 						}
 					}
 					break;
@@ -818,9 +820,13 @@ public:
 		}
 		
 		int GetErrno() { return( m_errno ); }
+		void DestroySock( T * pcClass ) { m_pcDestroySocks.push_back( pcClass ); }
+		
+		
 private:
 
-		int			m_errno;
+		int				m_errno;
+		vector<T *>		m_pcDestroySocks;
 };
 
 typedef TConn<Csock> CConn;
