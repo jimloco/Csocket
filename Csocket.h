@@ -1055,6 +1055,23 @@ public:
 		return( inet_ntoa( mLocalAddr.sin_addr ) );
 	}
 
+	Cstring GetRemoteIP()
+	{
+		int iSock = GetSock();
+
+		if ( iSock <= 0 )
+		{
+			cerr << "What the hell is wrong with my fd!?" << endl;
+			return( "" );
+		}
+
+		struct sockaddr_in mRemoteAddr;
+		socklen_t mRemoteLen = sizeof(struct sockaddr);
+		getpeername( iSock, (struct sockaddr *) &mRemoteAddr, &mRemoteLen );
+
+		return( inet_ntoa( mRemoteAddr.sin_addr ) );
+	}
+
 	//! Tells you if the socket is ready for write.
 	virtual bool HasWrite() { return( m_bhaswrite ); }
 	virtual void SetWrite( bool b ) { m_bhaswrite = b; }	
