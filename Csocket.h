@@ -86,8 +86,10 @@
 
 using namespace std;
 
+#ifndef _NO_CSOCKET_NS // some people may not want to use a namespace
 namespace Csocket
 {
+#endif /* _NO_CSOCKET_NS */
 	const u_int CS_BLOCKSIZE = 4096;
 	template <class T> inline void CS_Delete( T * & p ) { if( p ) { delete p; p = NULL; } }
 
@@ -1954,7 +1956,7 @@ namespace Csocket
 			push_back( pcSock );
 		}
 		
-		//! returns a pointer to the sock found by name or NULL on no match
+		//! returns a pointer to the first sock found by name or NULL on no match
 		virtual T * FindSockByName( const CS_STRING & sName )
 		{
 			for( unsigned int i = 0; i < size(); i++ )
@@ -1962,6 +1964,17 @@ namespace Csocket
 					return( (*this)[i] );
 			
 			return( NULL );
+		}
+
+		virtual vector<T *> FindSocksByName( const CS_STRING & sName )
+		{
+			vector<T *> vpSocks;
+			
+			for( unsigned int i = 0; i < size(); i++ )
+				if ( (*this)[i]->GetSockName() == sName )
+					vpSocks.push_back( (*this)[i] );
+
+			return( vpSocks );
 		}
 		
 		//! returns a vector of pointers to socks with sHostname as being connected
@@ -1975,6 +1988,7 @@ namespace Csocket
 			
 			return( vpSocks );
 		}
+
 		
 		//! return the last known error as set by this class
 		int GetErrno() { return( m_errno ); }
@@ -2280,7 +2294,9 @@ namespace Csocket
 	//! basic socket class
 	typedef TSocketManager<Csock> CSocketManager;
 
+#ifndef _NO_CSOCKET_NS
 };
+#endif /* _NO_CSOCKET_NS */
 
 #endif /* _HAS_CSOCKET_ */
 
