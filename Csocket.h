@@ -94,7 +94,7 @@ inline bool GetHostByName( const Cstring & sHostName, struct in_addr *paddr )
 	struct hostent hentbuff;
 		
 	int err;
-	while( true )
+	for( u_int a = 0; a < 20; a++ ) 
 	{
 		memset( (char *)hbuff, '\0', 2048 );
 		int iRet = gethostbyname_r( sHostName.c_str(), &hentbuff, hbuff, 2048, &hent, &err );
@@ -104,10 +104,13 @@ inline bool GetHostByName( const Cstring & sHostName, struct in_addr *paddr )
 			bRet = true;
 			break;
 		}	
-		if ( iRet != EAGAIN )
+
+		if ( iRet != TRY_AGAIN )
 			break;
 	}
 
+	if ( !hent )
+		bRet = false;
 #else
 	static Cmutex m;
 
@@ -128,6 +131,7 @@ inline bool GetHostByName( const Cstring & sHostName, struct in_addr *paddr )
 
 	return( bRet );
 }
+
 /**
 * @class CCron
 * @brief this is the main cron job class
