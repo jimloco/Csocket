@@ -923,11 +923,9 @@ public:
 			
 				if ( iFind != Cstring::npos )
 				{
-					Cstring sBuff = m_sbuffer.substr( 0, iFind );
-					m_sbuffer.erase( 0, iFind + 1 );
-
-					if ( !sBuff.empty() )
-						ReadLine( sBuff + "\n" );				
+					Cstring sBuff = m_sbuffer.substr( 0, iFind + 1 );	// read up to(including) the newline
+					m_sbuffer.erase( 0, iFind + 1 );					// erase past the newline
+					ReadLine( sBuff );
 
 				} else
 					break;
