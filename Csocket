@@ -317,7 +317,7 @@ public:
 		//
 		bool Listen( int iPort, int iMaxConns = SOMAXCONN )
 		{
-			m_isock = SOCKET();
+			m_isock = SOCKET( true );
 
 			if ( m_isock == -1 )
 				return( false );
@@ -963,12 +963,22 @@ private:
 		vector<CCron *>		m_vcCrons;
 
 
-		int SOCKET()
+		int SOCKET( bool bListen = false )
 		{
 			int iRet = 0;
 			while( iRet == 0 )
 				iRet = socket( PF_INET, SOCK_STREAM, IPPROTO_TCP );
 			
+			if ( ( iRet > -1 ) && ( bListen ) )
+			{
+				const int on = 1;
+
+                        	if ( setsockopt( iRet, SOL_SOCKET, SO_REUSEADDR, &on, sizeof( on ) ) != 0 )
+				{
+					cerr << "SOCKET: Could not set SO_REUSEADDR" << endl;
+				}
+			}
+
 			return( iRet );
 		}
 
