@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.87 $
+* $Revision: 1.88 $
 */
 
 #ifndef _HAS_CSOCKET_
@@ -61,6 +61,7 @@
 #include <sstream>
 #include <string>
 #include <set>
+#include <map>
 
 
 #ifndef CS_STRING
@@ -553,9 +554,11 @@ namespace Csocket
 		* \param iPort the port to listen on
 		* \param iMaxConns the maximum amount of connections to allow
 		*/
-		virtual bool Listen( int iPort, int iMaxConns = SOMAXCONN, const CS_STRING & sBindHost = "" )
+		virtual bool Listen( int iPort, int iMaxConns = SOMAXCONN, const CS_STRING & sBindHost = "", u_int iTimeout = 0 )
 		{
 			m_iReadSock = m_iWriteSock = SOCKET( true );
+			m_iConnType = LISTENER;
+			m_itimeout = iTimeout;
 
 			if ( m_iReadSock == 0 )
 				return( false );
@@ -572,9 +575,7 @@ namespace Csocket
 			bzero(&(m_address.sin_zero), 8);
 
 			if ( bind( m_iReadSock, (struct sockaddr *) &m_address, sizeof( m_address ) ) == -1 )
-			{
 				return( false );
-			}
 			
 			if ( listen( m_iReadSock, iMaxConns ) == -1 )
 				return( false );
@@ -586,7 +587,6 @@ namespace Csocket
 				fcntl( m_iReadSock, F_SETFL, fdflags|O_NONBLOCK );
 			}
 			
-			m_iConnType = LISTENER;
 			return( true );
 		}
 		
@@ -1805,7 +1805,7 @@ namespace Csocket
 		* \param iMaxConns the maximum amount of connections to accept
 		* \return true on success
 		*/
-		virtual T * ListenHost( int iPort, const CS_STRING & sSockName, const CS_STRING & sBindHost, int isSSL = false, int iMaxConns = SOMAXCONN, T *pcSock = NULL )
+		virtual T * ListenHost( int iPort, const CS_STRING & sSockName, const CS_STRING & sBindHost, int isSSL = false, int iMaxConns = SOMAXCONN, T *pcSock = NULL, u_int iTimeout = 0 )
 		{
 			if ( !pcSock )
 				pcSock = new T();
@@ -1814,7 +1814,7 @@ namespace Csocket
 
 			pcSock->SetSSL( isSSL );
 
-			if ( pcSock->Listen( iPort, iMaxConns, sBindHost ) )
+			if ( pcSock->Listen( iPort, iMaxConns, sBindHost, iTimeout ) )
 			{
 				AddSock( pcSock, sSockName );
 				return( pcSock );
@@ -1823,18 +1823,18 @@ namespace Csocket
 			return( NULL );
 		}
 		
-		virtual bool ListenAll( int iPort, const CS_STRING & sSockName, int isSSL = false, int iMaxConns = SOMAXCONN, T *pcSock = NULL )
+		virtual bool ListenAll( int iPort, const CS_STRING & sSockName, int isSSL = false, int iMaxConns = SOMAXCONN, T *pcSock = NULL, u_int iTimeout = 0 )
 		{
-			return( ListenHost( iPort, sSockName, "", isSSL, iMaxConns, pcSock ) );
+			return( ListenHost( iPort, sSockName, "", isSSL, iMaxConns, pcSock, iTimeout ) );
 		}
 
 		/*
 		 * @return the port number being listened on
 		 */
-		virtual u_short ListenRand( const CS_STRING & sSockName, const CS_STRING & sBindHost, int isSSL = false, int iMaxConns = SOMAXCONN, T *pcSock = NULL )
+		virtual u_short ListenRand( const CS_STRING & sSockName, const CS_STRING & sBindHost, int isSSL = false, int iMaxConns = SOMAXCONN, T *pcSock = NULL, u_int iTimeout = 0 )
 		{
 			u_short iPort = 0;
-			T *pNewSock = ListenHost( 0,  sSockName, sBindHost, isSSL, iMaxConns, pcSock );
+			T *pNewSock = ListenHost( 0,  sSockName, sBindHost, isSSL, iMaxConns, pcSock, iTimeout );
 			if ( pNewSock )
 			{
 				int iSock = pNewSock->GetSock();	
@@ -1855,9 +1855,9 @@ namespace Csocket
 
 			return( iPort );
 		}
-		virtual u_short ListenAllRand( const CS_STRING & sSockName, int isSSL = false, int iMaxConns = SOMAXCONN, T *pcSock = NULL )
+		virtual u_short ListenAllRand( const CS_STRING & sSockName, int isSSL = false, int iMaxConns = SOMAXCONN, T *pcSock = NULL, u_int iTimeout = 0 )
 		{
-			return( ListenRand( sSockName, "", isSSL, iMaxConns, pcSock ) );
+			return( ListenRand( sSockName, "", isSSL, iMaxConns, pcSock, iTimeout ) );
 		}
 
 		/*
@@ -1976,6 +1976,10 @@ namespace Csocket
 							if ( (*this)[i]->CheckTimeout() )
 								DelSock( i-- );
 						}
+					} else
+					{
+						if ( (*this)[i]->CheckTimeout() )
+							DelSock( i-- );
 					}
 				}
 			}
@@ -2272,6 +2276,8 @@ namespace Csocket
 						
 						if ( inSock != -1 )
 						{
+							pcSock->ResetTimer();	// let them now it got dinged
+
 							// if we have a new sock, then add it
 							T *NewpcSock = (T *)pcSock->GetSockObj( sHost, port );
 
