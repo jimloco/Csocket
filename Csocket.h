@@ -1586,7 +1586,7 @@ private:
 * Rather then use it directly, you'll probably get more use deriving from it
 * Another thing to note, is that all sockets are deleted implicitly, so obviously you
 * cant pass in Csock classes created on the stack. For those of you who don't
-* know STL very well, the reason I did this is becaise whenever you add to a stl container
+* know STL very well, the reason I did this is because whenever you add to a stl container
 * (ie vector), its completely rebuilt, using the copy constructor. That then means the constructor 
 * and destructor are called on every item in the container. Not only is this more overhead 
 * then just moving pointers around, its dangerous as if you have an object that is newed and deleted in
