@@ -643,11 +643,14 @@ public:
 		//
 		bool Write( const char *data, int len )
 		{
-			// I know this seems silly, but if you setup string right, it can handle binary data
-			// and ultimatly its easier to work with
-			Cstring sSend;
-			sSend.append( data, len );
+			m_sSend.append( data, len );
 
+			if ( m_sSend.empty() )
+			{
+				cerr << "ER, NOT Sending DATA!?" << endl;
+				return( true );
+			}
+			
 			if ( m_bBLOCK )
 			{
 				if ( WriteSelect() != SEL_OK )
@@ -659,57 +662,42 @@ public:
 #ifdef _HAS_SSL		
 			if ( m_bssl )
 			{
-				bool bLoop = true;
-				while ( bLoop )
+				int iErr = SSL_write( m_ssl, m_sSend.c_str(), m_sSend.length() );
+				switch( SSL_get_error( m_ssl, iErr ) )
 				{
-					int iErr = SSL_write( m_ssl, sSend.c_str(), sSend.length() );
-					switch( SSL_get_error( m_ssl, iErr ) )
-					{
-						case SSL_ERROR_NONE:
-						// all ok
-						bLoop = false;
-						break;
+					case SSL_ERROR_NONE:
+					// all ok
+					break;
 				
-						case SSL_ERROR_ZERO_RETURN:
-						// weird closer alert
-						return( false );
-						break;
+					case SSL_ERROR_ZERO_RETURN:
+					// weird closer alert
+					return( false );
+					break;
 				
-						case SSL_ERROR_WANT_READ:
-						// retry
-						break;
+					case SSL_ERROR_WANT_READ:
+					// retry
+					break;
 				
-						case SSL_ERROR_WANT_WRITE:
-						// retry
-						break;
+					case SSL_ERROR_WANT_WRITE:
+					// retry
+					break;
 						
-						case SSL_ERROR_SSL:
-						bLoop = false;
-						break;
-					}
-				}
-				return( true );
-			}
-#endif /* _HAS_SSL */
-			while ( true )
-			{
-				int bytes = write( m_isock, sSend.c_str(), sSend.length() );
-		
-				if ( ( bytes <= 0 ) && ( errno != EAGAIN ) )
-				{
+					case SSL_ERROR_SSL:
 					return( false );
 					break;
 				}
-				
-				if ( (unsigned int)bytes < sSend.length() )
-				{
-					// only able to write part, write the rest
-					sSend.erase( 0, bytes );
-			
-				} else
-					break;
+				m_sSend.erase( 0, iErr );
+				return( true );
 			}
+#endif /* _HAS_SSL */
+			int bytes = write( m_isock, m_sSend.c_str(), m_sSend.length() );
+		
+			if ( ( bytes <= 0 ) && ( errno != EAGAIN ) )
+				return( false );
 			
+			// delete the bytes we sent
+			m_sSend.erase( 0, bytes );
+
 			return( true );
 		}
 		
@@ -891,6 +879,10 @@ public:
 		int GetSSLMethod() { return( m_iMethod ); }
 		
 		//
+		// Get the send buffer
+		const Cstring & GetSendBuff() { return( m_sSend ); }
+		
+		//
 		// Set The INBOUND Parent sockname
 		void SetParentSockName( const Cstring & sParentName ) { m_sParentName = sParentName; }
 		const Cstring & GetParentSockName() { return( m_sParentName ); }
@@ -951,7 +943,8 @@ private:
 		int			m_isock, m_itimeout, m_iport, m_iConnType, m_iTcount, m_iMethod;
 		bool		m_bssl, m_bhaswrite, m_bNeverWritten, m_bClosed, m_bBLOCK;
 		Cstring		m_shostname, m_sbuffer, m_sSockName, m_sPemFile, m_sCipherType, m_sParentName;
-
+		Cstring		m_sSend;
+		
 		struct hostent		*m_hent, m_hentbuff;
 		struct sockaddr_in 	m_address;
 		
@@ -1117,7 +1110,7 @@ public:
 
 					int & iSock = pcSock->GetSock();
 
-					if ( pcSock->hasWrite() )
+					if ( ( pcSock->hasWrite() ) && ( pcSock->GetSendBuff().empty() ) )
 					{
 						TFD_SET( iSock, &rfds );
 					
@@ -1210,10 +1203,17 @@ public:
 						if ( iSel > 0 )
 						{
 							m_errno = SUCCESS;
-							pcSock->setWrite( true );
-							// Call the Connected Event
-							pcSock->Connected();
-						
+							if ( !pcSock->hasWrite() )
+							{
+								pcSock->setWrite( true );
+								// Call the Connected Event
+								pcSock->Connected();
+							}
+							// write whats in the socks send buffer
+							if ( !pcSock->GetSendBuff().empty() )
+								if ( !pcSock->Write( "" ) )
+									DestroySock( pcSock );	// write failed, sock died :(
+								
 						} else
 							m_errno = SELECT_ERROR;
 
@@ -1231,7 +1231,7 @@ public:
 				
 		void DelSock( T *pcSock )
 		{
-			iterator p;
+			typename vector<T *>::iterator p;
 			
 			for( unsigned int i = 0; i < size(); i++ )
 			{
@@ -1366,3 +1366,4 @@ private:
 };
 
 #endif /* _HAS_CSOCKET_ */
+
