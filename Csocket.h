@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.95 $
+* $Revision: 1.96 $
 */
 
 #ifndef _HAS_CSOCKET_
@@ -1966,7 +1966,7 @@ namespace Csocket
 				if ( iSock < 0 )
 				{
 					CS_DEBUG( "Failed to attain a valid file descriptor" );
-					pcSock->Close();
+					pNewSock->Close();
 					return( 0 );
 				}
 
