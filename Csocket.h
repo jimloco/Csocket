@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.99 $
+* $Revision: 1.100 $
 */
 
 #ifndef _HAS_CSOCKET_
@@ -1189,7 +1189,11 @@ namespace Csocket
 		
 		//! will pause/unpause reading on this socket
 		void PauseRead() { m_bPauseRead = true; }
-		void UnPauseRead() { m_bPauseRead = false; }
+		void UnPauseRead() 
+		{ 
+			m_bPauseRead = false; 
+			ResetTimer();
+		}
 		bool IsReadPaused() { return( m_bPauseRead ); }
 
 		/**
@@ -1204,6 +1208,9 @@ namespace Csocket
 		//! returns true if the socket has timed out
 		virtual bool CheckTimeout()
 		{
+			if ( IsReadPaused() )
+				return( false );
+			
 			if ( m_itimeout > 0 )
 			{
 				if ( m_iTcount >= m_itimeout )
