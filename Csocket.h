@@ -1624,7 +1624,7 @@ public:
 	{ 
 		m_errno = SUCCESS; 
 		m_iCallTimeouts = GetMillTime();
-		m_iSelectWait = 1000; // Default of 1 milliseconds
+		m_iSelectWait = 100000; // Default of 100 milliseconds
 	}
 
 	virtual ~TSocketManager() 
@@ -1940,9 +1940,9 @@ public:
 		m_vcCrons.push_back( pcCron );
 	}
 
-	//! Get the Select Timeout in Microseconds
+	//! Get the Select Timeout in MILLISECONDS
 	u_int GetSelectTimeout() { return( m_iSelectWait ); }
-	//! Set the Select Timeout in Microseconds
+	//! Set the Select Timeout in MILLISECONDS
 	void  SetSelectTimeout( u_int iTimeout ) { m_iSelectWait = iTimeout; }
 
 	vector<CCron *> & GetCrons() { return( m_vcCrons ); }
@@ -2008,6 +2008,7 @@ private:
 				
 				if ( ( pcSock->GetSSL() ) && ( pcSock->GetType() == T::INBOUND ) && ( !pcSock->FullSSLAccept() ) )
 				{
+					tv.tv_usec = 1000;	// just make sure this returns quick incase we still need pending
 					// try accept on this socket again
 					if ( !pcSock->AcceptSSL() )
 						pcSock->Close();
@@ -2055,7 +2056,7 @@ private:
 		int iSel;
 
 		if ( !vRet.empty() )
-			tv.tv_usec = m_iSelectWait;
+			tv.tv_usec = 1000;	// this won't be a timeout, 1 ms pause to see if anything else is ready (IE if there is SSL data pending, don't wait too long)
 			
 		if ( bHasWriteable )
 			iSel = select(FD_SETSIZE, &rfds, &wfds, NULL, &tv);
