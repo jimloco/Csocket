@@ -255,6 +255,8 @@ public:
 			return( true );
 		}
 
+#endif /* _HAS_SSL */
+
 		//
 		// Write to the socket
 		//
@@ -463,7 +465,7 @@ public:
 		virtual void ConnectionFrom( const Cstring & sHost, int iPort ) {}
 		//////////////////////////////////////////////////	
 			
-#endif /* _HAS_SSL */				
+				
 private:
 		int			m_isock, m_itimeout, m_iport, m_iConnType, m_iTcount;
 		bool		m_bssl, m_bhaswrite, m_bNeverWritten;
@@ -536,6 +538,7 @@ public:
 				return( false );
 			}
 	
+#ifdef _HAS_SSL
 			if ( isSSL )
 			{
 				if ( !pcSock->ConnectSSL() )
@@ -544,6 +547,7 @@ public:
 					return( false );
 				}
 			}
+#endif /* _HAS_SSL */
 			
 			AddSock( pcSock, sSockName );
 			return( true );
