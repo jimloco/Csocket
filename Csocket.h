@@ -1239,6 +1239,7 @@ public:
 			EVP_PKEY *pKey = X509_get_pubkey( pSession->peer );
 			if ( pKey )
 			{
+				/*
 				BIO *bio = BIO_new( BIO_s_mem() );
 				PEM_write_bio_PUBKEY( bio, pKey );
 				int iLen = BIO_pending( bio );
@@ -1251,6 +1252,31 @@ public:
 					free( pszOutput );
 				}
 				BIO_free( bio );
+				*/
+				char *hxKey = NULL;
+				switch( pKey->type )
+				{
+					case EVP_PKEY_RSA:
+					{
+						hxKey = BN_bn2hex( pKey->pkey.rsa->n );
+						break;
+					}
+					case EVP_PKEY_DSA:
+					{
+						hxKey = BN_bn2hex( pKey->pkey.dsa->pub_key );
+						break;
+					}
+					default:
+					{
+						WARN( "No Prepared for Public Key Type [" + Cstring::num2Cstring( pKey->type ) + "]" );
+						break;
+					}
+				}
+				if ( hxKey )
+				{
+					sKey = hxKey;
+					OPENSSL_free( hxKey );
+				}
 				EVP_PKEY_free( pKey );
 			}
 		} 
