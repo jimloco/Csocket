@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.106 $
+* $Revision: 1.107 $
 */
 
 #ifndef _HAS_CSOCKET_
@@ -2367,8 +2367,10 @@ namespace Csocket
 				int & iWSock = pcSock->GetWSock();
 				bool bIsReadPaused = pcSock->IsReadPaused();
 				if ( bIsReadPaused )
+				{
 					pcSock->ReadPaused();
-
+					bIsReadPaused = pcSock->IsReadPaused(); // re-read it again, incase it changed status)
+				}
 				if ( ( iRSock < 0 ) || ( iWSock < 0 ) )
 				{
 					SelectSock( mpeSocks, SUCCESS, pcSock );
