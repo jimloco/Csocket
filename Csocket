@@ -982,27 +982,17 @@ public:
 		// Once we have the cron, we'll delete it
 		void Cron()
 		{
-			vector<CCron *>::iterator p = m_vcCrons.begin();
-
-			while( true )
-			{
-				if ( p == m_vcCrons.end() )
-					break;
-					
+			for( vector<CCron *>::iterator p = m_vcCrons.begin(); p != m_vcCrons.end(); p++ )
+			{		
 				CCron *pcCron = *p;
 
 				if ( !pcCron->isValid() )
 				{
 					Zzap( pcCron );
 					m_vcCrons.erase( p );
-					// start from the beginning again
-					p = m_vcCrons.begin();
-					
+					p--; // correctly set the iterator
 				} else
-				{
 					pcCron->run();
-					p++;
-				}
 			}
 		}
 		
@@ -1565,27 +1555,17 @@ public:
 		// these crons get ran in Loop()
 		void Cron()
 		{
-			vector<CCron *>::iterator p = m_vcCrons.begin();
-
-			while( true )
+			for( vector<CCron *>::iterator p = m_vcCrons.begin(); p != m_vcCrons.end(); p++ )
 			{
-				if ( p == m_vcCrons.end() )
-					break;
-					
 				CCron *pcCron = *p;
 
 				if ( !pcCron->isValid() )
 				{
 					Zzap( pcCron );
 					m_vcCrons.erase( p );
-					// start from the beginning again
-					p = m_vcCrons.begin();
-					
+					p--;	// correctly set the iterator					
 				} else
-				{
 					pcCron->run();
-					p++;
-				}
 			}
 		}		
 
