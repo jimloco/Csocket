@@ -5,8 +5,8 @@
 *
 *    CVS Info:
 *       $Author: imaginos $
-*       $Date: 2003/05/14 20:35:29 $
-*       $Revision: 1.18 $
+*       $Date: 2003/05/14 23:04:42 $
+*       $Revision: 1.19 $
 */
 
 #ifndef _HAS_CSOCKET_
@@ -1058,15 +1058,14 @@ public:
 		//! This has a garbage collecter, and is used internall to call the jobs
 		void Cron()
 		{
-			for( vector<CCron *>::iterator p = m_vcCrons.begin(); p != m_vcCrons.end(); p++ )
+			for( unsigned int a = 0; a < m_vcCrons.size(); a++ )
 			{		
-				CCron *pcCron = *p;
+				CCron *pcCron = m_vcCrons[a];
 
 				if ( !pcCron->isValid() )
 				{
 					Zzap( pcCron );
-					m_vcCrons.erase( p );
-					p--; // correctly set the iterator
+					m_vcCrons.erase( m_vcCrons.begin() + a-- );
 				} else
 					pcCron->run();
 			}
@@ -1812,19 +1811,18 @@ private:
 		//! these crons get ran and checked in Loop()
 		void Cron()
 		{
-			for( vector<CCron *>::iterator p = m_vcCrons.begin(); p != m_vcCrons.end(); p++ )
-			{
-				CCron *pcCron = *p;
+			for( unsigned int a = 0; a < m_vcCrons.size(); a++ )
+			{		
+				CCron *pcCron = m_vcCrons[a];
 
 				if ( !pcCron->isValid() )
 				{
 					Zzap( pcCron );
-					m_vcCrons.erase( p );
-					p--;	// correctly set the iterator					
+					m_vcCrons.erase( m_vcCrons.begin() + a-- );
 				} else
 					pcCron->run();
 			}
-		}		
+		}
 
 		//! only used internally
 		void DestroySock( T * pcClass ) { m_pcDestroySocks.push_back( pcClass ); }
