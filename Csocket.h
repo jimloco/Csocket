@@ -50,11 +50,14 @@ inline void TFD_CLR( int iSock, fd_set *set )
 	FD_CLR( iSock, set );
 }
 
-//
-// Cronjob class
-// To create a job, derive from this class, override RunJob with your code
-// add it to the Csock class with AddCron()
-//
+/**
+* @class CCron
+* @brief this is the main cron job class
+*
+* You should derive from this class, and override RunJob() with your code
+* @author Jim Hull <imaginos@imaginos.net>
+*/
+
 class CCron
 {
 public:
@@ -67,6 +70,7 @@ public:
 		}
 		virtual ~CCron() {}
 		
+		//! This is used by the Job Manager, and not you directly
 		void run() 
 		{
 			if ( ( m_bActive ) && ( time( NULL ) >= m_iTime ) )
@@ -81,6 +85,7 @@ public:
 			}
 		}
 		
+		//! This is used by the Job Manager, and not you directly
 		void Start( int TimeSequence, bool bOnlyOnce = true ) 
 		{
 			m_iTimeSequence = TimeSequence;
@@ -88,19 +93,21 @@ public:
 			m_bOnlyOnce = bOnlyOnce;
 		}
 
+		//! call this to turn off your cron, it will be removed
 		void Stop()
 		{
 			m_bActive = false;
 		}
 
+		//! returns true if cron is active
 		bool isValid() { return( m_bActive ); }
 		
 protected:
 
+		//! this is the method you should override
 		virtual void RunJob()
 		{
-			cerr << "Override me." << endl;
-			// override me
+			throw Cstring( "Override me fool" );
 		}
 		
 		time_t	m_iTime;
@@ -108,20 +115,30 @@ protected:
 		int		m_iTimeSequence;
 };
 
-//
-// Basic Socket Class
-// The most basic level socket class
-// You can use this class directly for quick things
-// or use the socket manager below
-//
-
+/**
+* @class Csock
+* @brief Basic Socket Class
+* The most basic level socket class
+* You can use this class directly for quick things
+* or use the socket manager
+* @see TSocketManager
+* @author Jim Hull <imaginos@imaginos.net>
+*/
 class Csock
 {
 public:
+		//! default constructor, sets a timeout of 60 seconds
 		Csock( int itimeout = 60 ) 
 		{ 
 			Init( "", 0, itimeout ); 
 		}
+		/**
+		* Advanced constructor, for creating a simple connection
+		*
+		* sHostname the hostname your are connecting to
+		* iport the port you are connectint to
+		* itimeout how long to wait before ditching the connection, default is 60 seconds
+		*/
 		Csock( const Cstring & sHostname, int iport, int itimeout = 60 ) 
 		{
 			Init( sHostname, iport, itimeout );
@@ -140,41 +157,39 @@ public:
 				Zzap( m_vcCrons[i] );
 		}
 
-		typedef enum
+		enum ETConn
 		{
-			OUTBOUND	= 0,		// outbound connection
-			LISTENER	= 1,		// a socket accepting connections
-			INBOUND		= 2			// an inbound connection, passed from LISTENER
+			OUTBOUND	= 0,		//!< outbound connection
+			LISTENER	= 1,		//!< a socket accepting connections
+			INBOUND		= 2			//!< an inbound connection, passed from LISTENER
 			
-		} eConnType;
+		};
 		
-		typedef enum
+		enum EFRead
 		{
-			READ_EOF	= 0,		// End Of File, done reading
-			READ_ERR	= -1,		// Error on the socket, socket closed, done reading
-			READ_EAGAIN	= -2		// Try to get data again
+			READ_EOF	= 0,		//!< End Of File, done reading
+			READ_ERR	= -1,		//!< Error on the socket, socket closed, done reading
+			READ_EAGAIN	= -2		//!< Try to get data again
 			
-		} eReadFlags;
+		};
 		
-		typedef enum
+		enum EFSelect
 		{
-			SEL_OK		= 0,
-			SEL_TIMEOUT	= -1,
-			SEL_EAGAIN	= -2,
-			SEL_ERR		= -3
+			SEL_OK		= 0,		//!< Select passed ok
+			SEL_TIMEOUT	= -1,		//!< Select timed out
+			SEL_EAGAIN	= -2,		//!< Select wants you to try again
+			SEL_ERR		= -3		//!< Select recieved an error
 		
-		} eSelectFlags;
+		};
 		
-		typedef enum
+		enum ESSLMethod
 		{
 			SSL23	= 0,
 			SSL2	= 2,
 			SSL3	= 3
 		
-		} eSSLMethods;
+		};
 
-		//
-		// stream operators
 		Csock & operator<<( const Cstring & s ) 
 		{
 			Write( s );
@@ -220,9 +235,8 @@ public:
 			Write( Cstring::num2Cstring( i ) );
 			return( *this );
 		}		
-		//
-		// Resolve the name into m_hent
-		//
+
+		//! Resolve the name, this is internal, don't use directly
 		bool Resolve()
 		{
 			char hbuff[2048];
@@ -243,9 +257,12 @@ public:
 			
 		}
 
-		//
-		// connect to a host
-		//
+		/**
+		* Create the connection
+		*
+		* \param sBindHost the ip you want to bind to locally
+		* \return true on success
+		*/
 		bool Connect( const Cstring & sBindHost = "" )
 		{
 			// create the socket
@@ -300,9 +317,10 @@ public:
 			return( true );
 		}
 		
-		//
-		// WriteSelect on this socket
-		// Only good if JUST using this socket, otherwise use the parent class below
+		/**
+		* WriteSelect on this socket
+		* Only good if JUST using this socket, otherwise use the TSocketManager
+		*/
 		int WriteSelect()
 		{
 			struct timeval tv;
@@ -330,9 +348,10 @@ public:
 			return( SEL_OK );
 		}
 
-		//
-		// ReadSelect on this socket
-		// Only good if JUST using this socket, otherwise use the parent class below
+		/**
+		* ReadSelect on this socket
+		* Only good if JUST using this socket, otherwise use the TSocketManager
+		*/
 		int ReadSelect()
 		{
 			struct timeval tv;
@@ -358,11 +377,14 @@ public:
 			}
 			
 			return( SEL_OK );
-		}		
-		//
-		//
-		// Listens for connections
-		//
+		}
+				
+		/**
+		* Listens for connections
+		*
+		* \param iPort the port to listen on
+		* \param iMaxConns the maximum amount of connections to allow
+		*/
 		bool Listen( int iPort, int iMaxConns = SOMAXCONN )
 		{
 			m_isock = SOCKET( true );
@@ -394,9 +416,7 @@ public:
 			return( true );
 		}
 		
-		//
-		// Returns sock on success, -1 on failure
-		//
+		//! Accept an inbound connection, this is used internally
 		int Accept( Cstring & sHost, int & iRPort )
 		{
 			struct sockaddr_in client;
@@ -429,6 +449,7 @@ public:
 			return( iSock );
 		}
 		
+		//! Accept an inbound SSL connection, this is used internally and called after Accept
 		bool AcceptSSL()
 		{
 #ifdef HAVE_LIBSSL
@@ -459,6 +480,7 @@ public:
 			return( false );	
 		}
 
+		//! This sets up the SSL Client, this is used internally
 		bool SSLClientSetup()
 		{
 #ifdef HAVE_LIBSSL		
@@ -522,6 +544,7 @@ public:
 #endif /* HAVE_LIBSSL */		
 		}
 
+		//! This sets up the SSL Server, this is used internally
 		bool SSLServerSetup()
 		{
 #ifdef HAVE_LIBSSL
@@ -614,7 +637,13 @@ public:
 			return( false );
 #endif /* HAVE_LIBSSL */		
 		}		
-		
+
+		/**
+		* Create the SSL connection
+		*
+		* \param sBindhost the ip you want to bind to locally
+		* \return true on success
+		*/		
 		bool ConnectSSL( const Cstring & sBindhost = "" )
 		{
 #ifdef HAVE_LIBSSL		
@@ -663,9 +692,15 @@ public:
 		}
 
 
-		//
-		// Write to the socket
-		//
+		/**
+		* Write data to the socket
+		* if not all of the data is sent, it will be stored on
+		* an internal buffer, and tried again with next call to Write
+		* if the socket is blocking, it will send everything
+		*
+		* \param data the data to send
+		* \param len the length of data
+		*/
 		bool Write( const char *data, int len )
 		{
 			m_sSend.append( data, len );
@@ -765,23 +800,28 @@ public:
 			return( true );
 		}
 		
-		//
-		// Write to the socket
-		//	
+		/**
+		* convience function
+		* @see Write( const char *, int )
+		*/
 		bool Write( const Cstring & sData )
 		{
 			return( Write( sData.c_str(), sData.length() ) );
 		}
 
-		//
-		// Read from the socket
-		// Just pass in a pointer, big enough to hold len bytes
-		//
-		// Returns READ_EOF for EOF
-		// Returns READ_ERR for ERROR
-		// Returns READ_EAGAIN for Try Again ( EAGAIN )
-		// Otherwise returns the bytes read into data
-		//
+		/**
+		* Read from the socket
+		* Just pass in a pointer, big enough to hold len bytes
+		*
+		* \param data the buffer to read into
+		* \param len the size of the buffer
+		*
+		* \return
+		* Returns READ_EOF for EOF
+		* Returns READ_ERR for ERROR
+		* Returns READ_EAGAIN for Try Again ( EAGAIN )
+		* Otherwise returns the bytes read into data
+		*/
 		int Read( char *data, int len )
 		{
 	
@@ -822,42 +862,36 @@ public:
 			return( bytes );
 		}
 
-		//
-		// misc functions
-		//
-		// Tells you if the socket is ready for write.
+		//! Tells you if the socket is ready for write.
 		bool HasWrite() { return( m_bhaswrite ); }
 		void SetWrite( bool b ) { m_bhaswrite = b; }	
 
-		//
-		// has never been written too, you can easy use the two to find a first case scenario
-		// if ( ( HasWrite() ) && ( !needsWrite() ) )
-		//		first time write
-		//
-		
+		/**
+		* has never been written too, you can easy use the two to find a first case scenario
+		* if ( ( HasWrite() ) && ( !NeedsWrite() ) )
+		*		first time write
+		*/		
 		bool NeedsWrite()
 		{
 			return( m_bNeverWritten );
 		}
 
-		//
-		// returns a reference to the sock
+		//! returns a reference to the sock
 		int & GetSock() { return( m_isock ); }
 		void SetSock( int iSock ) { m_isock = iSock; }
 		
-		//
-		// resets the time counter
+		//! resets the time counter
 		void ResetTimer() { m_iTcount = 0; }
 		
-		//
-		// this timeout isn't just connection timeout, but also timeout on
-		// NOT recieving data, to disable this set it to 0
-		// then the normal TCP timeout will apply (basically TCP will kill a dead connection)
-		// Set the timeout, set to 0 to never timeout
+		/**
+		* this timeout isn't just connection timeout, but also timeout on
+		* NOT recieving data, to disable this set it to 0
+		* then the normal TCP timeout will apply (basically TCP will kill a dead connection)
+		* Set the timeout, set to 0 to never timeout
+		*/
 		void SetTimeout( int iTimeout ) { m_itimeout = iTimeout; }
 		
-		//
-		// returns true if the socket has timed out
+		//! returns true if the socket has timed out
 		bool CheckTimeout()
 		{
 			if ( m_itimeout > 0 )
@@ -874,9 +908,10 @@ public:
 			return( false );
 		}
 		
-		//
-		// pushes data up on the buffer, if a line is ready
-		// it calls the ReadLine event
+		/**
+		* pushes data up on the buffer, if a line is ready
+		* it calls the ReadLine event
+		*/
 		void PushBuff( const char *data, int len )
 		{
 			if ( data )
@@ -899,67 +934,56 @@ public:
 			}
 		}
 		
-		//
-		// Returns the connection type from enum eConnType
+		//! Returns the connection type from enum eConnType
 		int GetType() { return( m_iConnType ); }
 		void SetType( int iType ) { m_iConnType = iType; }
 		
-		//
-		// Returns a reference to the socket name
+		//! Returns a reference to the socket name
 		const Cstring & GetSockName() { return( m_sSockName ); }
 		void SetSockName( const Cstring & sName ) { m_sSockName = sName; }
 		
-		//
-		// Returns a reference to the host name
+		//! Returns a reference to the host name
 		const Cstring & GetHostName() { return( m_shostname ); }
 		 
-		// Returns the port
+		//! Returns the port
 		int GetPort() { return( m_iport ); }
 		
-		// just mark us as closed, the parent can pick it up
+		//! just mark us as closed, the parent can pick it up
 		void Close() { m_bClosed = true; }
-		// returns true if the socket is closed
+		//! returns true if the socket is closed
 		bool isClosed() { return( m_bClosed ); }
 		
-		//
-		// Set rather to NON Blocking IO on this socket, default is true
+		//! Set rather to NON Blocking IO on this socket, default is true
 		void BlockIO( bool bBLOCK ) { m_bBLOCK = bBLOCK; }
 
-		//
-		// if this connection type is ssl or not
+		//! if this connection type is ssl or not
 		bool GetSSL() { return( m_bssl ); }
 		void SetSSL( bool b ) { m_bssl = b; }
 		
-		//
-		// Set the cipher type ( openssl cipher [to see ciphers available] )
+		//! Set the cipher type ( openssl cipher [to see ciphers available] )
 		void SetCipher( const Cstring & sCipher ) { m_sCipherType = sCipher; }
 		const Cstring & GetCipher() { return( m_sCipherType ); }
 		
-		//
-		// Set the pem file location
+		//! Set the pem file location
 		void SetPemLocation( const Cstring & sPemFile ) { m_sPemFile = sPemFile; }
 		const Cstring & GetPemLocation() { return( m_sPemFile ); }
 		
-		//
-		// Set the SSL method type
+		//! Set the SSL method type
 		void SetSSLMethod( int iMethod ) { m_iMethod = iMethod; }
 		int GetSSLMethod() { return( m_iMethod ); }
 		
-		//
-		// Get the send buffer
+		//! Get the send buffer
 		const Cstring & GetSendBuff() { return( m_sSend ); }
 
-		//
-		// is SSL_accept finished ?
+		//! is SSL_accept finished ?
 		bool FullSSLAccept() { return ( m_bFullsslAccept ); }
-		// is the ssl properly finished (from write no error)
+		//! is the ssl properly finished (from write no error)
 		bool SslIsEstablished() { return ( m_bsslEstablished ); }
 
-		// returns the underlying buffer
+		//! returns the underlying buffer
 		Cstring & GetBuffer() { return( m_sSend ); }
 		
-		//
-		// Get the peer's X509 cert
+		//! Get the peer's X509 cert
 #ifdef HAVE_LIBSSL
 		X509 *getX509()
 		{
@@ -970,11 +994,15 @@ public:
 		}
 #endif /* HAVE_LIBSSL */
 
-		//
-		// Set The INBOUND Parent sockname
+		//! Set The INBOUND Parent sockname
 		void SetParentSockName( const Cstring & sParentName ) { m_sParentName = sParentName; }
 		const Cstring & GetParentSockName() { return( m_sParentName ); }
 		
+		/*
+		* sets the rate at which we can send data
+		* \param iBytes the amount of bytes we can write
+		* \param iMilliseconds the amount of time we have to rate to iBytes
+		*/
 		void SetRate( u_int iBytes, unsigned long long iMilliseconds )
 		{
 			m_iMaxBytes = iBytes;
@@ -985,9 +1013,7 @@ public:
 		unsigned long long GetRateTime() { return( m_iMaxMilliSeconds ); }
 		
 		
-		//
-		// Cron caller
-		// Once we have the cron, we'll delete it
+		//! This has a garbage collecter, and is used internall to call the jobs
 		void Cron()
 		{
 			for( vector<CCron *>::iterator p = m_vcCrons.begin(); p != m_vcCrons.end(); p++ )
@@ -1004,31 +1030,70 @@ public:
 			}
 		}
 		
-		//
-		// Insert the cronjob
-		// 
+		//! insert a newly created cron
 		void AddCron( CCron * pcCron )
 		{
 			m_vcCrons.push_back( pcCron );
 		}
 				
-		//
-		// Override these functions for an easy interface when using the Socket Manager
-		// Don't bother using these callbacks if you are using this class directly (without Socket Manager)
-		// as the Socket Manager calls most of these callbacks
-		// Connected event
+		/**
+		* Override these functions for an easy interface when using the Socket Manager
+		* Don't bother using these callbacks if you are using this class directly (without Socket Manager)
+		* as the Socket Manager calls most of these callbacks
+		*
+		* Connected event
+		*/
 		virtual void Connected() {}
-		// Disconnected event
+		/**
+		* Override these functions for an easy interface when using the Socket Manager
+		* Don't bother using these callbacks if you are using this class directly (without Socket Manager)
+		* as the Socket Manager calls most of these callbacks
+		*
+		* Disconnected event
+		*/
 		virtual void Disconnected() {}
-		// Timeout
+		/**
+		* Override these functions for an easy interface when using the Socket Manager
+		* Don't bother using these callbacks if you are using this class directly (without Socket Manager)
+		* as the Socket Manager calls most of these callbacks
+		*
+		* Sock Timed out event
+		*/
 		virtual void Timeout() {}
-		// Data Ready for Read Event
+		/**
+		* Override these functions for an easy interface when using the Socket Manager
+		* Don't bother using these callbacks if you are using this class directly (without Socket Manager)
+		* as the Socket Manager calls most of these callbacks
+		*
+		* Ready to read data event
+		*/
 		virtual void ReadData( const char *data, int len ) {}
-		// Line Buffer Ready for Read Event
+		/**
+		* Override these functions for an easy interface when using the Socket Manager
+		* Don't bother using these callbacks if you are using this class directly (without Socket Manager)
+		* as the Socket Manager calls most of these callbacks
+		*
+		* Ready to Read a full line event
+		*/
 		virtual void ReadLine( const Cstring & sLine ) {}
-		// Socket Error Event
+		/**
+		* Override these functions for an easy interface when using the Socket Manager
+		* Don't bother using these callbacks if you are using this class directly (without Socket Manager)
+		* as the Socket Manager calls most of these callbacks
+		*
+		* A sock error occured event
+		*/
 		virtual void SockError() {}
-		// Incoming Connection Event (return false and the connection will fail)
+		/**
+		* Override these functions for an easy interface when using the Socket Manager
+		* Don't bother using these callbacks if you are using this class directly (without Socket Manager)
+		* as the Socket Manager calls most of these callbacks
+		*
+		* 
+		* Incoming Connection Event
+		* return false and the connection will fail
+		* default returns true
+		*/
 		virtual bool ConnectionFrom( const Cstring & sHost, int iPort ) { return( true ); }
 		//////////////////////////////////////////////////	
 			
@@ -1072,7 +1137,7 @@ private:
 
 		vector<CCron *>		m_vcCrons;
 
-
+		//! Create the socket
 		int SOCKET( bool bListen = false )
 		{
 			int iRet = 0;
@@ -1121,6 +1186,7 @@ private:
 			m_bsslEstablished = false;
 		}
 		
+		//! Get current time in milliseconds
 		unsigned long long GetMillTime()
 		{
 			struct timeb tp;
@@ -1133,16 +1199,19 @@ private:
 		
 };
 
-//
-// TSocketManager
-// Best class to use to interact with the sockets
-// handles SSL and NON Blocking IO
-// Its a template class since Csock derives need to be new'd correctly
-// Makes it easier to use overall
-// Rather then use it directly, you'll probably get more use deriving from it
-//
-// class CBlahSock : public TSocketManager<SomeSock>
-//
+/**
+* @class TSocketManager
+* @brief Best class to use to interact with the sockets
+*
+* handles SSL and NON Blocking IO
+* Its a template class since Csock derives need to be new'd correctly
+* Makes it easier to use overall
+* Rather then use it directly, you'll probably get more use deriving from it
+*
+* class CBlahSock : public TSocketManager<SomeSock>
+*
+* @author Jim Hull <imaginos@imaginos.net>
+*/
 
 template<class T>
 class TSocketManager : public vector<T *>
@@ -1157,15 +1226,26 @@ public:
 
 		}
 
-		typedef enum
+		enum EMessages
 		{
-			SUCCESS			= 0,	// Select returned more then 1 fd ready for action
-			SELECT_ERROR	= -1,	// An Error Happened, Probably dead socket. That socket is returned if available
-			SELECT_TIMEOUT	= -2,	// Select Timeout
-			SELECT_TRYAGAIN	= -3	// Select calls for you to try again
+			SUCCESS			= 0,	//! Select returned more then 1 fd ready for action
+			SELECT_ERROR	= -1,	//! An Error Happened, Probably dead socket. That socket is returned if available
+			SELECT_TIMEOUT	= -2,	//! Select Timeout
+			SELECT_TRYAGAIN	= -3	//! Select calls for you to try again
 			
-		} eMessages;
+		};
 
+		/**
+		* Create a connection
+		*
+		* \param sHostname the destination
+		* \param iPort the destination port
+		* \param sSockName the Socket Name ( should be unique )
+		* \param iTimeout the amount of time to try to connect
+		* \param isSSL does the connection require a SSL layer
+		* \param sBindHost the host to bind too
+		* \return true on success
+		*/
 		bool Connect( const Cstring & sHostname, int iPort , const Cstring & sSockName, int iTimeout = 60, bool isSSL = false, const Cstring & sBindHost = "" )
 		{
 			// create the new object
@@ -1202,11 +1282,18 @@ public:
 			return( true );
 		}
 
+		/**
+		* convience function
+		* @see Connect()
+		*/
 		bool QuickConnect( const Cstring & sHostname, int iPort, int iTimeout = 60 )
 		{
 			return( Connect( sHostname, iPort, "QuickConnect", iTimeout ) );
 		}
-
+		/**
+		* convience function
+		* @see Connect()
+		*/
 		bool QuickSSLConnect( const Cstring & sHostname, int iPort, int iTimeout = 60 )
 		{
 #ifdef HAVE_LIBSSL		
@@ -1216,6 +1303,15 @@ public:
 #endif /* HAVE_LIBSSL */
 		}		
 
+		/**
+		* Create a listening socket
+		* 
+		* \param iPort the port to listen on
+		* \param sSockName the name of the socket
+		* \param isSSL if the sockets created require an ssl layer
+		* \param iMaxConns the maximum amount of connections to accept
+		* \return true on success
+		*/
 		bool AddListener( int iPort, const Cstring & sSockName, int isSSL = false, int iMaxConns = SOMAXCONN )
 		{
 			T * pcSock = new T();
@@ -1233,11 +1329,11 @@ public:
 			return( false );
 		}
 			
-		//
-		// returns a pointer to the ready Csock class thats available
-		// returns NULL if none are ready, check GetErrno() for the error, if not SUCCESS Select() failed
-		//
-		
+		/**
+		* returns a pointer to the ready Csock class thats available
+		* returns NULL if none are ready, check GetErrno() for the error, if not SUCCESS Select() failed
+		* @see GetErrno()
+		*/
 		T * Select()
 		{		
 			struct timeval tv;
@@ -1442,10 +1538,11 @@ public:
 		}
 
 
-		//
-		// Best place to call this class for running, all the call backs are called
-		// You should through this in your main while loop (long as its not blocking)
-		// 
+		/*
+		* Best place to call this class for running, all the call backs are called
+		* You should through this in your main while loop (long as its not blocking)
+		* all the events are called as needed
+		*/ 
 		void Loop ()
 		{
 			T *pcSock = Select();
@@ -1521,15 +1618,17 @@ public:
 			Cron();
 		}
 
-		//
-		// Make this method virtual, so you can override it when a socket is added
-		// Assuming you might want to do some extra stuff
+		/*
+		* Make this method virtual, so you can override it when a socket is added
+		* Assuming you might want to do some extra stuff
+		*/
 		virtual void AddSock( T *pcSock, const Cstring & sSockName )
 		{
 			pcSock->SetSockName( sSockName );
 			push_back( pcSock );
 		}
 		
+		//! returns a pointer to the sock found by name or NULL on no match
 		T * FindSockByName( const Cstring & sName )
 		{
 			for( unsigned int i = 0; i < size(); i++ )
@@ -1539,6 +1638,7 @@ public:
 			return( NULL );
 		}
 		
+		//! returns a vector of pointers to socks with sHostname as being connected
 		vector<T *> FindSocksByRemoteHost( const Cstring & sHostname )
 		{
 			vector<T *> vpSocks;
@@ -1550,17 +1650,18 @@ public:
 			return( vpSocks );
 		}
 		
+		//! return the last known error as set by this class
 		int GetErrno() { return( m_errno ); }
+		//! only used internally
 		void DestroySock( T * pcClass ) { m_pcDestroySocks.push_back( pcClass ); }
 		
-		
+		//! add a cronjob at the manager level
 		void AddCron( CCron *pcCron )
 		{
 			m_vcCrons.push_back( pcCron );
 		}
 
-		//
-		// these crons get ran in Loop()
+		//! these crons get ran and checked in Loop()
 		void Cron()
 		{
 			for( vector<CCron *>::iterator p = m_vcCrons.begin(); p != m_vcCrons.end(); p++ )
