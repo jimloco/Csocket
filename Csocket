@@ -179,7 +179,7 @@ public:
 
 			if ( m_bBLOCK )
 			{	
-				// unset the flags afterwords, rather connect not to block
+				// unset the flags afterwords, rather than have connect block
 				int fdflags = fcntl (m_isock, F_GETFL, 0); 
 				
 				if ( O_NONBLOCK & fdflags )
@@ -313,8 +313,13 @@ public:
 		}
 #ifdef _HAS_SSL
 	
-		bool ConnectSSL( int method = 0 )
+		bool ConnectSSL( int method = 0, const Cstring & sBindhost = "" )
 		{
+			if ( m_isock == 0 )
+				if ( !Connect( sBindhost ) )
+					return( false );
+
+
 			m_bssl = true;
 			
 			SSLeay_add_ssl_algorithms();
@@ -365,11 +370,31 @@ public:
 				return( false );
 			
 			SSL_set_fd( m_ssl, m_isock );
-	
-			if ( ( SSL_connect( m_ssl ) < 0 ) && ( errno != EAGAIN ) )
-				return( false );
 
-			return( true );
+			bool bPass = true;
+			
+			if ( m_bBLOCK )
+			{
+				int fdflags = fcntl (m_isock, F_GETFL, 0);
+				fcntl( m_isock, F_SETFL, fdflags|O_NONBLOCK );
+			}	
+			
+			if ( ( SSL_connect( m_ssl ) < 0 ) && ( errno != EAGAIN ) )
+				bPass = false;
+
+			if ( m_bBLOCK )
+			{	
+				// unset the flags afterwords, rather then have connect block
+				int fdflags = fcntl (m_isock, F_GETFL, 0); 
+				
+				if ( O_NONBLOCK & fdflags )
+					fdflags -= O_NONBLOCK;
+					
+				fcntl( m_isock, F_SETFL, fdflags );
+				
+			}				
+			
+			return( bPass );
 		}
 
 #endif /* _HAS_SSL */
