@@ -1077,7 +1077,7 @@ private:
 		{
 			int iRet = 0;
 			while( iRet == 0 )
-				iRet = socket( PF_INET, SOCK_STREAM, IPPROTO_IP );
+				iRet = socket( PF_INET, SOCK_STREAM, IPPROTO_TCP );
 			
 			if ( ( iRet > -1 ) && ( bListen ) )
 			{
