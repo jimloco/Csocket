@@ -1,3 +1,14 @@
+/**
+*
+*    Copyright (c) 1999-2003 Jim Hull <imaginos@imaginos.net>
+*    All rights reserved
+*
+*    CVS Info:
+*       $Author: imaginos $
+*       $Date: 2003/04/12 20:26:08 $
+*       $Revision: 1.6 $
+*/
+
 #ifndef _HAS_CSOCKET_
 #define _HAS_CSOCKET_
 #include <stdio.h>
