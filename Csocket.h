@@ -692,7 +692,11 @@ public:
 		m_ssl_ctx = SSL_CTX_new ( m_ssl_method );
 		if ( !m_ssl_ctx )
 			return( false );
-		
+	
+		// set the pemfile password
+		SSL_CTX_set_default_passwd_cb( m_ssl_ctx, PemPassCB );
+		SSL_CTX_set_default_passwd_cb_userdata( m_ssl_ctx, (void *)this );
+
 		if ( ( m_sPemFile.empty() ) || ( access( m_sPemFile.c_str(), R_OK ) != 0 ) )
 		{
 			WARN( "There is a problem with [" + m_sPemFile + "]" );
@@ -1135,6 +1139,17 @@ public:
 	//! Set the pem file location
 	void SetPemLocation( const Cstring & sPemFile ) { m_sPemFile = sPemFile; }
 	const Cstring & GetPemLocation() { return( m_sPemFile ); }
+	void SetPemPass( const Cstring & sPassword ) { m_sPemPass = sPassword; }
+	const Cstring & GetPemPass() const { return( m_sPemPass ); }
+	static int PemPassCB( char *buf, int size, int rwflag, void *pcSocket )
+	{
+		Csock *pSock = (Csock *)pcSocket;
+		const Cstring & sPassword = pSock->GetPemPass();
+		memset( buf, '\0', size );
+		strncpy( buf, sPassword.c_str(), size );
+		buf[size-1] = '\0';
+		return( strlen( buf ) );
+	}
 	
 	//! Set the SSL method type
 	void SetSSLMethod( int iMethod ) { m_iMethod = iMethod; }
@@ -1353,7 +1368,7 @@ private:
 	int			m_iReadSock, m_iWriteSock, m_itimeout, m_iport, m_iConnType, m_iTcount, m_iMethod;
 	bool		m_bssl, m_bhaswrite, m_bNeverWritten, m_bClosed, m_bBLOCK, m_bFullsslAccept, m_bsslEstablished, m_bEnableReadLine;
 	Cstring		m_shostname, m_sbuffer, m_sSockName, m_sPemFile, m_sCipherType, m_sParentName;
-	Cstring		m_sSend, m_sSSLBuffer;
+	Cstring		m_sSend, m_sSSLBuffer, m_sPemPass;
 
 	unsigned long long	m_iMaxMilliSeconds, m_iLastSendTime;
 	unsigned int		m_iMaxBytes, m_iLastSend, m_iMaxStoredBufferLength;
@@ -1854,6 +1869,7 @@ private:
 					{
 						NewpcSock->SetCipher( pcSock->GetCipher() );
 						NewpcSock->SetPemLocation( pcSock->GetPemLocation() );
+						NewpcSock->SetPemPass( pcSock->GetPemPass() );
 						bAddSock = NewpcSock->AcceptSSL();
 					}
 							
