@@ -26,6 +26,8 @@
 #include "Cstring.h"
 #include "Cthreads.h"
 
+#define CS_BLOCKSIZE	64
+
 // wrappers for FD_SET and such to work in templates
 inline void TFD_ZERO( fd_set *set )
 {
@@ -1466,8 +1468,7 @@ public:
 			while( true )
 			{
 				// first check to see if any ssl sockets are ready for immediate read
-				bool bSSLPending = false;
-
+				// a mini select() type deal for ssl
 				for( unsigned int i = 0; i < size(); i++ )
 				{
 					T *pcSock = (*this)[i];
@@ -1475,23 +1476,20 @@ public:
 					if ( ( pcSock->GetSSL() ) && ( pcSock->GetType() != Csock::LISTENER ) )
 					{
 						if ( pcSock->GetPending() > 0 )
-							bSSLPending = true;
+						{
+							m_errno = SUCCESS;
+							return( pcSock );
+						}
 					}
 				}
 
 				// old fashion select loop, go fer it
 				int iSel;
 
-				if ( !bSSLPending )
-				{
-					if ( bHasWriteable )
-						iSel = select(FD_SETSIZE, &rfds, &wfds, NULL, &tv);
-					else
-						iSel = select(FD_SETSIZE, &rfds, NULL, NULL, &tv);
-				} else
-				{
-					iSel = 1;	// at least one, since data be pending
-				}
+				if ( bHasWriteable )
+					iSel = select(FD_SETSIZE, &rfds, &wfds, NULL, &tv);
+				else
+					iSel = select(FD_SETSIZE, &rfds, NULL, NULL, &tv);
 
 				if ( iSel == 0 )
 				{
@@ -1587,8 +1585,24 @@ public:
 					pcSock->ResetTimer();	// reset the timeout timer
 					
 					// read in data
-					char buff[64];
-					int bytes = pcSock->Read( buff, 64 );
+					// if this is a 
+					char *buff;
+					int iLen = 0;
+
+					if ( pcSock->GetSSL() )
+						iLen = pcSock->GetPending();
+
+					if ( iLen > 0 )
+					{
+						buff = (char *)malloc( iLen );
+					} else
+					{
+						iLen = CS_BLOCKSIZE;
+						buff = (char *)malloc( CS_BLOCKSIZE );
+				
+					}
+
+					int bytes = pcSock->Read( buff, iLen );
 
 					switch( bytes )
 					{
@@ -1614,8 +1628,10 @@ public:
 							pcSock->PushBuff( buff, bytes );
 							pcSock->ReadData( buff, bytes );
 							break;
-						}								
+						}						
 					}
+					// free up the buff
+					free( buff );
 					break;
 				}
 			
