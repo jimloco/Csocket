@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.116 $
+* $Revision: 1.117 $
 */
 
 #ifndef _HAS_CSOCKET_
@@ -103,15 +103,19 @@ namespace Csocket
 	template <class T> inline void CS_Delete( T * & p ) { if( p ) { delete p; p = NULL; } }
 
 #ifdef HAVE_LIBSSL
-	const u_int ET_ZLIB	= 1;
-	const u_int ET_RLE	= 2;
+	enum ECompType
+	{
+		CT_NONE	= 0,
+		CT_ZLIB	= 1,
+		CT_RLE	= 2
+	};
 
 	/**
 	 * @brief You HAVE to call this in order to use the SSL library
 	 * @return true on success
 	 */
 
-	inline bool InitSSL( u_int iEncryptionType = 0 )
+	inline bool InitSSL( ECompType eCompressionType = CT_NONE )
 	{
 		SSL_load_error_strings();
 		if ( SSL_library_init() != 1 )
@@ -133,18 +137,18 @@ namespace Csocket
 
 		COMP_METHOD *cm = NULL;
 		
-		if ( ET_ZLIB & iEncryptionType )
+		if ( CT_ZLIB & eCompressionType )
 		{
 			cm = COMP_zlib();
 			if ( cm )
-				SSL_COMP_add_compression_method( ET_ZLIB, cm );
+				SSL_COMP_add_compression_method( CT_ZLIB, cm );
 		}
 
-		if ( ET_RLE & iEncryptionType )
+		if ( CT_RLE & eCompressionType )
 		{
 			cm = COMP_rle();
 			if ( cm )
-				SSL_COMP_add_compression_method( ET_RLE, cm );
+				SSL_COMP_add_compression_method( CT_RLE, cm );
 		}
 		
 		return( true );
