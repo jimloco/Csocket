@@ -69,6 +69,8 @@ public:
 			m_iTcount = 0;
 			m_sbuffer.clear();
 			m_bClosed = false;
+			m_bBLOCK = true;
+			m_hent = NULL;
 		}
 	
 		virtual ~Csock()
@@ -93,9 +95,9 @@ public:
 
 		typedef enum
 		{
-			OUTBOUND	= 0,
-			LISTENER	= 1,
-			INBOUND		= 2
+			OUTBOUND	= 0,		// outbound connection
+			LISTENER	= 1,		// a socket accepting connections
+			INBOUND		= 2			// an inbound connection, passed from LISTENER
 			
 		} eConnType;
 		
@@ -107,6 +109,18 @@ public:
 			
 		} eReadFlags;
 		
+		typedef enum
+		{
+			SEL_OK		= 0,
+			SEL_TIMEOUT	= -1,
+			SEL_EAGAIN	= -2,
+			SEL_ERR		= -3
+		
+		} eSelectFlags;
+		
+		//
+		// Resolve the name into m_hent
+		//
 		bool Resolve()
 		{
 			char hbuff[2048];
@@ -121,15 +135,22 @@ public:
 			
 		}
 
+		//
+		// connect to a host
+		//
 		bool Connect( const Cstring & sBindHost = "" )
 		{
 			// create the socket
 			m_isock = socket( PF_INET, SOCK_STREAM, IPPROTO_TCP );
 				
+			if ( !m_hent )
+				if ( !Resolve() )
+					return( false );
+					
 			m_address.sin_family = PF_INET;
 			m_address.sin_port = htons( m_iport );
 			m_address.sin_addr = *(struct in_addr *)m_hent->h_addr;
-			
+
 			// bind to a hostname if requested
 			if ( !sBindHost.empty() )
 			{
@@ -143,21 +164,97 @@ public:
 					bind( m_isock, (struct sockaddr *) &vh, sizeof( vh ) );
 				}
 			}
-					
+			
 			// set it none blocking
 			int fdflags = fcntl (m_isock, F_GETFL, 0);
 			fcntl( m_isock, F_SETFL, fdflags|O_NONBLOCK );
-			
+
 			m_iConnType = OUTBOUND;
 			
 			// connect
-			connect( m_isock, (struct sockaddr *)&m_address, sizeof( m_address ) );
-			if ( errno != EINPROGRESS )
+			int ret = connect( m_isock, (struct sockaddr *)&m_address, sizeof( m_address ) );
+
+			if ( ( ret == -1 ) && ( errno != EINPROGRESS ) )
 				return( false );
+
+			if ( m_bBLOCK )
+			{	
+				// unset the flags afterwords, rather connect not to block
+				int fdflags = fcntl (m_isock, F_GETFL, 0); 
+				
+				if ( O_NONBLOCK & fdflags )
+					fdflags -= O_NONBLOCK;
+					
+				fcntl( m_isock, F_SETFL, fdflags );
+				
+			}
 			
 			return( true );
 		}
 		
+		//
+		// WriteSelect on this socket
+		// Only good if JUST using this socket, otherwise use the parent class below
+		int WriteSelect()
+		{
+			struct timeval tv;
+			fd_set wfds;
+
+			TFD_ZERO( &wfds );
+			TFD_SET( m_isock, &wfds );
+			
+			tv.tv_sec = m_itimeout;
+			tv.tv_usec = 0;
+
+			int ret = select( FD_SETSIZE, NULL, &wfds, NULL, &tv );
+
+			if ( ret == 0 )
+				return( SEL_TIMEOUT );
+		
+			if ( ret == -1 )
+			{
+				if ( errno == EINTR )
+					return( SEL_EAGAIN );
+				else
+					return( SEL_ERR );
+			}
+			
+			return( SEL_OK );
+		}
+
+		//
+		// ReadSelect on this socket
+		// Only good if JUST using this socket, otherwise use the parent class below
+		int ReadSelect()
+		{
+			struct timeval tv;
+			fd_set rfds;
+
+			TFD_ZERO( &rfds );
+			TFD_SET( m_isock, &rfds );
+
+			tv.tv_sec = m_itimeout;
+			tv.tv_usec = 0;
+			
+			int ret = select( FD_SETSIZE, &rfds, NULL, NULL, &tv );
+			
+			if ( ret == 0 )
+				return( SEL_TIMEOUT );
+		
+			if ( ret == -1 )
+			{
+				if ( errno == EINTR )
+					return( SEL_EAGAIN );
+				else
+					return( SEL_ERR );
+			}
+			
+			return( SEL_OK );
+		}		
+		//
+		//
+		// Listens for connections
+		//
 		bool Listen( int iPort, int iMaxConns = SOMAXCONN )
 		{
 			m_isock = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
@@ -165,17 +262,21 @@ public:
 			m_address.sin_addr.s_addr = htonl( INADDR_ANY );
 			m_address.sin_port = htons( iPort );
 
-			if ( bind(m_isock, (struct sockaddr *) &m_address, sizeof( m_address ) ) == -1)
+			if ( bind(m_isock, (struct sockaddr *) &m_address, sizeof( m_address ) ) == -1 )
 			{
 				return( false );
 			}
         
-			listen( m_isock, iMaxConns );
+			if ( listen( m_isock, iMaxConns ) == -1 )
+				return( false );
 
-			// set it none blocking
-			int fdflags = fcntl (m_isock, F_GETFL, 0);
-			fcntl( m_isock, F_SETFL, fdflags|O_NONBLOCK );
-
+			if ( !m_bBLOCK )
+			{
+				// set it none blocking
+				int fdflags = fcntl (m_isock, F_GETFL, 0);
+				fcntl( m_isock, F_SETFL, fdflags|O_NONBLOCK );
+			}
+			
 			m_iConnType = LISTENER;
 		
 			return( true );
@@ -193,9 +294,12 @@ public:
 			
 			if ( iSock != -1 )
 			{
-				// make it none blocking
-				int fdflags = fcntl (iSock, F_GETFL, 0);
-				fcntl( iSock, F_SETFL, fdflags|O_NONBLOCK );
+				if ( !m_bBLOCK )
+				{
+					// make it none blocking
+					int fdflags = fcntl (iSock, F_GETFL, 0);
+					fcntl( iSock, F_SETFL, fdflags|O_NONBLOCK );
+				}
 				
 				getpeername( iSock, (struct sockaddr *) &client, &clen );
 				
@@ -279,6 +383,13 @@ public:
 			// and ultimatly its easier to work with
 			Cstring sSend;
 			sSend.append( data, len );
+
+			if ( m_bBLOCK )
+			{
+				if ( WriteSelect() != SEL_OK )
+					return( false );
+
+			}
 			
 			m_bNeverWritten = false;
 #ifdef _HAS_SSL		
@@ -357,6 +468,13 @@ public:
 		//
 		int Read( char *data, int len )
 		{
+		
+			if ( m_bBLOCK )
+			{
+				if ( ReadSelect() != SEL_OK )
+					return( READ_ERR );
+			}
+			
 			int bytes = 0;
 			memset( (char *)data, '\0', len );
 			
@@ -391,13 +509,28 @@ public:
 		//
 		// misc functions
 		//
+		// Tells you if the socket is ready for write.
 		bool hasWrite() { return( m_bhaswrite ); }
 		void setWrite( bool b ) { m_bhaswrite = b; }	
-		
-		int & GetSock() { return( m_isock ); }
 
+		//
+		// tells you that the socket is ready for write, and has yet to be written to
+		bool needsWrite()
+		{
+			return( m_bNeverWritten );
+		}
+
+		//
+		// returns a reference to the sock
+		int & GetSock() { return( m_isock ); }
+		void SetSock( int iSock ) { m_isock = iSock; }
+		
+		//
+		// resets the time counter
 		void ResetTimer() { m_iTcount = 0; }
 		
+		//
+		// returns true if the socket has timed out
 		bool CheckTimeout()
 		{
 			if ( ( m_itimeout > 0 ) && ( m_iTcount >= m_itimeout ) )
@@ -410,12 +543,9 @@ public:
 			return( false );
 		}
 		
-		bool needsWrite()
-		{
-			return( m_bNeverWritten );
-		}
-		
-		
+		//
+		// pushes data up on the buffer, if a line is ready
+		// it calls the ReadLine event
 		void PushBuff( const char *data, int len )
 		{
 			if ( data )
@@ -438,19 +568,30 @@ public:
 			}
 		}
 		
+		//
+		// Returns the connection type from enum eConnType
 		int GetType() { return( m_iConnType ); }
 		void SetType( int iType ) { m_iConnType = iType; }
-		void SetSock( int iSock ) { m_isock = iSock; }
 		
+		//
+		// Returns a reference to the socket name
 		Cstring & GetSockName() { return( m_sSockName ); }
 		void SetSockName( const Cstring & sName ) { m_sSockName = sName; }
 		
+		//
+		// Returns a reference to the host name
 		Cstring & GetHostName() { return( m_shostname ); }
+		// Returns the port
 		int GetPort() { return( m_iport ); }
 		
 		// just mark us as closed, the parent can pick it up
 		void Close() { m_bClosed = true; }
+		// returns true if the socket is closed
 		bool isClosed() { return( m_bClosed ); }
+		
+		//
+		// Set rather to NON Blocking IO on this socket, default is true
+		void BlockIO( bool bBLOCK ) { m_bBLOCK = bBLOCK; }
 		
 		//
 		// Override these functions for an easy interface
@@ -476,7 +617,7 @@ public:
 				
 private:
 		int			m_isock, m_itimeout, m_iport, m_iConnType, m_iTcount;
-		bool		m_bssl, m_bhaswrite, m_bNeverWritten, m_bClosed;
+		bool		m_bssl, m_bhaswrite, m_bNeverWritten, m_bClosed, m_bBLOCK;
 		Cstring		m_shostname, m_sbuffer, m_sSockName;
 
 		struct hostent		*m_hent, m_hentbuff;
@@ -532,6 +673,9 @@ public:
 			// create the new object
 			T *pcSock = new T( sHostname, iPort, iTimeout );
 			
+			// make it NON-Blocking IO
+			pcSock->BlockIO( false );
+			
 			// figure out the hostname we're connecting to.		
 			if ( !pcSock->Resolve() )
 			{
@@ -563,6 +707,8 @@ public:
 		virtual bool AddListener( int iPort, const Cstring & sSockName, int iMaxConns = SOMAXCONN )
 		{
 			T * pcSock = new T();
+			
+			pcSock->BlockIO( false );
 			
 			if ( pcSock->Listen( iPort, iMaxConns ) )
 			{
@@ -634,6 +780,9 @@ public:
 					{	
 						// if we have a new sock, then add it
 						T * NewpcSock = new T( sHost, port );
+						
+						NewpcSock->BlockIO( false );
+						
 						NewpcSock->SetType( T::INBOUND );
 						NewpcSock->SetSock( inSock );
 						AddSock( NewpcSock,  sHost + "-" + Cstring::num2Cstring( port ) );
