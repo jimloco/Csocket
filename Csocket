@@ -935,8 +935,9 @@ public:
 		}
 				
 		//
-		// Override these functions for an easy interface
-		// 
+		// Override these functions for an easy interface when using the Socket Manager
+		// Don't bother using these callbacks if you are using this class directly (without Socket Manager)
+		// as the Socket Manager calls most of these callbacks
 		// Connected event
 		virtual void Connected() {}
 		// Disconnected event
