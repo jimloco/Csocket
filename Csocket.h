@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.103 $
+* $Revision: 1.104 $
 */
 
 #ifndef _HAS_CSOCKET_
@@ -1042,7 +1042,9 @@ namespace Csocket
 					m_sSend.erase( 0, iErr );
 					// reset the timer on successful write (we have to set it here because the write
 					// bit might not always be set, so need to trigger)
-					ResetTimer();	
+					if ( TMO_WRITE & GetTimeoutType() )
+						ResetTimer();	
+
 					m_iBytesWritten += (unsigned long long)iErr;
 				}
 
@@ -1064,7 +1066,8 @@ namespace Csocket
 			if ( bytes > 0 )
 			{
 				m_sSend.erase( 0, bytes );
-				ResetTimer();	// reset the timer on successful write
+				if ( TMO_WRITE & GetTimeoutType() )
+					ResetTimer();	// reset the timer on successful write
 				m_iBytesWritten += (unsigned long long)bytes;
 			}
 
@@ -1223,8 +1226,24 @@ namespace Csocket
 		* then the normal TCP timeout will apply (basically TCP will kill a dead connection)
 		* Set the timeout, set to 0 to never timeout
 		*/
-		void SetTimeout( int iTimeout ) { m_itimeout = iTimeout; }
+		enum
+		{
+			TMO_READ	= 1,
+			TMO_WRITE	= 2,
+			TMO_ACCEPT	= 4,
+			TMO_ALL		= TMO_READ|TMO_WRITE|TMO_ACCEPT
+		};
+
+		//! Currently this uses the same value for all timeouts, and iTimeoutType merely states which event will be checked
+		//! for timeouts
+		void SetTimeout( int iTimeout, u_int iTimeoutType = TMO_ALL ) 
+		{ 
+			m_iTimeoutType = iTimeoutType;
+			m_itimeout = iTimeout; 
+		}
+		void SetTimeoutType( u_int iTimeoutType ) { m_iTimeoutType = iTimeoutType; }
 		int GetTimeout() const { return m_itimeout; }
+		u_int GetTimeoutType() const { return( m_iTimeoutType ); }
 		
 		//! returns true if the socket has timed out
 		virtual bool CheckTimeout()
@@ -1752,7 +1771,7 @@ namespace Csocket
 		CS_STRING	m_sSend, m_sSSLBuffer, m_sPemPass, m_sLocalIP, m_sRemoteIP;
 
 		unsigned long long	m_iMaxMilliSeconds, m_iLastSendTime, m_iBytesRead, m_iBytesWritten, m_iStartTime;
-		unsigned int		m_iMaxBytes, m_iLastSend, m_iMaxStoredBufferLength;
+		unsigned int		m_iMaxBytes, m_iLastSend, m_iMaxStoredBufferLength, m_iTimeoutType;
 		
 		struct sockaddr_in 	m_address;
 				
@@ -1836,6 +1855,7 @@ namespace Csocket
 			m_iBytesWritten = 0;
 			m_iStartTime = millitime();
 			m_bPauseRead = false;
+			m_iTimeoutType = TMO_ALL;
 		}
 	};
 
@@ -2100,7 +2120,9 @@ namespace Csocket
 
 								default:
 								{
-									pcSock->ResetTimer();	// reset the timeout timer
+									if ( T::TMO_READ & pcSock->GetTimeoutType() )
+										pcSock->ResetTimer();	// reset the timeout timer
+
 									pcSock->PushBuff( buff, bytes );
 									pcSock->ReadData( buff, bytes );
 									break;
@@ -2491,7 +2513,8 @@ namespace Csocket
 						
 						if ( inSock != -1 )
 						{
-							pcSock->ResetTimer();	// let them now it got dinged
+							if ( T::TMO_ACCEPT & pcSock->GetTimeoutType() )
+								pcSock->ResetTimer();	// let them now it got dinged
 
 							// if we have a new sock, then add it
 							T *NewpcSock = (T *)pcSock->GetSockObj( sHost, port );
