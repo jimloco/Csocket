@@ -5,8 +5,8 @@
 *
 *    CVS Info:
 *       $Author: imaginos $
-*       $Date: 2003/05/08 02:57:25 $
-*       $Revision: 1.14 $
+*       $Date: 2003/05/10 03:58:21 $
+*       $Revision: 1.15 $
 */
 
 #ifndef _HAS_CSOCKET_
@@ -1786,7 +1786,7 @@ private:
 					return;
 				}
 			}
-			WARN( "WARNING!!! Could not find " + Cstring::num2Cstring( (unsigned int *)pcSock ) );
+			WARN( "WARNING!!! Could not find " + Cstring::num2Cstring( (unsigned int)pcSock ) );
 		}
 
 		//! internal use only
