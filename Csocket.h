@@ -104,8 +104,7 @@ inline bool GetHostByName( const Cstring & sHostName, struct in_addr *paddr )
 			bRet = true;
 			break;
 		}	
-
-		if ( err != TRY_AGAIN )
+		if ( iRet != EAGAIN )
 			break;
 	}
 
@@ -121,7 +120,7 @@ inline bool GetHostByName( const Cstring & sHostName, struct in_addr *paddr )
 #endif /* __linux__ */
 
 	if ( bRet )
-	*paddr = *(struct in_addr *)hent->h_addr; 
+		bcopy( hent->h_addr_list[0], &paddr->s_addr, 4 );
 
 #ifndef __linux__
 	m.unlock();
