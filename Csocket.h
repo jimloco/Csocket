@@ -1712,7 +1712,7 @@ public:
 			if ( iSock <= 0 )
 			{
 				pcSock->Close();
-				return( NULL );
+				return( 0 );
 			}
 
 			struct sockaddr_in mLocalAddr;
