@@ -373,6 +373,7 @@ public:
 			m_address.sin_family = PF_INET;
 			m_address.sin_addr.s_addr = htonl( INADDR_ANY );
 			m_address.sin_port = htons( iPort );
+			bzero(&(m_address.sin_zero), 8);
 
 			if ( bind(m_isock, (struct sockaddr *) &m_address, sizeof( m_address ) ) == -1 )
 			{
@@ -1069,7 +1070,7 @@ private:
 		{
 			int iRet = 0;
 			while( iRet == 0 )
-				iRet = socket( PF_INET, SOCK_STREAM, IPPROTO_TCP );
+				iRet = socket( PF_INET, SOCK_STREAM, IPPROTO_IP );
 			
 			if ( ( iRet > -1 ) && ( bListen ) )
 			{
