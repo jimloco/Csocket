@@ -5,8 +5,8 @@
 *
 *    CVS Info:
 *       $Author: imaginos $
-*       $Date: 2003/04/14 04:00:16 $
-*       $Revision: 1.11 $
+*       $Date: 2003/04/15 00:18:56 $
+*       $Revision: 1.12 $
 */
 
 #ifndef _HAS_CSOCKET_
@@ -955,7 +955,8 @@ public:
 		
 		//! Returns a reference to the host name
 		const Cstring & GetHostName() { return( m_shostname ); }
-		 
+		void SetHostName( const Cstring & sHostname ) { m_shostname = sHostname; }
+
 		//! Returns the port
 		int GetPort() { return( m_iport ); }
 		void SetPort( int iPort ) { m_iport = iPort; }
@@ -1280,7 +1281,7 @@ public:
 				pcSock = new T( sHostname, iPort, iTimeout );
 			else
 			{
-				pcSock->GetHostName() = sHostname;
+				pcSock->SetHostName( sHostname );
 				pcSock->SetPort( iPort );
 				pcSock->SetTimeout( iTimeout );
 			}
