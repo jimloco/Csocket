@@ -17,10 +17,10 @@
 #include <assert.h>
 #include <sys/ioctl.h>
 
-#ifdef _HAS_SSL
+#ifdef HAVE_LIBSSL
 #include <openssl/ssl.h>
 #include <openssl/err.h>
-#endif /* _HAS_SSL */
+#endif /* HAVE_LIBSSL */
 
 #include "Cstring"
 #include "Cthreads"
@@ -117,10 +117,10 @@ public:
 		Csock() { Csock( "", 0 ); }
 		Csock( const Cstring & sHostname, int iport, int itimeout = 60 ) 
 		{
-#ifdef _HAS_SSL	
+#ifdef HAVE_LIBSSL	
 			m_ssl = NULL;
 			m_ssl_ctx = NULL;
-#endif /* _HAS_SSL */		
+#endif /* HAVE_LIBSSL */		
 			m_isock = 0;
 			m_itimeout = itimeout;
 			m_bssl = false;
@@ -141,7 +141,7 @@ public:
 		virtual ~Csock()
 		{
 			close( m_isock );
-#ifdef _HAS_SSL		
+#ifdef HAVE_LIBSSL		
 			if ( m_ssl )
 			{
 				SSL_shutdown( m_ssl );
@@ -154,7 +154,7 @@ public:
 			m_ssl = NULL;
 			m_ssl_ctx = NULL;
 
-#endif /* _HAS_SSL */				
+#endif /* HAVE_LIBSSL */				
 			// delete any left over crons
 			for( unsigned int i = 0; i < m_vcCrons.size(); i++ )
 			{
@@ -402,7 +402,7 @@ public:
 		bool AcceptSSL()
 		{
 			bool bAccepted = false;
-#ifdef _HAS_SSL
+#ifdef HAVE_LIBSSL
 			if ( !m_ssl )
 				if ( !SSLServerSetup() )
 					return( false );
@@ -433,14 +433,14 @@ public:
 				}
 			}
 			
-#endif /* _HAS_SSL */
+#endif /* HAVE_LIBSSL */
 			
 			return( bAccepted );	
 		}
 
 		bool SSLClientSetup()
 		{
-#ifdef _HAS_SSL		
+#ifdef HAVE_LIBSSL		
 			m_bssl = true;
 			
 			if ( m_ssl )
@@ -508,12 +508,12 @@ public:
 #else
 			return( false );
 			
-#endif /* _HAS_SSL */		
+#endif /* HAVE_LIBSSL */		
 		}
 
 		bool SSLServerSetup()
 		{
-#ifdef _HAS_SSL		
+#ifdef HAVE_LIBSSL		
 			m_bssl = true;
 			
 			if ( m_ssl )
@@ -611,12 +611,12 @@ public:
 			return( true );
 #else
 			return( false );
-#endif /* _HAS_SSL */		
+#endif /* HAVE_LIBSSL */		
 		}		
 		
 		bool ConnectSSL( const Cstring & sBindhost = "" )
 		{
-#ifdef _HAS_SSL		
+#ifdef HAVE_LIBSSL		
 			if ( m_isock == 0 )
 				if ( !Connect( sBindhost ) )
 					return( false );
@@ -651,7 +651,7 @@ public:
 			return( bPass );
 #else
 			return( false );
-#endif /* _HAS_SSL */
+#endif /* HAVE_LIBSSL */
 		}
 
 
@@ -676,7 +676,7 @@ public:
 			}
 			
 			m_bNeverWritten = false;
-#ifdef _HAS_SSL		
+#ifdef HAVE_LIBSSL		
 			if ( m_bssl )
 			{
 				int iErr = SSL_write( m_ssl, m_sSend.c_str(), m_sSend.length() );
@@ -709,7 +709,7 @@ public:
 				
 				return( true );
 			}
-#endif /* _HAS_SSL */
+#endif /* HAVE_LIBSSL */
 			int bytes = write( m_isock, m_sSend.c_str(), m_sSend.length() );
 		
 			if ( ( bytes <= 0 ) && ( errno != EAGAIN ) )
@@ -751,18 +751,18 @@ public:
 			int bytes = 0;
 			memset( (char *)data, '\0', len );
 			
-#ifdef _HAS_SSL							
+#ifdef HAVE_LIBSSL							
 			if ( m_bssl )							
 				bytes = SSL_read( m_ssl, data, len );
 			else
-#endif /* _HAS_SSL */
+#endif /* HAVE_LIBSSL */
 				bytes = read( m_isock, data, len );
 
 		    if ( bytes == -1 )
 			{
 				if ( ( errno == EINTR ) || ( errno == EAGAIN ) )
 					return( READ_EAGAIN );
-#ifdef _HAS_SSL
+#ifdef HAVE_LIBSSL
 				if ( m_bssl )
 				{
 					int iErr = SSL_get_error( m_ssl, bytes );
@@ -773,7 +773,7 @@ public:
 				}
 #else
 				return( READ_ERR );
-#endif /* _HAS_SSL */								
+#endif /* HAVE_LIBSSL */								
 			}
 			
 			return( bytes );
@@ -970,11 +970,11 @@ private:
 		struct hostent		*m_hent, m_hentbuff;
 		struct sockaddr_in 	m_address;
 		
-#ifdef _HAS_SSL
+#ifdef HAVE_LIBSSL
 		SSL 				*m_ssl;
 		SSL_CTX				*m_ssl_ctx;
 		SSL_METHOD			*m_ssl_method;
-#endif /* _HAS_SSL */
+#endif /* HAVE_LIBSSL */
 
 		vector<CCron *>		m_vcCrons;
 };
@@ -1035,7 +1035,7 @@ public:
 				return( false );
 			}
 	
-#ifdef _HAS_SSL
+#ifdef HAVE_LIBSSL
 			if ( isSSL )
 			{
 				if ( !pcSock->ConnectSSL() )
@@ -1044,7 +1044,7 @@ public:
 					return( false );
 				}
 			}
-#endif /* _HAS_SSL */
+#endif /* HAVE_LIBSSL */
 			
 			AddSock( pcSock, sSockName );
 			return( true );
@@ -1057,11 +1057,11 @@ public:
 
 		bool QuickSSLConnect( const Cstring & sHostname, int iPort, int iTimeout = 60 )
 		{
-#ifdef _HAS_SSL		
+#ifdef HAVE_LIBSSL		
 			return( Connect( sHostname, iPort, "QuickConnect", iTimeout, true ) );
 #else
 			return( false );
-#endif /* _HAS_SSL */
+#endif /* HAVE_LIBSSL */
 		}		
 
 		bool AddListener( int iPort, const Cstring & sSockName, int isSSL = false, int iMaxConns = SOMAXCONN )
@@ -1160,7 +1160,7 @@ public:
 						NewpcSock->SetSock( inSock );
 						
 						bool bAddSock = true;
-#ifdef _HAS_SSL						
+#ifdef HAVE_LIBSSL						
 						//
 						// is this ssl ?
 						if ( pcSock->GetSSL() )
@@ -1170,7 +1170,7 @@ public:
 							bAddSock = NewpcSock->AcceptSSL();
 						}
 								
-#endif /* _HAS_SSL */
+#endif /* HAVE_LIBSSL */
 						if ( bAddSock )
 						{
 							// set the name of the listener
