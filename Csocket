@@ -571,6 +571,12 @@ public:
 			if ( !m_ssl_ctx )
 				return( false );
 			
+			if ( ( m_sPemFile.empty() ) || ( access( m_sPemFile.c_str(), R_OK ) != 0 ) )
+			{
+				cerr << "There is a problem with [" << m_sPemFile << "]" << endl;
+				return( false );
+			}
+
 			//
 			// set up the CTX
 			if ( SSL_CTX_use_certificate_file( m_ssl_ctx, m_sPemFile.c_str() , SSL_FILETYPE_PEM ) <= 0 )
