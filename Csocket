@@ -114,51 +114,26 @@ protected:
 class Csock
 {
 public:
-		Csock() { Csock( "", 0 ); }
+		Csock( int itimeout = 60 ) 
+		{ 
+			Init( "", 0, itimeout ); 
+		}
 		Csock( const Cstring & sHostname, int iport, int itimeout = 60 ) 
 		{
-#ifdef HAVE_LIBSSL	
-			m_ssl = NULL;
-			m_ssl_ctx = NULL;
-#endif /* HAVE_LIBSSL */		
-			m_isock = 0;
-			m_itimeout = itimeout;
-			m_bssl = false;
-			m_bhaswrite = false;
-			m_iport = iport;
-			m_shostname = sHostname;
-			m_bNeverWritten = true;
-			m_iTcount = 0;
-			m_sbuffer.clear();
-			m_bClosed = false;
-			m_bBLOCK = true;
-			m_hent = NULL;
-			m_iMethod = SSL23;
-			m_sCipherType = "ALL";
-			m_sPemFile = "server.pem";
+			Init( sHostname, iport, itimeout );
 		}
-	
+		
 		virtual ~Csock()
 		{
 			close( m_isock );
-#ifdef HAVE_LIBSSL		
-			if ( m_ssl )
-			{
-				SSL_shutdown( m_ssl );
-				SSL_free( m_ssl );
-			}
-										
-			if ( m_ssl_ctx )
-				SSL_CTX_free( m_ssl_ctx );
-			
-			m_ssl = NULL;
-			m_ssl_ctx = NULL;
+#ifdef HAVE_LIBSSL
+			FREE_SSL();
+			FREE_CTX();
 
 #endif /* HAVE_LIBSSL */				
 			// delete any left over crons
 			for( unsigned int i = 0; i < m_vcCrons.size(); i++ )
 				Zzap( m_vcCrons[i] );
-
 		}
 
 		typedef enum
@@ -223,7 +198,7 @@ public:
 		bool Connect( const Cstring & sBindHost = "" )
 		{
 			// create the socket
-			m_isock = socket( PF_INET, SOCK_STREAM, IPPROTO_TCP );
+			m_isock = SOCKET();
 				
 			if ( !m_hent )
 				if ( !Resolve() )
@@ -339,7 +314,11 @@ public:
 		//
 		bool Listen( int iPort, int iMaxConns = SOMAXCONN )
 		{
-			m_isock = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
+			m_isock = SOCKET();
+
+			if ( m_isock == -1 )
+				return( false );
+
 			m_address.sin_family = PF_INET;
 			m_address.sin_addr.s_addr = htonl( INADDR_ANY );
 			m_address.sin_port = htons( iPort );
@@ -360,7 +339,6 @@ public:
 			}
 			
 			m_iConnType = LISTENER;
-		
 			return( true );
 		}
 		
@@ -438,19 +416,9 @@ public:
 		{
 #ifdef HAVE_LIBSSL		
 			m_bssl = true;
-			
-			if ( m_ssl )
-			{
-				SSL_shutdown( m_ssl );
-				SSL_free( m_ssl );
-			}
-										
-			if ( m_ssl_ctx )
-				SSL_CTX_free( m_ssl_ctx );
-			
-			m_ssl = NULL;
-			m_ssl_ctx = NULL;
-					
+			FREE_SSL();
+			FREE_CTX();
+
 			SSLeay_add_ssl_algorithms();
 	
 			switch( m_iMethod )
@@ -509,20 +477,10 @@ public:
 
 		bool SSLServerSetup()
 		{
-#ifdef HAVE_LIBSSL		
+#ifdef HAVE_LIBSSL
 			m_bssl = true;
-			
-			if ( m_ssl )
-			{
-				SSL_shutdown( m_ssl );
-				SSL_free( m_ssl );
-			}
-										
-			if ( m_ssl_ctx )
-				SSL_CTX_free( m_ssl_ctx );
-			
-			m_ssl = NULL;
-			m_ssl_ctx = NULL;
+			FREE_SSL();			
+			FREE_CTX();
 					
 			SSLeay_add_ssl_algorithms();
 	
@@ -970,9 +928,61 @@ private:
 		SSL 				*m_ssl;
 		SSL_CTX				*m_ssl_ctx;
 		SSL_METHOD			*m_ssl_method;
+
+		void FREE_SSL()
+		{
+			if ( m_ssl )
+			{
+				SSL_shutdown( m_ssl );
+				SSL_free( m_ssl );
+			}
+			m_ssl = NULL;
+		}
+
+		void FREE_CTX()
+		{
+			if ( m_ssl_ctx )
+				SSL_CTX_free( m_ssl_ctx );
+
+			m_ssl_ctx = NULL;
+		}
+
 #endif /* HAVE_LIBSSL */
 
 		vector<CCron *>		m_vcCrons;
+
+
+		int SOCKET()
+		{
+			int iRet = 0;
+			while( iRet == 0 )
+				iRet = socket( PF_INET, SOCK_STREAM, IPPROTO_TCP );
+			
+			return( iRet );
+		}
+
+		void Init( const Cstring & sHostname, int iport, int itimeout = 60 )
+		{
+#ifdef HAVE_LIBSSL	
+			m_ssl = NULL;
+			m_ssl_ctx = NULL;
+#endif /* HAVE_LIBSSL */		
+			m_isock = 0;
+			m_itimeout = itimeout;
+			m_bssl = false;
+			m_bhaswrite = false;
+			m_iport = iport;
+			m_shostname = sHostname;
+			m_bNeverWritten = true;
+			m_iTcount = 0;
+			m_sbuffer.clear();
+			m_bClosed = false;
+			m_bBLOCK = true;
+			m_hent = NULL;
+			m_iMethod = SSL23;
+			m_sCipherType = "ALL";
+			m_sPemFile = "server.pem";
+		}
 };
 
 //
@@ -1061,17 +1071,16 @@ public:
 		bool AddListener( int iPort, const Cstring & sSockName, int isSSL = false, int iMaxConns = SOMAXCONN )
 		{
 			T * pcSock = new T();
-			
+
 			pcSock->BlockIO( false );
-			
+
 			pcSock->SetSSL( isSSL );
-			
+
 			if ( pcSock->Listen( iPort, iMaxConns ) )
 			{
 				AddSock( pcSock, sSockName );
 				return( true );
 			}
-			
 			Zzap( pcSock );
 			return( false );
 		}
@@ -1097,20 +1106,25 @@ public:
 			TFD_ZERO( &wfds );
 
 			// before we go any further, Process work needing to be done on the job
+
 			for( unsigned int i = 0; i < size(); i++ )
 			{
-				if ( (*this)[i]->isClosed() )
-					DestroySock( (*this)[i] );
-				else
+				// listener is just a placeholder, it doesn't have crons attached, it should never close
+				if ( (*this)[i]->GetType() != T::LISTENER )
 				{
-					// call the Cron handler here
-					(*this)[i]->Cron();
+					if ( (*this)[i]->isClosed() )
+						DestroySock( (*this)[i] );
+					else
+					{
+						// call the Cron handler here
+						(*this)[i]->Cron();
+					}
 				}
 			}
-			
+
 			for( unsigned int i = 0; i < m_pcDestroySocks.size(); i++ )
 				DelSock( m_pcDestroySocks[i] );
-			
+
 			m_pcDestroySocks.clear();
 			
 			// on with the show
@@ -1119,11 +1133,11 @@ public:
 
 			for( unsigned int i = 0; i < size(); i++ )
 			{
+
 				Csock *pcSock = (*this)[i];
 				
 				if ( pcSock->GetType() != T::LISTENER )
 				{
-
 					int & iSock = pcSock->GetSock();
 
 					if ( ( pcSock->hasWrite() ) && ( pcSock->GetSendBuff().empty() ) )
@@ -1140,7 +1154,6 @@ public:
 				{
 					Cstring sHost;
 					int port;
-					
 					int inSock = pcSock->Accept( sHost, port );
 					
 					if ( inSock != -1 )
