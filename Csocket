@@ -123,6 +123,9 @@ public:
 			m_bClosed = false;
 			m_bBLOCK = true;
 			m_hent = NULL;
+			m_iMethod = SSL23;
+			m_sCipherType = "ALL";
+			m_sPemFile = "server.pem";
 		}
 	
 		virtual ~Csock()
@@ -176,6 +179,14 @@ public:
 			SEL_ERR		= -3
 		
 		} eSelectFlags;
+		
+		typedef enum
+		{
+			SSL23	= 0,
+			SSL2	= 2,
+			SSL3	= 3
+		
+		} eSSLMethods;
 		
 		//
 		// Resolve the name into m_hent
@@ -364,26 +375,69 @@ public:
 				
 				sHost = inet_ntoa( client.sin_addr );
 				iRPort = ntohs( client.sin_port );
-				
+			
 				ConnectionFrom( sHost, iRPort );
+
 			}
 			
 			return( iSock );
 		}
+		
 #ifdef _HAS_SSL
-	
-		bool ConnectSSL( int method = 0, const Cstring & sBindhost = "" )
+		bool AcceptSSL()
 		{
-			if ( m_isock == 0 )
-				if ( !Connect( sBindhost ) )
+			if ( !m_ssl )
+				if ( !SSLServerSetup() )
 					return( false );
+				
+			bool bAccepted = false;
+			
+			while( true )
+			{
+				int err = SSL_accept( m_ssl );
+				
+				if ( err == 1 )
+				{
+					bAccepted = true;
+					break;
+				
+				} else
+				{
+					if ( errno != EAGAIN )
+					{
+						int sslErr = SSL_get_error( m_ssl, err );
 
+						if ( ( sslErr != SSL_ERROR_WANT_READ ) && ( sslErr != SSL_ERROR_WANT_WRITE ) )
+						{
+							ERR_print_errors_fp ( stderr );
+							bAccepted = false;
+							break;
+						}
+					}
+				}
+			}
+			return( bAccepted );	
+		}
 
+		bool SSLClientSetup()
+		{
 			m_bssl = true;
 			
+			if ( m_ssl )
+			{
+				SSL_shutdown( m_ssl );
+				SSL_free( m_ssl );
+			}
+										
+			if ( m_ssl_ctx )
+				SSL_CTX_free( m_ssl_ctx );
+			
+			m_ssl = NULL;
+			m_ssl_ctx = NULL;
+					
 			SSLeay_add_ssl_algorithms();
 	
-			switch( method )
+			switch( m_iMethod )
 			{
 				case 0:
 					m_ssl_method = SSLv23_client_method();
@@ -429,7 +483,115 @@ public:
 				return( false );
 			
 			SSL_set_fd( m_ssl, m_isock );
+			
+			return( true );
+		
+		}
 
+		bool SSLServerSetup()
+		{
+			m_bssl = true;
+			
+			if ( m_ssl )
+			{
+				SSL_shutdown( m_ssl );
+				SSL_free( m_ssl );
+			}
+										
+			if ( m_ssl_ctx )
+				SSL_CTX_free( m_ssl_ctx );
+			
+			m_ssl = NULL;
+			m_ssl_ctx = NULL;
+					
+			SSLeay_add_ssl_algorithms();
+	
+			switch( m_iMethod )
+			{
+				case 0:
+					m_ssl_method = SSLv23_server_method();
+					if ( !m_ssl_method )
+					{
+						cerr << "WARNING: MakeConnection .... SSLv23_server_method failed!" << endl;
+						return( false );
+					}
+					break;
+		
+				case 2:
+					m_ssl_method = SSLv2_server_method();
+					if ( !m_ssl_method )
+					{
+						cerr << "WARNING: MakeConnection .... SSLv2_server_method failed!" << endl;
+						return( false );
+					}
+					break;
+		
+				case 3:
+					m_ssl_method = SSLv3_server_method();
+					if ( !m_ssl_method )
+					{
+						cerr << "WARNING: MakeConnection .... SSLv3_server_method failed!" << endl;
+						return( false );
+					}		
+					break;
+			
+				default:
+					cerr << "WARNING: MakeConnection .... invalid http_sslversion version!" << endl;
+					return( false );
+					break;
+			}
+
+			SSL_load_error_strings ();
+			// wrap some warnings in here
+			m_ssl_ctx = SSL_CTX_new ( m_ssl_method );
+			if ( !m_ssl_ctx )
+				return( false );
+			
+			//
+			// set up the CTX
+			if ( SSL_CTX_use_certificate_file( m_ssl_ctx, m_sPemFile.c_str() , SSL_FILETYPE_PEM ) <= 0 )
+			{
+				cerr << "Error with PEM file [" << m_sPemFile << "]" << endl;
+				ERR_print_errors_fp ( stderr );
+				return( false );
+			}
+			
+			if ( SSL_CTX_use_PrivateKey_file( m_ssl_ctx, m_sPemFile.c_str(), SSL_FILETYPE_PEM ) <= 0 )
+			{
+				cerr << "Error with PEM file [" << m_sPemFile << "]" << endl;
+				ERR_print_errors_fp ( stderr );
+				return( false );
+			}
+			
+			if ( SSL_CTX_set_cipher_list( m_ssl_ctx, m_sCipherType.c_str() ) <= 0 )
+			{
+				cerr << "Could not assign cipher [" << m_sCipherType << "]" << endl;
+				return( false );
+			}
+
+			//
+			// setup the SSL
+			m_ssl = SSL_new ( m_ssl_ctx );
+			if ( !m_ssl )
+				return( false );
+			
+			SSL_set_fd( m_ssl, m_isock );
+			SSL_set_accept_state( m_ssl );
+			
+			return( true );
+		
+		}		
+		
+		bool ConnectSSL( const Cstring & sBindhost = "" )
+		{
+			if ( m_isock == 0 )
+				if ( !Connect( sBindhost ) )
+					return( false );
+
+			if ( !m_ssl )
+				if ( !SSLClientSetup() )
+					return( false );
+				
 			bool bPass = true;
 			
 			if ( m_bBLOCK )
@@ -690,6 +852,24 @@ public:
 		void BlockIO( bool bBLOCK ) { m_bBLOCK = bBLOCK; }
 
 		//
+		// if this connection type is ssl or not
+		bool GetSSL() { return( m_bssl ); }
+		void SetSSL( bool b ) { m_bssl = b; }
+		
+		//
+		// Set the cipher type ( openssl cipher [to see ciphers available] )
+		void SetCipher( const Cstring & sCipher ) { m_sCipherType = sCipher; }
+		Cstring & GetCipher() { return( m_sCipherType ); }
+		
+		//
+		// Set the pem file location
+		void SetPemLocation( const Cstring & sPemFile ) { m_sPemFile = sPemFile; }
+		Cstring & GetPemLocation() { return( m_sPemFile ); }
+		
+		// Set the SSL method type
+		void SetSSLMethod( int iMethod ) { m_iMethod = SSL23; }
+		
+		//
 		// Cron caller
 		// Once we have the cron, we'll delete it
 		void Cron()
@@ -742,9 +922,9 @@ public:
 			
 				
 private:
-		int			m_isock, m_itimeout, m_iport, m_iConnType, m_iTcount;
+		int			m_isock, m_itimeout, m_iport, m_iConnType, m_iTcount, m_iMethod;
 		bool		m_bssl, m_bhaswrite, m_bNeverWritten, m_bClosed, m_bBLOCK;
-		Cstring		m_shostname, m_sbuffer, m_sSockName;
+		Cstring		m_shostname, m_sbuffer, m_sSockName, m_sPemFile, m_sCipherType;
 
 		struct hostent		*m_hent, m_hentbuff;
 		struct sockaddr_in 	m_address;
@@ -831,11 +1011,13 @@ public:
 			return( true );
 		}
 		
-		virtual bool AddListener( int iPort, const Cstring & sSockName, int iMaxConns = SOMAXCONN )
+		virtual bool AddListener( int iPort, const Cstring & sSockName, int isSSL = false, int iMaxConns = SOMAXCONN )
 		{
 			T * pcSock = new T();
 			
 			pcSock->BlockIO( false );
+			
+			pcSock->SetSSL( isSSL );
 			
 			if ( pcSock->Listen( iPort, iMaxConns ) )
 			{
@@ -923,7 +1105,23 @@ public:
 						
 						NewpcSock->SetType( T::INBOUND );
 						NewpcSock->SetSock( inSock );
-						AddSock( NewpcSock,  sHost + "-" + Cstring::num2Cstring( port ) );
+						
+						bool bAddSock = true;
+#ifdef _HAS_SSL						
+						//
+						// is this ssl ?
+						if ( pcSock->GetSSL() )
+						{
+							NewpcSock->SetCipher( pcSock->GetCipher() );
+							NewpcSock->SetPemLocation( pcSock->GetPemLocation() );
+							bAddSock = NewpcSock->AcceptSSL();
+						}
+								
+#endif /* _HAS_SSL */
+						if ( bAddSock )
+							AddSock( NewpcSock,  sHost + "-" + Cstring::num2Cstring( port ) );
+						else
+							delete( NewpcSock );
 					}
 				}
 			}
