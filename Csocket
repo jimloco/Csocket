@@ -1,0 +1,421 @@
+#include <stdio.h>
+#include <unistd.h>
+#include <sys/time.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <sys/fcntl.h>
+#include <sys/file.h>
+#include <netinet/in.h>
+#include <stdlib.h>
+#include <netdb.h>
+#include <errno.h>
+#include <string.h>
+#include <ctype.h>
+#include <assert.h>
+
+#ifdef _HAS_SSL
+#include <openssl/ssl.h>
+#include <openssl/err.h>
+
+extern int http_sslversion;
+
+#endif /* _HAS_SSL */
+
+#include <Cstring>
+#include <Cthreads>
+
+#ifndef _HAS_CSOCKET_
+#define _HAS_CSOCKET_
+
+//
+// The thought behind this class, is to use it as a main loop
+// derive from it, override its events to handle stuff
+//
+// I prefer threads over an overcomplicated single threaded app
+// If you need more then one outbound socket, thread it, it will be faster anyway :)
+//
+
+class CSoutbound : public Cmutex
+{
+public:
+		CSoutbound() : Cmutex()
+		{
+			Init();
+		}
+
+		virtual ~CSoutbound() 
+		{
+			close( m_sock );
+		}
+
+		typedef enum
+		{
+			HOST_ERR 	= 1,
+			CONNECT_ERR = 2,
+			SSL_ERR		= 3
+			
+		} eMessages;
+
+		virtual void Connect( const Cstring & sHostname, int iPort, bool isSSL = false )
+		{
+			// mark our ssl
+			m_isSSL = isSSL;
+			
+			// figure out the hostname we're connecting to.		
+			char hbuff[2048];
+			memset( (char *)hbuff, '\0', 2048 );
+			
+			int err;
+			
+			if ( gethostbyname_r( sHostname.c_str(), &m_hentbuff, hbuff, 2048, &m_hent, &err ) != 0 )
+			{
+				ConnectionFailed( HOST_ERR );
+				return;
+			}
+			
+			// create the socket
+			m_sock = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
+			m_address.sin_family = PF_INET;
+			m_address.sin_port = htons( iPort );
+			m_address.sin_addr = *(struct in_addr *)m_hent->h_addr;
+			
+			// set it none blocking
+			int fdflags = fcntl (m_sock, F_GETFL, 0);
+			fcntl( m_sock, F_SETFL, fdflags|O_NONBLOCK );
+			
+			// connect
+			connect( m_sock, (struct sockaddr *)&m_address, sizeof( m_address ) );
+			if ( errno != EINPROGRESS )
+			{
+				ConnectionFailed( CONNECT_ERR );
+				return;
+			}
+
+#ifdef _HAS_SSL
+			if ( m_isSSL )
+			{
+				SSLeay_add_ssl_algorithms();
+		
+				switch( http_sslversion )
+				{
+					case 0:
+						m_ssl_method = SSLv23_client_method();
+						if ( !m_ssl_method )
+							cerr << "WARNING: MakeConnection .... SSLv23_client_method failed!" << endl;
+						break;
+			
+					case 2:
+						m_ssl_method = SSLv2_client_method();
+						if ( !m_ssl_method )
+							cerr << "WARNING: MakeConnection .... SSLv2_client_method failed!" << endl;
+						break;
+			
+					case 3:
+						m_ssl_method = SSLv3_client_method();
+						if ( !m_ssl_method )
+							cerr << "WARNING: MakeConnection .... SSLv3_client_method failed!" << endl;			
+					break;
+				
+					default:
+						ConnectionFailed( SSL_ERR );
+						cerr << "WARNING: MakeConnection .... invalid http_sslversion version!" << endl;
+						return;
+						break;
+				}
+
+				SSL_load_error_strings ();
+				// wrap some warnings in here
+				m_ssl_ctx = SSL_CTX_new ( m_ssl_method );
+				if ( !m_ssl_ctx )
+				{
+					ConnectionFailed( SSL_ERR );
+					return;
+				}
+				
+				m_ssl = SSL_new ( m_ssl_ctx );
+				if ( !m_ssl )
+				{
+					ConnectionFailed( SSL_ERR );
+					return;
+				}
+				
+				SSL_set_fd( m_ssl, m_sock );
+		
+				if( ( SSL_connect( m_ssl ) < 0 ) && ( errno != EAGAIN ) )
+				{
+					ConnectionFailed( CONNECT_ERR );
+					return;
+				}			
+			}
+			
+			
+#endif /* _HAS_SSL */
+			
+			Connected();
+			// settle into the select loop
+			fd_set rfds, wfds;
+			bool binprog = true;
+			
+			while ( binprog )
+			{
+				struct timeval tv;
+				tv.tv_sec = 1;	// one second timeout, good for clocks
+				tv.tv_usec = 0;
+				
+				int iSel;
+				if ( m_bHasWrite )
+				{
+					FD_ZERO( &rfds );
+					FD_SET( m_sock, &rfds );
+				
+					iSel = select(FD_SETSIZE, &rfds, NULL, NULL, &tv);
+				
+				} else
+				{
+					FD_ZERO( &rfds );
+					FD_ZERO( &wfds );
+					FD_SET( m_sock, &rfds );
+					FD_SET( m_sock, &wfds );
+					iSel = select(FD_SETSIZE, &rfds, &wfds, NULL, &tv);
+				}
+				
+				switch( iSel )
+				{
+					case 0:
+						SelectTimeout();
+						if ( m_iTimeoutPasses >= m_iTimeout )
+						{
+							Disconnected();
+							close( m_sock );
+						}
+						
+						m_iTimeoutPasses++;
+						break;
+					
+					case -1:
+						if ( errno != EINTR )
+						{
+							SelectError();
+							Disconnected();
+							close( m_sock );
+							binprog = false;
+							break;
+						}
+
+					case 1:
+					{
+						// something is ready for working on
+						m_iTimeoutPasses = 0;
+						if ( FD_ISSET( m_sock, &rfds ) )
+						{
+							char buff[65];
+							int bytes = 0;
+		
+							memset( ( char *)buff, '\0', 65 );
+							// socket ready for reading
+#ifdef _HAS_SSL							
+							if ( m_isSSL )							
+								bytes = SSL_read( m_ssl, buff, 64 );
+							else
+#endif /* _HAS_SSL */							
+							bytes = read( m_sock, buff, 64 );
+						
+							if ( bytes > 0 )
+							{
+								ReadyRead( buff, bytes );
+								PushBuff( buff, bytes );
+								
+							} else if ( ( bytes == 0 ) && ( errno != EAGAIN ) )
+							{
+								// all done reading, we're a success!
+								ReadEOF();
+								Disconnected();
+								close( m_sock );
+								binprog = false;
+							
+							} else if ( ( bytes == -1 ) && ( errno != EINTR ) && ( errno != EAGAIN ) )
+							{
+								int iErr = 0;
+#ifdef _HAS_SSL								
+								if ( m_isSSL )
+								{
+									iErr = SSL_get_error( m_ssl, bytes );
+									if ( ( iErr != SSL_ERROR_WANT_READ ) && ( iErr != SSL_ERROR_WANT_WRITE ) )
+									{
+										Disconnected();
+										close( m_sock );
+										binprog = false;
+								}
+#endif /* _HAS_SSL */								
+								if  ( !m_isSSL )
+								{
+									Disconnected();
+									close( m_sock );
+									binprog = false;
+								}
+							}
+							
+						} else
+						{
+							m_bHasWrite = true;
+							ReadyFirstWrite();
+						}
+						break;
+					}
+				}
+			}
+		}
+		
+		bool Send( const char *data, int len )
+		{
+			// I know this seems silly, but if you setup string right, it can handle binary data
+			// and ultimatly its easier to work with
+			Cstring sSend;
+			sSend.append( data, len );
+			
+#ifdef _HAS_SSL		
+			if ( m_isSSL )
+			{
+				bool bLoop = true;
+				while ( bLoop )
+				{
+					int iErr = SSL_write( m_ssl, sSend.c_str(), sSend.length() );
+					switch( SSL_get_error( m_ssl, iErr ) )
+					{
+						case SSL_ERROR_NONE:
+						// all ok
+						bLoop = false;
+						break;
+				
+						case SSL_ERROR_ZERO_RETURN:
+						// weird closer alert
+						return( false );
+						break;
+				
+						case SSL_ERROR_WANT_READ:
+						// retry
+						break;
+				
+						case SSL_ERROR_WANT_WRITE:
+						// retry
+						break;
+					}
+				}			
+				return( true );
+			}
+#endif /* _HAS_SSL */
+			while ( true )
+			{
+				int bytes = write( m_sock, sSend.c_str(), sSend.length() );
+			
+				if ( ( bytes <= 0 ) && ( errno != EAGAIN ) )
+				{
+					return( false );
+					break;
+				}
+				
+				if ( (unsigned int)bytes < sSend.length() )
+				{
+					// only able to write part, write the rest
+					sSend.erase( 0, bytes );
+			
+				} else
+					break;
+			}
+			return( true );
+		}
+				
+		void Send( const Cstring & sData )
+		{
+			Send( sData.c_str(), sData.length() );
+		}
+		
+protected:
+	
+		// override these events
+		virtual void Connected() {}										// Socket Connected Event
+		virtual void ConnectionFailed( int iFailure ) {}				// Socket Failed Event
+		virtual void Disconnected() {}									// Socket Disconnected Event
+		
+		virtual void LineBuffer( const Cstring & sLine ) {}				// Full Line read event, without Trailing newline
+		
+		virtual void ReadyRead( const char *data, int len ) {}			// Ready to read event
+		virtual void ReadyFirstWrite() {}								// Ready to write for first time event
+		
+		virtual void ReadEOF() {}					// EOF event
+		
+		virtual void Timeout() {}				// overall timeout
+		virtual void SelectTimeout() {}			// Select timeout event, good place for chores
+		virtual void SelectError() {}			// Select Error event
+
+private:
+		void PushBuff( const char *data, int len )
+		{
+			m_sBuffer.append( data, len );
+			
+			int iFind = m_sBuffer.find( "\n" );
+			
+			if ( iFind != Cstring::npos )
+			{
+				int iShow = iFind;
+				
+				if ( m_sBuffer.substr( 0, iFind ).search( "\\r$" ) )
+					iShow--;
+				
+				LineBuffer( m_sBuffer.substr( 0, iShow ) );
+				m_sBuffer.erase( 0, iFind + 1 );
+			}	
+		
+		}
+		
+		virtual void Init()
+		{
+		
+			m_sock = 0;
+			m_isSSL = false;
+			m_iTimeout = 60;
+			m_bHasWrite = false;
+			m_sBuffer.clear();
+			m_iTimeoutPasses = 0;
+			
+#ifdef _HAS_SSL
+
+			if ( m_ssl )
+			{
+				SSL_shutdown( m_ssl );
+				SSL_free( m_ssl );
+			}
+										
+			if ( m_ssl_ctx )
+				SSL_CTX_free( m_ssl_ctx );
+
+			m_ssl = NULL;
+			m_ssl_ctx = NULL;			
+
+#endif /* _HAS_SSL */
+		}
+
+		int		m_sock, m_iTimeout, m_iTimeoutPasses;
+		bool	m_isSSL;
+		bool	m_bHasWrite;
+		
+		struct hostent		*m_hent, m_hentbuff;
+		struct sockaddr_in 	m_address;
+		
+		Cstring	m_sBuffer;
+		
+#ifdef _HAS_SSL
+		SSL 				*m_ssl;
+		SSL_CTX				*m_ssl_ctx;
+		SSL_METHOD			*m_ssl_method;
+#endif /* _HAS_SSL */
+
+};
+
+
+
+
+
+
+
+#endif /* _HAS_CSOCKET_ */
