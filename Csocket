@@ -646,10 +646,7 @@ public:
 			m_sSend.append( data, len );
 
 			if ( m_sSend.empty() )
-			{
-				cerr << "ER, NOT Sending DATA!?" << endl;
 				return( true );
-			}
 			
 			if ( m_bBLOCK )
 			{
