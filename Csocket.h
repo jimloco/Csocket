@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.115 $
+* $Revision: 1.116 $
 */
 
 #ifndef _HAS_CSOCKET_
@@ -144,7 +144,7 @@ namespace Csocket
 		{
 			cm = COMP_rle();
 			if ( cm )
-				SSL_COMP_add_compression_method( ET_RLE, COMP_rle() );
+				SSL_COMP_add_compression_method( ET_RLE, cm );
 		}
 		
 		return( true );
