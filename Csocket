@@ -818,16 +818,16 @@ public:
 		// misc functions
 		//
 		// Tells you if the socket is ready for write.
-		bool hasWrite() { return( m_bhaswrite ); }
-		void setWrite( bool b ) { m_bhaswrite = b; }	
+		bool HasWrite() { return( m_bhaswrite ); }
+		void SetWrite( bool b ) { m_bhaswrite = b; }	
 
 		//
 		// has never been written too, you can easy use the two to find a first case scenario
-		// if ( ( hasWrite() ) && ( !needsWrite() ) )
+		// if ( ( HasWrite() ) && ( !needsWrite() ) )
 		//		first time write
 		//
 		
-		bool needsWrite()
+		bool NeedsWrite()
 		{
 			return( m_bNeverWritten );
 		}
@@ -945,7 +945,7 @@ public:
 		// is SSL_accept finished ?
 		bool FullSSLAccept() { return ( m_bFullsslAccept ); }
 		// is the ssl properly finished (from write no error)
-		bool sslIsEstablished() { return ( m_bsslEstablished ); }
+		bool SslIsEstablished() { return ( m_bsslEstablished ); }
 
 		// returns the underlying buffer
 		Cstring & GetBuffer() { return( m_sSend ); }
@@ -1287,11 +1287,11 @@ public:
 						if ( !pcSock->AcceptSSL() )
 							pcSock->Close();
 
-					} else if ( ( pcSock->hasWrite() ) && ( pcSock->GetSendBuff().empty() ) )
+					} else if ( ( pcSock->HasWrite() ) && ( pcSock->GetSendBuff().empty() ) )
 					{
 						TFD_SET( iSock, &rfds );
 					
-					} else if ( ( pcSock->GetSSL() ) && ( !pcSock->sslIsEstablished() ) && ( !pcSock->GetSendBuff().empty() ) )
+					} else if ( ( pcSock->GetSSL() ) && ( !pcSock->SslIsEstablished() ) && ( !pcSock->GetSendBuff().empty() ) )
 					{
 						// do this here, cause otherwise ssl will cause a small
 						// cpu spike waiting for the handshake to finish
@@ -1379,9 +1379,9 @@ public:
 						if ( iSel > 0 )
 						{
 							m_errno = SUCCESS;
-							if ( !pcSock->hasWrite() )
+							if ( !pcSock->HasWrite() )
 							{
-								pcSock->setWrite( true );
+								pcSock->SetWrite( true );
 								// Call the Connected Event
 								pcSock->Connected();
 							}
