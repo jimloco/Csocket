@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.114 $
+* $Revision: 1.115 $
 */
 
 #ifndef _HAS_CSOCKET_
@@ -103,11 +103,15 @@ namespace Csocket
 	template <class T> inline void CS_Delete( T * & p ) { if( p ) { delete p; p = NULL; } }
 
 #ifdef HAVE_LIBSSL
+	const u_int ET_ZLIB	= 1;
+	const u_int ET_RLE	= 2;
+
 	/**
 	 * @brief You HAVE to call this in order to use the SSL library
 	 * @return true on success
 	 */
-	inline bool InitSSL()
+
+	inline bool InitSSL( u_int iEncryptionType = 0 )
 	{
 		SSL_load_error_strings();
 		if ( SSL_library_init() != 1 )
@@ -124,6 +128,23 @@ namespace Csocket
 		{
 			CS_DEBUG( "Unable to locate entropy location! Tried /dev/urandom and /dev/random" );
 			return( false );
+		}
+		
+
+		COMP_METHOD *cm = NULL;
+		
+		if ( ET_ZLIB & iEncryptionType )
+		{
+			cm = COMP_zlib();
+			if ( cm )
+				SSL_COMP_add_compression_method( ET_ZLIB, cm );
+		}
+
+		if ( ET_RLE & iEncryptionType )
+		{
+			cm = COMP_rle();
+			if ( cm )
+				SSL_COMP_add_compression_method( ET_RLE, COMP_rle() );
 		}
 		
 		return( true );
