@@ -184,6 +184,10 @@ public:
 			
 			if ( iSock != -1 )
 			{
+				// make it none blocking
+				int fdflags = fcntl (iSock, F_GETFL, 0);
+				fcntl( iSock, F_SETFL, fdflags|O_NONBLOCK );
+				
 				getpeername( iSock, (struct sockaddr *) &client, &clen );
 				
 				sHost = inet_ntoa( client.sin_addr );
@@ -306,7 +310,7 @@ public:
 			while ( true )
 			{
 				int bytes = write( m_isock, sSend.c_str(), sSend.length() );
-			
+		
 				if ( ( bytes <= 0 ) && ( errno != EAGAIN ) )
 				{
 					return( false );
@@ -443,6 +447,7 @@ public:
 		void SetSockName( const Cstring & sName ) { m_sSockName = sName; }
 		
 		Cstring & GetHostName() { return( m_shostname ); }
+		int GetPort() { return( m_iport ); }
 		
 		//
 		// Override these functions for an easy interface
@@ -584,7 +589,7 @@ public:
 			TFD_ZERO( &wfds );
 			
 			bool bHasWriteable = false;
-			
+
 			for( unsigned int i = 0; i < size(); i++ )
 			{
 				Csock *pcSock = (*this)[i];
@@ -612,7 +617,6 @@ public:
 					
 					if ( inSock != -1 )
 					{	
-						cerr << "New Connection" << endl;
 						// if we have a new sock, then add it
 						T * NewpcSock = new T( sHost, port );
 						NewpcSock->SetType( T::INBOUND );
@@ -683,7 +687,7 @@ public:
 			return( NULL );
 		}			
 				
-		void DelSock( T *pcSock )
+		virtual void DelSock( T *pcSock )
 		{
 			iterator p;
 			
@@ -781,7 +785,7 @@ public:
 			}
 		}
 
-		void AddSock( T *pcSock, const Cstring & sSockName )
+		virtual void AddSock( T *pcSock, const Cstring & sSockName )
 		{
 			pcSock->SetSockName( sSockName );
 			push_back( pcSock );
