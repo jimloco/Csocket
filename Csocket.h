@@ -905,8 +905,9 @@ public:
 			
 			int iErr = SSL_write( m_ssl, m_sSSLBuffer.data(), m_sSSLBuffer.length() );
 			
-			if ( errno == ECONNREFUSED )
-			{	
+			if ( ( iErr < 0 ) && ( errno == ECONNREFUSED ) )
+			{ 	
+				// If ret == -1, the underlying BIO reported an I/O error (man SSL_get_error)
 				ConnectionRefused();
 				return( false );
 			}
@@ -953,7 +954,7 @@ public:
 #endif /* HAVE_LIBSSL */
 		int bytes = write( m_iWriteSock, m_sSend.data(), iBytesToSend );
 
-		if ( errno == ECONNREFUSED )
+		if ( ( bytes == -1 ) && ( errno == ECONNREFUSED ) )
 		{
 			ConnectionRefused();
 			return( false );
@@ -1014,11 +1015,11 @@ public:
 #endif /* HAVE_LIBSSL */
 			bytes = read( m_iReadSock, data, len );
 
-		if ( errno == ECONNREFUSED )
-			return( READ_CONNREFUSED );	
-
 	    if ( bytes == -1 )
 		{
+			if ( errno == ECONNREFUSED )
+				return( READ_CONNREFUSED );	
+			
 			if ( ( errno == EINTR ) || ( errno == EAGAIN ) )
 				return( READ_EAGAIN );
 #ifdef HAVE_LIBSSL
