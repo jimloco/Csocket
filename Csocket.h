@@ -1499,6 +1499,9 @@ public:
 		
 		if ( !pcSock->Connect( sBindHost ) )
 		{
+			if ( errno == ECONNREFUSED )
+				pcSock->ConnectionRefused();
+			
 			Zzap( pcSock );
 			return( false );
 		}
@@ -1508,6 +1511,9 @@ public:
 		{
 			if ( !pcSock->ConnectSSL() )
 			{
+				if ( errno == ECONNREFUSED )
+					pcSock->ConnectionRefused();
+
 				Zzap( pcSock );
 				return( false );
 			}
