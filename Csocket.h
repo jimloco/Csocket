@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.93 $
+* $Revision: 1.94 $
 */
 
 #ifndef _HAS_CSOCKET_
@@ -275,7 +275,7 @@ namespace Csocket
 
 		int GetInterval() const { return( m_iTimeSequence ); }
 		u_int GetMaxCycles() const { return( m_iMaxCycles ); }
-		u_int GetCyclesLeft() const { return( ( m_iMaxCycles > m_iCycles ? ( m_iMaxCycles - m_iCycles ) : 0 ) );
+		u_int GetCyclesLeft() const { return( ( m_iMaxCycles > m_iCycles ? ( m_iMaxCycles - m_iCycles ) : 0 ) ); }
 
 		//! returns true if cron is active
 		bool isValid() { return( m_bActive ); }
