@@ -24,9 +24,6 @@
 #include <Cstring>
 #include <Cthreads>
 
-// forward declarations
-template<class T> class TConn;
-
 // wrappers for FD_SET and such to work in templates
 void TFD_ZERO( fd_set *set )
 {
