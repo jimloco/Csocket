@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.110 $
+* $Revision: 1.111 $
 */
 
 #ifndef _HAS_CSOCKET_
@@ -357,7 +357,7 @@ namespace Csocket
 
 #endif /* HAVE_LIBSSL */				
 			// delete any left over crons
-			for( unsigned int i = 0; i < m_vcCrons.size(); i++ )
+			for( vector<CCron *>::size_type i = 0; i < m_vcCrons.size(); i++ )
 				CS_Delete( m_vcCrons[i] );
 		}
 
@@ -1279,7 +1279,7 @@ namespace Csocket
 			
 			while( true )
 			{
-				u_int iFind = m_sbuffer.find( "\n", iStartPos );
+				CS_STRING::size_type iFind = m_sbuffer.find( "\n", iStartPos );
 			
 				if ( iFind != CS_STRING::npos )
 				{
@@ -1605,7 +1605,7 @@ namespace Csocket
 		//! This has a garbage collecter, and is used internall to call the jobs
 		virtual void Cron()
 		{
-			for( unsigned int a = 0; a < m_vcCrons.size(); a++ )
+			for( vector<CCron *>::size_type a = 0; a < m_vcCrons.size(); a++ )
 			{		
 				CCron *pcCron = m_vcCrons[a];
 
