@@ -24,8 +24,10 @@
 #include <Cstring>
 #include <Cthreads>
 
-// wrappers for FD_SET and such to work in templates
+// forward declarations
+template<class T> class TConn;
 
+// wrappers for FD_SET and such to work in templates
 void TFD_ZERO( fd_set *set )
 {
 	FD_ZERO( set );
@@ -105,7 +107,7 @@ public:
 			
 		}
 
-		bool Connect()
+		bool Connect( const Cstring & sBindHost = "" )
 		{
 			// create the socket
 			m_isock = socket( PF_INET, SOCK_STREAM, IPPROTO_TCP );
@@ -114,6 +116,20 @@ public:
 			m_address.sin_port = htons( m_iport );
 			m_address.sin_addr = *(struct in_addr *)m_hent->h_addr;
 			
+			// bind to a hostname if requested
+			if ( !sBindHost.empty() )
+			{
+				struct sockaddr_in vh;
+				struct hostent *h = gethostbyname( sBindHost.c_str() );
+				
+				if ( h )
+				{
+					vh.sin_family = PF_INET;
+					vh.sin_addr = *(struct in_addr *)h->h_addr;
+					bind( m_isock, (struct sockaddr *) &vh, sizeof( vh ) );
+				}
+			}
+					
 			// set it none blocking
 			int fdflags = fcntl (m_isock, F_GETFL, 0);
 			fcntl( m_isock, F_SETFL, fdflags|O_NONBLOCK );
@@ -411,11 +427,16 @@ public:
 		void SetType( int iType ) { m_iConnType = iType; }
 		void SetSock( int iSock ) { m_isock = iSock; }
 		
+		Cstring & GetSockName() { return( m_sSockName ); }
+		void SetSockName( const Cstring & sName ) { m_sSockName = sName; }
+		
+		Cstring & GetHostName() { return( m_shostname ); }
+
 		//
 		// Override these functions for an easy interface
 		// 
 		// Connected event
-		virtual void Connected() {}
+		virtual void Connected() { cerr << "FOO!" << endl; }
 		// Disconnected event
 		virtual void Disconnected() {}
 		// Timeout Event
@@ -436,7 +457,7 @@ public:
 private:
 		int			m_isock, m_itimeout, m_iport, m_iConnType, m_iTcount;
 		bool		m_bssl, m_bhaswrite, m_bNeverWritten;
-		Cstring		m_shostname, m_sbuffer;
+		Cstring		m_shostname, m_sbuffer, m_sSockName;
 
 		struct hostent		*m_hent, m_hentbuff;
 		struct sockaddr_in 	m_address;
@@ -468,7 +489,7 @@ public:
 			
 		} eMessages;
 
-		virtual bool Connect( const Cstring & sHostname, int iPort , bool isSSL = false )
+		virtual bool Connect( const Cstring & sHostname, int iPort , const Cstring & sSockName, bool isSSL = false, const Cstring & sBindHost = "" )
 		{
 			// create the new object
 			T *pcSock = new T( sHostname, iPort );
@@ -480,7 +501,7 @@ public:
 				return( false );
 			}
 			
-			if ( !pcSock->Connect() )
+			if ( !pcSock->Connect( sBindHost ) )
 			{
 				delete( pcSock );
 				return( false );
@@ -495,17 +516,17 @@ public:
 				}
 			}
 			
-			AddSock( pcSock );
+			AddSock( pcSock, sSockName );
 			return( true );
 		}
 		
-		virtual bool AddListener( int iPort, int iMaxConns = SOMAXCONN )
+		virtual bool AddListener( int iPort, const Cstring & sSockName, int iMaxConns = SOMAXCONN )
 		{
 			T * pcSock = new T();
 			
 			if ( pcSock->Listen( iPort, iMaxConns ) )
 			{
-				AddSock( pcSock );
+				AddSock( pcSock, sSockName );
 				return( true );
 			}
 			
@@ -563,7 +584,7 @@ public:
 						T * NewpcSock = new T( sHost, port );
 						NewpcSock->SetType( T::INBOUND );
 						NewpcSock->SetSock( inSock );
-						AddSock( NewpcSock );
+						AddSock( NewpcSock,  sHost + "-" + Cstring::num2Cstring( port ) );
 					}
 				}
 			}
@@ -727,11 +748,32 @@ public:
 			}
 		}
 
-		void AddSock( T *pcSock )
+		void AddSock( T *pcSock, const Cstring & sSockName )
 		{
+			pcSock->SetSockName( sSockName );
 			push_back( pcSock );
 		}
-				
+		
+		T * FindSockByName( const Cstring & sName )
+		{
+			for( unsigned int i = 0; i < size(); i++ )
+				if ( (*this)[i]->GetSockName() == sName )
+					return( (*this)[i] );
+			
+			return( NULL );
+		}
+		
+		vector<T *> FindSocksByRemoteHost( const Cstring & sHostname )
+		{
+			vector<T *> vpSocks;
+			
+			for( unsigned int i = 0; i < size(); i++ )
+				if ( (*this)[i]->GetHostName() == sHostname )
+					vpSocks.push_back( (*this)[i] );
+			
+			return( vpSocks );
+		}
+		
 		int GetErrno() { return( m_errno ); }
 private:
 
