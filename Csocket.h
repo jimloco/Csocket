@@ -5,8 +5,8 @@
 *
 *    CVS Info:
 *       $Author: imaginos $
-*       $Date: 2003/04/15 00:18:56 $
-*       $Revision: 1.12 $
+*       $Date: 2003/04/16 07:29:25 $
+*       $Revision: 1.13 $
 */
 
 #ifndef _HAS_CSOCKET_
@@ -294,13 +294,36 @@ public:
 			if ( !sBindHost.empty() )
 			{
 				struct sockaddr_in vh;
-				struct hostent *h = gethostbyname( sBindHost.c_str() );
+				char hbuff[2048];
+				int iErr;
+				memset( (char *)hbuff, '\0', 2048 );
+				struct hostent *h, hentbuff;
 				
+				if ( gethostbyname_r( sBindHost.c_str(), &hentbuff, hbuff, 2048, &h, &iErr ) != 0 )
+					return( false );
+					
 				if ( h )
 				{
 					vh.sin_family = PF_INET;
 					vh.sin_addr = *(struct in_addr *)h->h_addr;
-					bind( m_isock, (struct sockaddr *) &vh, sizeof( vh ) );
+					
+					// try to bind 3 times, otherwise exit failure
+					bool bBound = false;
+					for( int a = 0; a < 3; a++ )
+					{
+						if ( bind( m_isock, (struct sockaddr *) &vh, sizeof( vh ) ) == 0 )
+						{
+							bBound = true;
+							break;
+						}
+						usleep( 5000 );	// quick pause, common lets BIND!)(!*!
+					}
+					
+					if ( !bBound )
+					{
+						cerr << "Failure to bind to " << sBindHost << endl;
+						return( false );
+					}
 				}
 			}
 			
