@@ -155,14 +155,14 @@ public:
 		// Returns sock on success, -1 on failure
 		int Accept( Cstring & sHost, int & iRPort )
 		{
-			struct sockaddr_in 	client;
+			struct sockaddr_in client;
 			socklen_t clen;
 			
 			int iSock = accept( m_isock , (struct sockaddr *) &client, &clen );
 			
 			if ( iSock != -1 )
 			{
-				getpeername( m_isock, (struct sockaddr *) &client, &clen );
+				getpeername( iSock, (struct sockaddr *) &client, &clen );
 				
 				sHost = inet_ntoa( client.sin_addr );
 				iRPort = ntohs( client.sin_port );
