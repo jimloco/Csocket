@@ -256,9 +256,10 @@ public:
 	
 	enum EFRead
 	{
-		READ_EOF	= 0,		//!< End Of File, done reading
-		READ_ERR	= -1,		//!< Error on the socket, socket closed, done reading
-		READ_EAGAIN	= -2		//!< Try to get data again
+		READ_EOF	= 0,			//!< End Of File, done reading
+		READ_ERR	= -1,			//!< Error on the socket, socket closed, done reading
+		READ_EAGAIN	= -2,			//!< Try to get data again
+		READ_CONNREFUSED	= -3	//!< Connection Refused
 		
 	};
 	
@@ -788,10 +789,11 @@ public:
 	* Write data to the socket
 	* if not all of the data is sent, it will be stored on
 	* an internal buffer, and tried again with next call to Write
-	* if the socket is blocking, it will send everything
+	* if the socket is blocking, it will send everything, its ok to check ernno after this (nothing else is processed)
 	*
 	* \param data the data to send
 	* \param len the length of data
+	* 
 	*/
 	virtual bool Write( const char *data, int len )
 	{
@@ -898,7 +900,6 @@ public:
 		}
 #endif /* HAVE_LIBSSL */
 		int bytes = write( m_iWriteSock, m_sSend.data(), iBytesToSend );
-	
 		if ( ( bytes <= 0 ) && ( errno != EAGAIN ) )
 			return( false );
 		
@@ -929,6 +930,7 @@ public:
 	* Returns READ_EOF for EOF
 	* Returns READ_ERR for ERROR
 	* Returns READ_EAGAIN for Try Again ( EAGAIN )
+	* Returns READ_CONNREFUSED for connection refused
 	* Otherwise returns the bytes read into data
 	*/
 	virtual int Read( char *data, int len )
@@ -967,7 +969,13 @@ public:
 			return( READ_ERR );
 #endif /* HAVE_LIBSSL */								
 		}
-		
+	
+		if ( bytes == 0 )
+		{
+			if ( errno == ECONNREFUSED )
+				return( READ_CONNREFUSED );	
+		}
+
 		return( bytes );
 	}
 
@@ -1297,6 +1305,16 @@ public:
 	*/
 	virtual bool ConnectionFrom( const Cstring & sHost, int iPort ) { return( true ); }
 
+	/**
+	 * Override these functions for an easy interface when using the Socket Manager
+	 * Don't bother using these callbacks if you are using this class directly (without Socket Manager)
+	 * as the Socket Manager calls most of these callbacks
+	 *
+	 * Connection Refused Event
+	 *
+	 */
+	virtual void ConnectionRefused() {}
+
 	//! return the data imediatly ready for read
 	virtual int GetPending()
 	{
@@ -1595,7 +1613,12 @@ public:
 							
 							case -2:
 								break;
-								
+							
+							case -3:
+								pcSock->ConnectionRefused();
+								DelSock( pcSock );
+								break;
+
 							default:
 							{
 								pcSock->PushBuff( buff, bytes );
@@ -1768,7 +1791,12 @@ private:
 					TFD_SET( iRSock, &rfds );
 					// resend this data
 					if ( !pcSock->Write( "" ) )
+					{
+						if ( errno == ECONNREFUSED ) // call connection refused
+							pcSock->ConnectionRefused();
+						
 						pcSock->Close();
+					}
 	
 				} else 
 				{
@@ -1905,6 +1933,9 @@ private:
 						if ( !pcSock->Write( "" ) )
 						{
 							// write failed, sock died :(
+							if ( errno == ECONNREFUSED )
+								pcSock->ConnectionRefused();
+
 							iErrno = SELECT_ERROR;
 						}
 					}
