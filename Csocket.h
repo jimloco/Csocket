@@ -5,8 +5,8 @@
 *
 *    CVS Info:
 *       $Author: imaginos $
-*       $Date: 2003/04/16 07:29:25 $
-*       $Revision: 1.13 $
+*       $Date: 2003/05/08 02:57:25 $
+*       $Revision: 1.14 $
 */
 
 #ifndef _HAS_CSOCKET_
@@ -321,7 +321,7 @@ public:
 					
 					if ( !bBound )
 					{
-						cerr << "Failure to bind to " << sBindHost << endl;
+						ERROR( "Failure to bind to " + sBindHost );
 						return( false );
 					}
 				}
@@ -533,7 +533,7 @@ public:
 					m_ssl_method = SSLv23_client_method();
 					if ( !m_ssl_method )
 					{
-						cerr << "WARNING: MakeConnection .... SSLv23_client_method failed!" << endl;
+						ERROR( "WARNING: MakeConnection .... SSLv23_client_method failed!" );
 						return( false );
 					}
 					break;
@@ -542,7 +542,7 @@ public:
 					m_ssl_method = SSLv2_client_method();
 					if ( !m_ssl_method )
 					{
-						cerr << "WARNING: MakeConnection .... SSLv2_client_method failed!" << endl;
+						ERROR( "WARNING: MakeConnection .... SSLv2_client_method failed!" );
 						return( false );
 					}
 					break;
@@ -551,13 +551,13 @@ public:
 					m_ssl_method = SSLv3_client_method();
 					if ( !m_ssl_method )
 					{
-						cerr << "WARNING: MakeConnection .... SSLv3_client_method failed!" << endl;
+						ERROR( "WARNING: MakeConnection .... SSLv3_client_method failed!" );
 						return( false );
 					}		
 					break;
 			
 				default:
-					cerr << "WARNING: MakeConnection .... invalid http_sslversion version!" << endl;
+					ERROR( "WARNING: MakeConnection .... invalid http_sslversion version!" );
 					return( false );
 					break;
 			}
@@ -597,7 +597,7 @@ public:
 					m_ssl_method = SSLv23_server_method();
 					if ( !m_ssl_method )
 					{
-						cerr << "WARNING: MakeConnection .... SSLv23_server_method failed!" << endl;
+						ERROR( "WARNING: MakeConnection .... SSLv23_server_method failed!" );
 						return( false );
 					}
 					break;
@@ -606,7 +606,7 @@ public:
 					m_ssl_method = SSLv2_server_method();
 					if ( !m_ssl_method )
 					{
-						cerr << "WARNING: MakeConnection .... SSLv2_server_method failed!" << endl;
+						ERROR( "WARNING: MakeConnection .... SSLv2_server_method failed!" );
 						return( false );
 					}
 					break;
@@ -615,13 +615,13 @@ public:
 					m_ssl_method = SSLv3_server_method();
 					if ( !m_ssl_method )
 					{
-						cerr << "WARNING: MakeConnection .... SSLv3_server_method failed!" << endl;
+						ERROR( "WARNING: MakeConnection .... SSLv3_server_method failed!" );
 						return( false );
 					}		
 					break;
 			
 				default:
-					cerr << "WARNING: MakeConnection .... invalid http_sslversion version!" << endl;
+					ERROR( "WARNING: MakeConnection .... invalid http_sslversion version!" ); 
 					return( false );
 					break;
 			}
@@ -634,7 +634,7 @@ public:
 			
 			if ( ( m_sPemFile.empty() ) || ( access( m_sPemFile.c_str(), R_OK ) != 0 ) )
 			{
-				cerr << "There is a problem with [" << m_sPemFile << "]" << endl;
+				ERROR( "There is a problem with [" + m_sPemFile + "]" );
 				return( false );
 			}
 
@@ -642,21 +642,23 @@ public:
 			// set up the CTX
 			if ( SSL_CTX_use_certificate_file( m_ssl_ctx, m_sPemFile.c_str() , SSL_FILETYPE_PEM ) <= 0 )
 			{
-				cerr << "Error with PEM file [" << m_sPemFile << "]" << endl;
+				ERROR( "Error with PEM file [" + m_sPemFile + "]" );
+				/* print to char, report our naturally */
 				ERR_print_errors_fp ( stderr );
 				return( false );
 			}
 			
 			if ( SSL_CTX_use_PrivateKey_file( m_ssl_ctx, m_sPemFile.c_str(), SSL_FILETYPE_PEM ) <= 0 )
 			{
-				cerr << "Error with PEM file [" << m_sPemFile << "]" << endl;
+				ERROR( "Error with PEM file [" + m_sPemFile + "]" );
+				// print out to char, report naturally
 				ERR_print_errors_fp ( stderr );
 				return( false );
 			}
 			
 			if ( SSL_CTX_set_cipher_list( m_ssl_ctx, m_sCipherType.c_str() ) <= 0 )
 			{
-				cerr << "Could not assign cipher [" << m_sCipherType << "]" << endl;
+				ERROR( "Could not assign cipher [" + m_sCipherType + "]" );
 				return( false );
 			}
 
@@ -746,7 +748,7 @@ public:
 			{
 #ifdef _DEBUG_
 				// maybe eventually make a __DEBUG_ONLY()
-				cerr << "ER, NOT Sending DATA!? [" << GetSockName() << "]" << endl;
+				ERROR( "ER, NOT Sending DATA!? [" + GetSockName() + "]" );
 #endif /* _DEBUG_ */
 				return( true );
 			}
@@ -785,7 +787,6 @@ public:
 				if ( iBytesToSend == 0 )
 					return( true );
 
-			//cerr << "RATE SHAPING, only sending " << iBytesToSend << " bytes!" << endl;	
 			} else
 				iBytesToSend = m_sSend.length();
 				
@@ -1200,7 +1201,7 @@ private:
 
                         	if ( setsockopt( iRet, SOL_SOCKET, SO_REUSEADDR, &on, sizeof( on ) ) != 0 )
 				{
-					cerr << "SOCKET: Could not set SO_REUSEADDR" << endl;
+					ERROR( "SOCKET: Could not set SO_REUSEADDR" );
 				}
 			}
 
@@ -1569,7 +1570,7 @@ private:
 				if ( (*this)[i]->isClosed() )
 				{
 					if ( (*this)[i]->GetType() == T::LISTENER )
-						cerr << "Closing Listener" << endl;
+						WARN( "Closing Listener" );
 
 					DestroySock( (*this)[i] );
 				} else
@@ -1707,7 +1708,7 @@ private:
 			
 			} else if ( iSel == -1 )
 			{
-				cerr << "Select Error!" << endl;
+				WARN( "Select Error!" );
 				
 				if ( vRet.empty() )
 					m_errno = SELECT_ERROR;
@@ -1785,7 +1786,7 @@ private:
 					return;
 				}
 			}
-			cerr << "WARNING!!! Could not find " << (unsigned int *)pcSock << endl;
+			WARN( "WARNING!!! Could not find " + Cstring::num2Cstring( (unsigned int *)pcSock ) );
 		}
 
 		//! internal use only
