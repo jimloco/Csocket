@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.105 $
+* $Revision: 1.106 $
 */
 
 #ifndef _HAS_CSOCKET_
@@ -1219,7 +1219,6 @@ namespace Csocket
 			ResetTimer();
 		}
 		bool IsReadPaused() { return( m_bPauseRead ); }
-
 		/**
 		* this timeout isn't just connection timeout, but also timeout on
 		* NOT recieving data, to disable this set it to 0
@@ -1299,6 +1298,7 @@ namespace Csocket
 		//! not going to use GetLine(), then you may want to clear this out
 		//! (if its binary data and not many '\n'
 		CS_STRING & GetInternalBuffer() { return( m_sbuffer ); }	
+		//! sets the max buffered threshold when enablereadline() is enabled
 		void SetMaxBufferThreshold( u_int iThreshold ) { m_iMaxStoredBufferLength = iThreshold; }
 		u_int GetMaxBufferThreshold() { return( m_iMaxStoredBufferLength ); }
 
@@ -1748,6 +1748,10 @@ namespace Csocket
 		 *
 		 */
 		virtual void ConnectionRefused() {}
+		/**
+		 * This gets called every iteration of Select() if the socket is ReadPaused
+		 */
+		virtual void ReadPaused() {}
 
 		//! return the data imediatly ready for read
 		virtual int GetPending()
@@ -2361,7 +2365,10 @@ namespace Csocket
 
 				int & iRSock = pcSock->GetRSock();
 				int & iWSock = pcSock->GetWSock();
-		
+				bool bIsReadPaused = pcSock->IsReadPaused();
+				if ( bIsReadPaused )
+					pcSock->ReadPaused();
+
 				if ( ( iRSock < 0 ) || ( iWSock < 0 ) )
 				{
 					SelectSock( mpeSocks, SUCCESS, pcSock );
@@ -2378,9 +2385,10 @@ namespace Csocket
 						if ( !pcSock->AcceptSSL() )
 							pcSock->Close();
 
-					} else if ( ( pcSock->IsConnected() ) && ( pcSock->GetWriteBuffer().empty() ) && ( !pcSock->IsReadPaused() ) )
+					} else if ( ( pcSock->IsConnected() ) && ( pcSock->GetWriteBuffer().empty() ) )
 					{
-						TFD_SET( iRSock, &rfds );
+						if ( !bIsReadPaused )
+							TFD_SET( iRSock, &rfds );
 					
 					} else if ( ( pcSock->GetSSL() ) && ( !pcSock->SslIsEstablished() ) && ( !pcSock->GetWriteBuffer().empty() ) )
 					{
@@ -2395,7 +2403,7 @@ namespace Csocket
 		
 					} else 
 					{
-						if ( !pcSock->IsReadPaused() )
+						if ( !bIsReadPaused )
 							TFD_SET( iRSock, &rfds );
 
 						TFD_SET( iWSock, &wfds );
