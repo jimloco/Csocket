@@ -1704,7 +1704,8 @@ public:
 	virtual u_short ListenRand( const Cstring & sSockName, const Cstring & sBindHost, int isSSL = false, int iMaxConns = SOMAXCONN, T *pcSock = NULL )
 	{
 		u_short iPort = 0;
-		if ( ( T *pNewSock = ListenHost( 0,  sSockName, sBindHost, isSSL, iMaxConns, pcSock ) ) )
+		T *pNewSock = ListenHost( 0,  sSockName, sBindHost, isSSL, iMaxConns, pcSock );
+		if ( pNewSock )
 		{
 			int iSock = pNewSock->GetSock();	
 
@@ -1723,9 +1724,9 @@ public:
 
 		return( iPort );
 	}
-	virtual u_short ListenRandAll( const Cstring & sSockName, const, int isSSL = false, int iMaxConns = SOMAXCONN, T *pcSock = NULL )
+	virtual u_short ListenAllRand( const Cstring & sSockName, int isSSL = false, int iMaxConns = SOMAXCONN, T *pcSock = NULL )
 	{
-		return( ListenDynamic( sSockName, "", isSSL, iMaxConns, pcSock ) );
+		return( ListenRand( sSockName, "", isSSL, iMaxConns, pcSock ) );
 	}
 
 	/*
