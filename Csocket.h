@@ -1742,13 +1742,6 @@ namespace Csocket
 			
 		};
 
-		struct stSock
-		{
-			T			*pcSock;
-			EMessages	eErrno;
-		
-		};
-
 		/**
 		* Create a connection
 		*
@@ -1873,20 +1866,21 @@ namespace Csocket
 		*/ 
 		virtual void Loop ()
 		{
-			vector<stSock> vstSock = Select();
-			set<T *> sstStock;
+			map<T *, EMessages> mpeSocks;
+			Select( mpeSocks );
+			set<T *> spReadySocks;
 			
 			switch( m_errno )
 			{
 				case SUCCESS:
 				{
-					for( unsigned int a = 0; a < vstSock.size(); a++ )
+					for( typename map<T *, EMessages>::iterator itSock = mpeSocks.begin(); itSock != mpeSocks.end(); itSock++ )
 					{
-						T * pcSock = vstSock[a].pcSock;
-						EMessages iErrno = vstSock[a].eErrno;
+						T * pcSock = itSock->first;
+						EMessages iErrno = itSock->second;
 						
 						// mark that this sock was ready
-						sstStock.insert( pcSock );
+						spReadySocks.insert( pcSock );
 						if ( iErrno == SUCCESS )
 						{					
 							pcSock->ResetTimer();	// reset the timeout timer
@@ -1976,7 +1970,7 @@ namespace Csocket
 					if ( (*this)[i]->GetType() != T::LISTENER )
 					{
 						// are we in the map of found socks ?
-						if ( sstStock.find( (*this)[i] ) == sstStock.end() )
+						if ( spReadySocks.find( (*this)[i] ) == spReadySocks.end() )
 						{
 							if ( (*this)[i]->CheckTimeout() )
 								DelSock( i-- );
@@ -2106,16 +2100,16 @@ namespace Csocket
 
 	private:
 		/**
-		* returns a pointer to the ready Csock class thats available
-		* returns empty vector if none are ready, check GetErrno() for the error, if not SUCCESS Select() failed
+		* fills a map of socks to a message for check
+		* map is empty if none are ready, check GetErrno() for the error, if not SUCCESS Select() failed
 		* each struct contains the socks error
 		* @see GetErrno()
 		*/
-		virtual vector<stSock> Select()
+		virtual void Select( map<T *, EMessages> & mpeSocks )
 		{		
+			mpeSocks.clear();
 			struct timeval tv;
 			fd_set rfds, wfds;
-			vector<stSock> vRet;
 			
 			tv.tv_sec = 0;
 			tv.tv_usec = m_iSelectWait;
@@ -2186,14 +2180,14 @@ namespace Csocket
 				if ( ( pcSock->GetSSL() ) && ( pcSock->GetType() != Csock::LISTENER ) )
 				{
 					if ( pcSock->GetPending() > 0 )
-						AddstSock( &vRet, SUCCESS, pcSock );
+						SelectSock( mpeSocks, SUCCESS, pcSock );
 				}
 			}
 
 			// old fashion select, go fer it
 			int iSel;
 
-			if ( !vRet.empty() )
+			if ( !mpeSocks.empty() )
 				tv.tv_usec = 1000;	// this won't be a timeout, 1 ms pause to see if anything else is ready (IE if there is SSL data pending, don't wait too long)
 				
 			if ( bHasWriteable )
@@ -2203,31 +2197,31 @@ namespace Csocket
 
 			if ( iSel == 0 )
 			{
-				if ( vRet.empty() )
+				if ( mpeSocks.empty() )
 					m_errno = SELECT_TIMEOUT;
 				else
 					m_errno = SUCCESS;
 				
-				return( vRet );
+				return;
 			}
 			
 			if ( ( iSel == -1 ) && ( errno == EINTR ) )
 			{
-				if ( vRet.empty() )
+				if ( mpeSocks.empty() )
 					m_errno = SELECT_TRYAGAIN;
 				else
 					m_errno = SUCCESS;
 				
-				return( vRet );				
+				return;
 			
 			} else if ( iSel == -1 )
 			{
-				if ( vRet.empty() )
+				if ( mpeSocks.empty() )
 					m_errno = SELECT_ERROR;
 				else
 					m_errno = SUCCESS;
 				
-				return( vRet );
+				return;
 			
 			} else
 			{
@@ -2258,7 +2252,7 @@ namespace Csocket
 					} else
 						iErrno = SELECT_ERROR;
 
-					AddstSock( &vRet, iErrno, pcSock );
+					SelectSock( mpeSocks, iErrno, pcSock );
 
 				} else if ( TFD_ISSET( iRSock, &rfds ) )
 				{
@@ -2268,7 +2262,7 @@ namespace Csocket
 						iErrno = SELECT_ERROR;
 
 					if ( pcSock->GetType() != T::LISTENER )
-						AddstSock( &vRet, iErrno, pcSock );
+						SelectSock( mpeSocks, iErrno, pcSock );
 					else // someone is coming in!
 					{
 						CS_STRING sHost;
@@ -2323,24 +2317,16 @@ namespace Csocket
 					}
 				}
 			}
-
-			return( vRet );
 		}			
 
 
 		//! internal use only
-		virtual void AddstSock( vector<stSock> * pcvSt, EMessages eErrno, T * pcSock )
+		virtual void SelectSock( map<T *, EMessages> & mpeSocks, EMessages eErrno, T * pcSock )
 		{
-			for( unsigned int i = 0; i < pcvSt->size(); i++ )
-			{
-				if ( (*pcvSt)[i].pcSock == pcSock )
-					return;
-			}
-			stSock stPB;
-			stPB.eErrno = eErrno;
-			stPB.pcSock = pcSock;
-			
-			pcvSt->push_back( stPB );
+			if ( mpeSocks.find( pcSock ) != mpeSocks.end() )
+				return;
+
+			mpeSocks[pcSock] = eErrno;
 		}
 
 		//! these crons get ran and checked in Loop()
