@@ -1603,12 +1603,13 @@ private:
 * Rather then use it directly, you'll probably get more use deriving from it
 * Another thing to note, is that all sockets are deleted implicitly, so obviously you
 * cant pass in Csock classes created on the stack. For those of you who don't
-* know STL very well, the reason I did this is because whenever you add to a stl container
-* (ie vector), its completely rebuilt, using the copy constructor. That then means the constructor 
-* and destructor are called on every item in the container. Not only is this more overhead 
-* then just moving pointers around, its dangerous as if you have an object that is newed and deleted in
-* the destructor the value of its pointer is copied in the default copy constructor. This means
-* everyone has to know better and create a copy constructor, or I just make everyone new their object :)
+* know STL very well, the reason I did this is because whenever you add to certain stl containers
+* (ie vector, or map), its completely rebuilt using the copy constructor on each element. 
+* That then means the constructor and destructor are called on every item in the container. 
+* Not only is this more overhead then just moving pointers around, its dangerous as if you have 
+* an object that is newed and deleted in the destructor the value of its pointer is copied in the 
+* default copy constructor. This means everyone has to know better and create a copy constructor, 
+* or I just make everyone new their object :)
 *
 * class CBlahSock : public TSocketManager<SomeSock>
 *
