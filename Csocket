@@ -90,6 +90,14 @@ public:
 			
 		} eConnType;
 		
+		typedef enum
+		{
+			READ_EOF	= 0,		// End Of File, done reading
+			READ_ERR	= -1,		// Error on the socket, socket closed, done reading
+			READ_EAGAIN	= -2		// Try to get data again
+			
+		} eReadFlags;
+		
 		bool Resolve()
 		{
 			char hbuff[2048];
@@ -166,6 +174,7 @@ public:
 		
 		//
 		// Returns sock on success, -1 on failure
+		//
 		int Accept( Cstring & sHost, int & iRPort )
 		{
 			struct sockaddr_in client;
@@ -326,9 +335,9 @@ public:
 		// Read from the socket
 		// Just pass in a pointer, big enough to hold len bytes
 		//
-		// Returns 0 for EOF
-		// Returns -1 for ERROR
-		// Returns -2 for Try Again ( EAGAIN )
+		// Returns READ_EOF for EOF
+		// Returns READ_ERR for ERROR
+		// Returns READ_EAGAIN for Try Again ( EAGAIN )
 		// Otherwise returns the bytes read into data
 		//
 		int Read( char *data, int len )
@@ -346,18 +355,18 @@ public:
 		    if ( bytes == -1 )
 			{
 				if ( ( errno == EINTR ) || ( errno == EAGAIN ) )
-					return( -2 );
+					return( READ_EAGAIN );
 #ifdef _HAS_SSL
 				if ( m_bssl )
 				{
 					int iErr = SSL_get_error( m_ssl, bytes );
 					if ( ( iErr != SSL_ERROR_WANT_READ ) && ( iErr != SSL_ERROR_WANT_WRITE ) )
-						return( -1 );
+						return( READ_ERR );
 					else
-						return( -2 );
+						return( READ_EAGAIN );
 				}
 #else
-				return( -1 );
+				return( READ_ERR );
 #endif /* _HAS_SSL */								
 			}
 			
@@ -432,12 +441,12 @@ public:
 		void SetSockName( const Cstring & sName ) { m_sSockName = sName; }
 		
 		Cstring & GetHostName() { return( m_shostname ); }
-
+		
 		//
 		// Override these functions for an easy interface
 		// 
 		// Connected event
-		virtual void Connected() { cerr << "FOO!" << endl; }
+		virtual void Connected() {}
 		// Disconnected event
 		virtual void Disconnected() {}
 		// Timeout Event
@@ -492,17 +501,27 @@ public:
 
 		typedef enum
 		{
-			SUCCESS			= 0,
-			SELECT_ERROR	= -1,
-			SELECT_TIMEOUT	= -2,
-			SELECT_TRYAGAIN	= -3
+			SUCCESS			= 0,	// Select returned more then 1 fd ready for action
+			SELECT_ERROR	= -1,	// An Error Happened, Probably dead socket. That socket is returned if available
+			SELECT_TIMEOUT	= -2,	// Select Timeout
+			SELECT_TRYAGAIN	= -3	// Select calls for you to try again
 			
 		} eMessages;
 
-		virtual bool Connect( const Cstring & sHostname, int iPort , const Cstring & sSockName, bool isSSL = false, const Cstring & sBindHost = "" )
+		bool QuickConnect( const Cstring & sHostname, int iPort, int iTimeout = 60 )
+		{
+			return( Connect( sHostname, iPort, "QuickConnect", iTimeout ) );
+		}
+		
+		bool QuickSSLConnect( const Cstring & sHostname, int iPort, int iTimeout = 60 )
+		{
+			return( Connect( sHostname, iPort, "QuickConnect", iTimeout, true ) );
+		}
+		
+		virtual bool Connect( const Cstring & sHostname, int iPort , const Cstring & sSockName, int iTimeout = 60, bool isSSL = false, const Cstring & sBindHost = "" )
 		{
 			// create the new object
-			T *pcSock = new T( sHostname, iPort );
+			T *pcSock = new T( sHostname, iPort, iTimeout );
 			
 			// figure out the hostname we're connecting to.		
 			if ( !pcSock->Resolve() )
@@ -546,7 +565,7 @@ public:
 			
 		//
 		// returns a pointer to the ready Csock class thats available
-		// returns NULL if none are ready, check getErr() for the error, if not SUCCESS Select() failed
+		// returns NULL if none are ready, check GetErrno() for the error, if not SUCCESS Select() failed
 		//
 		
 		T * Select( int iTime_sec = 1, int iTime_usec = 0 )
@@ -789,5 +808,7 @@ private:
 
 		int			m_errno;
 };
+
+typedef TConn<Csock> CConn;
 
 #endif /* _HAS_CSOCKET_ */
