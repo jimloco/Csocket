@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.91 $
+* $Revision: 1.92 $
 */
 
 #ifndef _HAS_CSOCKET_
@@ -1531,8 +1531,8 @@ namespace Csocket
 		{
 			for( u_int a = 0; a < m_vcCrons.size(); a++ )
 			{
-				if ( ( bCaseSensitive ? 
-							( m_vcCrons[a]->GetName().compare( sName ) == 0 ) : ( m_vcCrons[a]->GetName().casecompare( sName ) == 0 ) ) )
+				int (*Cmp)(const char *, const char *) = ( bCaseSensitive ? strcmp : strcasecmp );
+				if ( Cmp( m_vcCrons[a]->GetName().c_str(), sName.c_str() ) == 0 )
 				{
 					m_vcCrons[a]->Stop();
 					CS_Delete( m_vcCrons[a] );
@@ -2152,8 +2152,8 @@ namespace Csocket
 		{
 			for( u_int a = 0; a < m_vcCrons.size(); a++ )
 			{
-				if ( ( bCaseSensitive ? 
-							( m_vcCrons[a]->GetName().compare( sName ) == 0 ) : ( m_vcCrons[a]->GetName().casecompare( sName ) == 0 ) ) )
+				int (*Cmp)(const char *, const char *) = ( bCaseSensitive ? strcmp : strcasecmp );
+				if ( Cmp( m_vcCrons[a]->GetName().c_str(), sName.c_str() ) == 0 )
 				{
 					m_vcCrons[a]->Stop();
 					CS_Delete( m_vcCrons[a] );
