@@ -36,6 +36,13 @@ class CTCPConn : public Cmutex
 public:
 		CTCPConn() : Cmutex()
 		{
+			m_isSSL = false;
+			m_iTimeout = 60;
+			m_http_sslversion = 0;
+#ifdef _HAS_SSL
+			m_ssl = NULL;
+			m_ssl_ctx = NULL;			
+#endif /* _HAS_SSL */
 			Init();
 		}
 
@@ -60,10 +67,7 @@ public:
 		{
 			// mark our ssl
 			m_isSSL = isSSL;
-
-#ifdef _HAS_SSL
-			clearSSL();
-#endif /* _HAS_SSL */
+			Init();
 
 			// figure out the hostname we're connecting to.		
 			char hbuff[2048];
@@ -392,25 +396,18 @@ private:
 #endif /* _HAS_SSL */
 
 		virtual void Init()
-		{
-		
+		{		
 			m_sock = 0;
-			m_isSSL = false;
-			m_iTimeout = 60;
 			m_bHasWrite = false;
 			m_sBuffer.clear();
 			m_iTimeoutPasses = 0;
-			m_http_sslversion = 0;
 #ifdef _HAS_SSL
-			m_ssl = NULL;
-			m_ssl_ctx = NULL;			
+			clearSSL();
 #endif /* _HAS_SSL */
-
 		}
 
 		int		m_sock, m_iTimeout, m_iTimeoutPasses, m_http_sslversion;
-		bool	m_isSSL;
-		bool	m_bHasWrite;
+		bool	m_isSSL, m_bHasWrite;
 		
 		struct hostent		*m_hent, m_hentbuff;
 		struct sockaddr_in 	m_address;
