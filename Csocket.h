@@ -5,8 +5,8 @@
 *
 *    CVS Info:
 *       $Author: imaginos $
-*       $Date: 2003/08/29 22:42:48 $
-*       $Revision: 1.26 $
+*       $Date: 2003/09/05 01:14:29 $
+*       $Revision: 1.27 $
 */
 
 #ifndef _HAS_CSOCKET_
@@ -202,7 +202,10 @@ public:
 		}
 		
 		// override this for accept sockets
-		virtual Csock *GetSockObj( const Cstring & sHostname, int iPort ) { return( new Csock( sHostname, iPort ) ); }
+		virtual Csock *GetSockObj( const Cstring & sHostname, int iPort ) 
+		{ 
+			return( NULL ); 
+		}
 		
 		virtual ~Csock()
 		{
@@ -1636,6 +1639,9 @@ private:
 					{
 						// if we have a new sock, then add it
 						T *NewpcSock = (T *)pcSock->GetSockObj( sHost, port );
+
+						if ( !NewpcSock )
+							NewpcSock = new T( sHost, port );
 
 						NewpcSock->BlockIO( false );
 						
