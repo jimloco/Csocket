@@ -948,6 +948,9 @@ public:
 			{
 				m_sSSLBuffer.clear();
 				m_sSend.erase( 0, iErr );
+				// reset the timer on successful write (we have to set it here because the write
+				// bit might not always be set, so need to trigger)
+				ResetTimer();	
 			}
 
 			return( true );
@@ -966,7 +969,10 @@ public:
 		
 		// delete the bytes we sent
 		if ( bytes > 0 )
+		{
 			m_sSend.erase( 0, bytes );
+			ResetTimer();	// reset the timer on successful write
+		}
 
 		return( true );
 	}
