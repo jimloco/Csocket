@@ -1624,7 +1624,7 @@ public:
 	{ 
 		m_errno = SUCCESS; 
 		m_iCallTimeouts = GetMillTime();
-		m_iSelectWait = 100000; // Default of 100 milliseconds
+		m_iSelectWait = 1000; // Default of 1 milliseconds
 	}
 
 	virtual ~TSocketManager() 
@@ -1940,9 +1940,9 @@ public:
 		m_vcCrons.push_back( pcCron );
 	}
 
-	//! Get the Select Timeout in MILLISECONDS
+	//! Get the Select Timeout in Microseconds
 	u_int GetSelectTimeout() { return( m_iSelectWait ); }
-	//! Set the Select Timeout in MILLISECONDS
+	//! Set the Select Timeout in Microseconds
 	void  SetSelectTimeout( u_int iTimeout ) { m_iSelectWait = iTimeout; }
 
 	vector<CCron *> & GetCrons() { return( m_vcCrons ); }
@@ -2055,7 +2055,7 @@ private:
 		int iSel;
 
 		if ( !vRet.empty() )
-			tv.tv_usec = 1000;	// this won't be a timeout, 1 ms pause to see if anything else is ready
+			tv.tv_usec = m_iSelectWait;
 			
 		if ( bHasWriteable )
 			iSel = select(FD_SETSIZE, &rfds, &wfds, NULL, &tv);
