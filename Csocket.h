@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.98 $
+* $Revision: 1.99 $
 */
 
 #ifndef _HAS_CSOCKET_
@@ -1086,15 +1086,17 @@ namespace Csocket
 		*/
 		virtual int Read( char *data, int len )
 		{
-		
+			int bytes = 0;
+			memset( (char *)data, '\0', len );
+
+			if ( ( IsReadPaused() ) && ( SslIsEstablished() ) )
+				return( READ_EAGAIN ); // allow the handshake to complete first
+
 			if ( m_bBLOCK )
 			{
 				if ( ReadSelect() != SEL_OK )
 					return( READ_ERR );
 			}
-			
-			int bytes = 0;
-			memset( (char *)data, '\0', len );
 			
 #ifdef HAVE_LIBSSL
 			if ( m_bssl )
@@ -1185,6 +1187,11 @@ namespace Csocket
 		//! resets the time counter
 		void ResetTimer() { m_iTcount = 0; }
 		
+		//! will pause/unpause reading on this socket
+		void PauseRead() { m_bPauseRead = true; }
+		void UnPauseRead() { m_bPauseRead = false; }
+		bool IsReadPaused() { return( m_bPauseRead ); }
+
 		/**
 		* this timeout isn't just connection timeout, but also timeout on
 		* NOT recieving data, to disable this set it to 0
@@ -1403,15 +1410,12 @@ namespace Csocket
 #endif /* HAVE_LIBSSL */
 		
 		//! Get the send buffer
-		const CS_STRING & GetSendBuff() { return( m_sSend ); }
+		const CS_STRING & GetWriteBuffer() { return( m_sSend ); }
 
 		//! is SSL_accept finished ?
 		bool FullSSLAccept() { return ( m_bFullsslAccept ); }
 		//! is the ssl properly finished (from write no error)
 		bool SslIsEstablished() { return ( m_bsslEstablished ); }
-
-		//! returns the underlying buffer
-		CS_STRING & GetBuffer() { return( m_sSend ); }
 
 		//! Use this to bind this socket to inetd
 		bool ConnectInetd( bool bIsSSL = false, const CS_STRING & sHostname = "" )
@@ -1715,7 +1719,7 @@ namespace Csocket
 	private:
 		int			m_iReadSock, m_iWriteSock, m_itimeout, m_iport, m_iConnType, m_iTcount, m_iMethod, m_iRemotePort, m_iLocalPort;
 		bool		m_bssl, m_bIsConnected, m_bClosed, m_bBLOCK, m_bFullsslAccept;
-		bool		m_bsslEstablished, m_bEnableReadLine, m_bRequireClientCert;
+		bool		m_bsslEstablished, m_bEnableReadLine, m_bRequireClientCert, m_bPauseRead;
 		CS_STRING	m_shostname, m_sbuffer, m_sSockName, m_sPemFile, m_sCipherType, m_sParentName;
 		CS_STRING	m_sSend, m_sSSLBuffer, m_sPemPass, m_sLocalIP, m_sRemoteIP;
 
@@ -1803,6 +1807,7 @@ namespace Csocket
 			m_iBytesRead = 0;
 			m_iBytesWritten = 0;
 			m_iStartTime = millitime();
+			m_bPauseRead = false;
 		}
 	};
 
@@ -2330,12 +2335,11 @@ namespace Csocket
 						if ( !pcSock->AcceptSSL() )
 							pcSock->Close();
 
-					} else if ( ( pcSock->IsConnected() ) && ( pcSock->GetSendBuff().empty() ) )
+					} else if ( ( pcSock->IsConnected() ) && ( pcSock->GetWriteBuffer().empty() ) && ( !pcSock->IsReadPaused() ) )
 					{
-						//TODO don't read if bNoRead = true
 						TFD_SET( iRSock, &rfds );
 					
-					} else if ( ( pcSock->GetSSL() ) && ( !pcSock->SslIsEstablished() ) && ( !pcSock->GetSendBuff().empty() ) )
+					} else if ( ( pcSock->GetSSL() ) && ( !pcSock->SslIsEstablished() ) && ( !pcSock->GetWriteBuffer().empty() ) )
 					{
 						// do this here, cause otherwise ssl will cause a small
 						// cpu spike waiting for the handshake to finish
@@ -2348,8 +2352,9 @@ namespace Csocket
 		
 					} else 
 					{
-						//TODO don't read if bNoRead = true
-						TFD_SET( iRSock, &rfds );
+						if ( !pcSock->IsReadPaused() )
+							TFD_SET( iRSock, &rfds );
+
 						TFD_SET( iWSock, &wfds );
 						bHasWriteable = true;
 					}
@@ -2366,8 +2371,7 @@ namespace Csocket
 		
 				if ( ( pcSock->GetSSL() ) && ( pcSock->GetType() != Csock::LISTENER ) )
 				{
-					//TODO don't read if bNoRead = true
-					if ( pcSock->GetPending() > 0 )
+					if ( ( pcSock->GetPending() > 0 ) && ( !pcSock->IsReadPaused() ) )
 						SelectSock( mpeSocks, SUCCESS, pcSock );
 				}
 			}
@@ -2437,7 +2441,7 @@ namespace Csocket
 					if ( iSel > 0 )
 					{
 						iErrno = SUCCESS;
-						if ( ( !pcSock->GetSendBuff().empty() ) && ( pcSock->IsConnected() ) )
+						if ( ( !pcSock->GetWriteBuffer().empty() ) && ( pcSock->IsConnected() ) )
 						{ // write whats in the socks send buffer
 							if ( !pcSock->Write( "" ) )
 							{
