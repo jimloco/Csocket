@@ -946,6 +946,9 @@ public:
 		bool FullSSLAccept() { return ( m_bFullsslAccept ); }
 		// is the ssl properly finished (from write no error)
 		bool sslIsEstablished() { return ( m_bsslEstablished ); }
+
+		// returns the underlying buffer
+		Cstring & GetBuffer() { return( m_sSend ); }
 		
 		//
 		// Get the peer's X509 cert
@@ -969,6 +972,10 @@ public:
 			m_iMaxBytes = iBytes;
 			m_iMaxMilliSeconds = iMilliseconds;
 		}
+		
+		u_int GetRateBytes() { return( m_iMaxBytes ); }
+		unsigned long long GetRateTime() { return( m_iMaxMilliSeconds ); }
+		
 		
 		//
 		// Cron caller
