@@ -66,7 +66,7 @@ public:
 		}
 		virtual ~CCron() {}
 		
-		virtual void run() 
+		void run() 
 		{
 			if ( ( m_bActive ) && ( time( NULL ) >= m_iTime ) )
 			{
@@ -870,23 +870,20 @@ public:
 		// Once we have the cron, we'll delete it
 		void Cron()
 		{
-			vector<int> vKillCrons;
-					
-			for( unsigned int i = 0; i < m_vcCrons.size(); i++ )
-			{
-				if ( !m_vcCrons[i]->isValid() )
-				{
-					vKillCrons.push_back( i );
-					Zzap( m_vcCrons[i] );
-					
-				} else
-					m_vcCrons[i]->run();
-			}
-			
-			// delete any inactive crons
-			for( unsigned int i = 0; i < vKillCrons.size(); i++ )	
-				m_vcCrons.erase( m_vcCrons.begin() + i );
+			vector<CCron *>::iterator p;
 
+			for ( p = m_vcCrons.begin(); p != m_vcCrons.end(); p++ )
+			{
+				CCron *pcCron = *p;
+
+				if ( !pcCron->isValid() )
+				{
+					Zzap( pcCron );
+					m_vcCrons.erase( p );
+
+				} else
+					pcCron->run();
+			}
 		}
 		
 		//
@@ -1357,6 +1354,9 @@ public:
 				default	:
 					break;
 			}
+
+			// run any Manager Crons we may have
+			Cron();
 		}
 
 		//
@@ -1392,10 +1392,36 @@ public:
 		void DestroySock( T * pcClass ) { m_pcDestroySocks.push_back( pcClass ); }
 		
 		
+		void AddCron( CCron *pcCron )
+		{
+			m_vpcCrons.push_back( pcCron );
+		}
+
+		//
+		// these crons get ran in Loop()
+		void Cron()
+		{
+			vector<CCron *>::iterator p;
+
+			for ( p = m_vcCrons.begin(); p != m_vcCrons.end(); p++ )
+			{
+				CCron *pcCron = *p;
+
+				if ( !pcCron->isValid() )
+				{
+					Zzap( pcCron );
+					m_vcCrons.erase( p );
+
+				} else
+					pcCron->run();
+			}
+		}
+
 private:
 
 		int				m_errno;
 		vector<T *>		m_pcDestroySocks;
+		vector<CCron *>		m_vcCrons;
 };
 
 #endif /* _HAS_CSOCKET_ */
