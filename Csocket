@@ -193,7 +193,7 @@ public:
 		bool ConnectSSL( int method = 0 )
 		{
 			m_bssl = true;
-
+			
 			SSLeay_add_ssl_algorithms();
 	
 			switch( method )
@@ -286,8 +286,12 @@ public:
 						case SSL_ERROR_WANT_WRITE:
 						// retry
 						break;
+						
+						case SSL_ERROR_SSL:
+						bLoop = false;
+						break;
 					}
-				}			
+				}
 				return( true );
 			}
 #endif /* _HAS_SSL */
