@@ -1675,7 +1675,7 @@ public:
 	* \param iMaxConns the maximum amount of connections to accept
 	* \return true on success
 	*/
-	virtual bool ListenHost( int iPort, const Cstring & sSockName, const Cstring & sBindHost, int isSSL = false, int iMaxConns = SOMAXCONN, T *pcSock = NULL )
+	virtual T * ListenHost( int iPort, const Cstring & sSockName, const Cstring & sBindHost, int isSSL = false, int iMaxConns = SOMAXCONN, T *pcSock = NULL )
 	{
 		if ( !pcSock )
 			pcSock = new T();
@@ -1687,15 +1687,45 @@ public:
 		if ( pcSock->Listen( iPort, iMaxConns, sBindHost ) )
 		{
 			AddSock( pcSock, sSockName );
-			return( true );
+			return( pcSock );
 		}
 		Zzap( pcSock );
-		return( false );
+		return( NULL );
 	}
 	
 	virtual bool ListenAll( int iPort, const Cstring & sSockName, int isSSL = false, int iMaxConns = SOMAXCONN, T *pcSock = NULL )
 	{
 		return( ListenHost( iPort, sSockName, "", isSSL, iMaxConns, pcSock ) );
+	}
+
+	/*
+	 * @return the port number being listened on
+	 */
+	virtual u_short ListenRand( const Cstring & sSockName, const Cstring & sBindHost, int isSSL = false, int iMaxConns = SOMAXCONN, T *pcSock = NULL )
+	{
+		u_short iPort = 0;
+		if ( ( T *pNewSock = ListenHost( 0,  sSockName, sBindHost, isSSL, iMaxConns, pcSock ) ) )
+		{
+			int iSock = pNewSock->GetSock();	
+
+			if ( iSock <= 0 )
+			{
+				pcSock->Close();
+				return( NULL );
+			}
+
+			struct sockaddr_in mLocalAddr;
+			socklen_t mLocalLen = sizeof(struct sockaddr);
+			getsockname( iSock, (struct sockaddr *) &mLocalAddr, &mLocalLen );
+		
+			iPort = ntohs( mLocalAddr.sin_port );
+		}
+
+		return( iPort );
+	}
+	virtual u_short ListenRandAll( const Cstring & sSockName, const, int isSSL = false, int iMaxConns = SOMAXCONN, T *pcSock = NULL )
+	{
+		return( ListenDynamic( sSockName, "", isSSL, iMaxConns, pcSock ) );
 	}
 
 	/*
