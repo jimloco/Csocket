@@ -23,256 +23,138 @@
 #include <Cstring>
 #include <Cthreads>
 
-//
-// The thought behind this class, is to use it as a main loop
-// derive from it, override its events to handle stuff, it also wraps SSL, just pass it as true when you
-// run it and use the class normally
-//
-// You can also do it yourself with Select(), Read(), and Write()
-//
 
-class CConn : public Cmutex
+class Csock
 {
 public:
-		CConn() : Cmutex()
+		Csock( const Cstring & sHostname, int iport, int itimeout = 60 ) 
 		{
-			m_isSSL = false;
-			m_iTimeout = 60;
-			m_http_sslversion = 0;
-#ifdef _HAS_SSL
+#ifdef _HAS_SSL	
 			m_ssl = NULL;
-			m_ssl_ctx = NULL;			
-#endif /* _HAS_SSL */
-			Init();
+			m_ssl_ctx = NULL;
+#endif /* _HAS_SSL */		
+			m_isock = 0;
+			m_itimeout = itimeout;
+			m_bssl = false;
+			m_bhaswrite = false;
+			m_iport = iport;
+			m_shostname = sHostname;
+			m_bNeverWritten = true;
 		}
-
-		virtual ~CConn() 
+	
+		virtual ~Csock()
 		{
-			close( m_sock );
-#ifdef _HAS_SSL
-			clearSSL();
-#endif _HAS_SSL
-		
-		}
-
-		typedef enum
-		{
-			HOST_ERR 	= 1,
-			CONNECT_ERR = 2,
-			SSL_ERR		= 3
+			close( m_isock );
+#ifdef _HAS_SSL		
+			if ( m_ssl )
+			{
+				SSL_shutdown( m_ssl );
+				SSL_free( m_ssl );
+			}
+										
+			if ( m_ssl_ctx )
+				SSL_CTX_free( m_ssl_ctx );
 			
-		} eMessages;
+			m_ssl = NULL;
+			m_ssl_ctx = NULL;
+#endif /* _HAS_SSL */				
+		}
 
-		virtual void Connect( const Cstring & sHostname, int iPort, bool isSSL = false )
+		bool Resolve()
 		{
-			// mark our ssl
-			m_isSSL = isSSL;
-			Init();
-
-			// figure out the hostname we're connecting to.		
 			char hbuff[2048];
 			memset( (char *)hbuff, '\0', 2048 );
 			
 			int err;
 			
-			if ( gethostbyname_r( sHostname.c_str(), &m_hentbuff, hbuff, 2048, &m_hent, &err ) != 0 )
-			{
-				ConnectionFailed( HOST_ERR );
-				return;
-			}
+			if ( gethostbyname_r( m_shostname.c_str(), &m_hentbuff, hbuff, 2048, &m_hent, &err ) != 0 )
+				return( false );
 			
+			return( true );
+			
+		}
+
+		bool Connect()
+		{
 			// create the socket
-			m_sock = socket( PF_INET, SOCK_STREAM, IPPROTO_TCP );
+			m_isock = socket( PF_INET, SOCK_STREAM, IPPROTO_TCP );
 				
 			m_address.sin_family = PF_INET;
-			m_address.sin_port = htons( iPort );
+			m_address.sin_port = htons( m_iport );
 			m_address.sin_addr = *(struct in_addr *)m_hent->h_addr;
 			
 			// set it none blocking
-			int fdflags = fcntl (m_sock, F_GETFL, 0);
-			fcntl( m_sock, F_SETFL, fdflags|O_NONBLOCK );
+			int fdflags = fcntl (m_isock, F_GETFL, 0);
+			fcntl( m_isock, F_SETFL, fdflags|O_NONBLOCK );
 			
 			// connect
-			connect( m_sock, (struct sockaddr *)&m_address, sizeof( m_address ) );
+			connect( m_isock, (struct sockaddr *)&m_address, sizeof( m_address ) );
 			if ( errno != EINPROGRESS )
-			{
-				ConnectionFailed( CONNECT_ERR );
-				return;
-			}
-
+				return( false );
+			
+			return( true );
+		}
 #ifdef _HAS_SSL
-			if ( m_isSSL )
-			{
-				SSLeay_add_ssl_algorithms();
-		
-				switch( m_http_sslversion )
-				{
-					case 0:
-						m_ssl_method = SSLv23_client_method();
-						if ( !m_ssl_method )
-							cerr << "WARNING: MakeConnection .... SSLv23_client_method failed!" << endl;
-						break;
-			
-					case 2:
-						m_ssl_method = SSLv2_client_method();
-						if ( !m_ssl_method )
-							cerr << "WARNING: MakeConnection .... SSLv2_client_method failed!" << endl;
-						break;
-			
-					case 3:
-						m_ssl_method = SSLv3_client_method();
-						if ( !m_ssl_method )
-							cerr << "WARNING: MakeConnection .... SSLv3_client_method failed!" << endl;			
-					break;
-				
-					default:
-						ConnectionFailed( SSL_ERR );
-						cerr << "WARNING: MakeConnection .... invalid http_sslversion version!" << endl;
-						return;
-						break;
-				}
-
-				SSL_load_error_strings ();
-				// wrap some warnings in here
-				m_ssl_ctx = SSL_CTX_new ( m_ssl_method );
-				if ( !m_ssl_ctx )
-				{
-					ConnectionFailed( SSL_ERR );
-					return;
-				}
-				
-				m_ssl = SSL_new ( m_ssl_ctx );
-				if ( !m_ssl )
-				{
-					ConnectionFailed( SSL_ERR );
-					return;
-				}
-				
-				SSL_set_fd( m_ssl, m_sock );
-		
-				if( ( SSL_connect( m_ssl ) < 0 ) && ( errno != EAGAIN ) )
-				{
-					ConnectionFailed( CONNECT_ERR );
-					return;
-				}			
-			}
-			
-			
-#endif /* _HAS_SSL */
-			
-		}
-		
-		//
-		// returns result from select
-		// 0 == timeout, -1 == error, anything else is good to go
-		//
-		
-		int Select( int iTime_sec = 1, int iTime_usec = 0 )
-		{		
-			struct timeval tv;
-			tv.tv_sec = iTime_sec;	// one second timeout, good for clocks
-			tv.tv_usec = iTime_usec;
-			
-			int iSel;
-			if ( m_bHasWrite )
-			{
-				FD_ZERO( &m_rfds );
-				FD_SET( m_sock, &m_rfds );
-			
-				iSel = select(FD_SETSIZE, &m_rfds, NULL, NULL, &tv);
-			
-			} else
-			{
-				FD_ZERO( &m_rfds );
-				FD_ZERO( &m_wfds );
-				FD_SET( m_sock, &m_rfds );
-				FD_SET( m_sock, &m_wfds );
-				iSel = select(FD_SETSIZE, &m_rfds, &m_wfds, NULL, &tv);
-			}
-			
-			if ( ( iSel == -1 ) && ( errno == EINTR ) )
-				return( -2 );
-				
-				
-			return( iSel );
-		}			
-		//
-		// basically, this jumps into the select loop
-		// taking control of your app.
-		// Override the events below
-		//
-
-		void SelectLoop()
+	
+		bool ConnectSSL( int method = 0 )
 		{
-		
-			// settle into the select loop
-			bool binprog = true;
-			
-			while ( binprog )
-			{
-				int iSel = Select();
-				
-				switch( iSel )
-				{
-					case 0:
-						SelectTimeout();
-						if ( m_iTimeoutPasses >= m_iTimeout )
-						{
-							Disconnected();
-							close( m_sock );
-						}
-						
-						m_iTimeoutPasses++;
-						break;
-					
-					case -1:
-							SelectError();
-							close( m_sock );
-							binprog = false;
-							break;
+			m_bssl = true;
 
-					case 1:
+			SSLeay_add_ssl_algorithms();
+	
+			switch( method )
+			{
+				case 0:
+					m_ssl_method = SSLv23_client_method();
+					if ( !m_ssl_method )
 					{
-						// something is ready for working on
-						m_iTimeoutPasses = 0;
-						
-						if ( ReadyForRead() )
-						{
-							char buff[64];
-							
-							int bytes = Read( buff, 64 );
-							
-							if ( bytes > 0 )
-							{
-								ReadyRead( buff, bytes );
-								PushBuff( buff, bytes );
-								
-							} else if ( bytes == 0 )
-							{
-								// EOF
-								ReadEOF();
-								Disconnected();
-								close( m_sock );
-								binprog = false;
-							
-							} else if ( bytes == -1 )
-							{
-								Disconnected();
-								close( m_sock );
-								binprog = false;
-							}
-							
-						} else
-						{
-							m_bHasWrite = true;
-							Connected();
-						}
-						break;
+						cerr << "WARNING: MakeConnection .... SSLv23_client_method failed!" << endl;
+						return( false );
 					}
-				}
-			}
-		}
+					break;
 		
+				case 2:
+					m_ssl_method = SSLv2_client_method();
+					if ( !m_ssl_method )
+					{
+						cerr << "WARNING: MakeConnection .... SSLv2_client_method failed!" << endl;
+						return( false );
+					}
+					break;
+		
+				case 3:
+					m_ssl_method = SSLv3_client_method();
+					if ( !m_ssl_method )
+					{
+						cerr << "WARNING: MakeConnection .... SSLv3_client_method failed!" << endl;
+						return( false );
+					}		
+					break;
+			
+				default:
+					cerr << "WARNING: MakeConnection .... invalid http_sslversion version!" << endl;
+					return( false );
+					break;
+			}
+
+			SSL_load_error_strings ();
+			// wrap some warnings in here
+			m_ssl_ctx = SSL_CTX_new ( m_ssl_method );
+			if ( !m_ssl_ctx )
+				return( false );
+			
+			m_ssl = SSL_new ( m_ssl_ctx );
+			if ( !m_ssl )
+				return( false );
+			
+			SSL_set_fd( m_ssl, m_isock );
+	
+			if ( ( SSL_connect( m_ssl ) < 0 ) && ( errno != EAGAIN ) )
+				return( false );
+
+			return( true );
+		}
+
 		//
 		// Write to the socket
 		//
@@ -282,9 +164,9 @@ public:
 			// and ultimatly its easier to work with
 			Cstring sSend;
 			sSend.append( data, len );
-			
+			m_bNeverWritten = false;
 #ifdef _HAS_SSL		
-			if ( m_isSSL )
+			if ( m_bssl )
 			{
 				bool bLoop = true;
 				while ( bLoop )
@@ -316,7 +198,7 @@ public:
 #endif /* _HAS_SSL */
 			while ( true )
 			{
-				int bytes = write( m_sock, sSend.c_str(), sSend.length() );
+				int bytes = write( m_isock, sSend.c_str(), sSend.length() );
 			
 				if ( ( bytes <= 0 ) && ( errno != EAGAIN ) )
 				{
@@ -332,15 +214,16 @@ public:
 				} else
 					break;
 			}
+			
 			return( true );
 		}
 		
 		//
 		// Write to the socket
 		//	
-		void Write( const Cstring & sData )
+		bool Write( const Cstring & sData )
 		{
-			Write( sData.c_str(), sData.length() );
+			return( Write( sData.c_str(), sData.length() ) );
 		}
 
 		//
@@ -350,7 +233,7 @@ public:
 		// Returns 0 for EOF
 		// Returns -1 for ERROR
 		// Returns -2 for Try Again ( EAGAIN )
-		// Otherwise returns the bytes read into buff
+		// Otherwise returns the bytes read into data
 		//
 		int Read( char *data, int len )
 		{
@@ -358,11 +241,11 @@ public:
 			memset( (char *)data, '\0', len );
 			
 #ifdef _HAS_SSL							
-			if ( m_isSSL )							
+			if ( m_bssl )							
 				bytes = SSL_read( m_ssl, data, len );
 			else
 #endif /* _HAS_SSL */							
-				bytes = read( m_sock, data, len );
+				bytes = read( m_isock, data, len );
 			
 			if ( bytes == 0 )
 			{
@@ -376,7 +259,7 @@ public:
 				if ( ( errno == EINTR ) || ( errno != EAGAIN ) )
 					return( -2 );
 #ifdef _HAS_SSL
-				if ( m_isSSL )
+				if ( m_bssl )
 				{
 					int iErr = SSL_get_error( m_ssl, bytes );
 					if ( ( iErr != SSL_ERROR_WANT_READ ) && ( iErr != SSL_ERROR_WANT_WRITE ) )
@@ -391,116 +274,203 @@ public:
 			
 			return( bytes );
 		}
-						
+
 		//
-		// Returns true if socket is ready to be read from
-		//
-		bool ReadyForRead()
+		// misc functions
+		//				
+		bool hasWrite() { return( m_bhaswrite ); }
+		void setWrite( bool b ) { m_bhaswrite = b; }	
+		
+		int & GetSock() { return( m_isock ); }
+
+		bool needsWrite()
 		{
-			if ( FD_ISSET( m_sock, &m_rfds ) )
+			if ( !m_bNeverWritten )
 				return( true );
-			
-			return( false );
+			else
+				return( false );
 		}
 		
 		//
-		// Returns true if socket is ready to be written too
-		//
-		bool ReadyForWrite()
-		{
-			if ( FD_ISSET( m_sock, &m_wfds ) )
-				return( true );
+		// Override these functions for an easy interface
+		// They do nothing yet
+		virtual void Connected() {}
+		virtual void Disconnected() {}
+		virtual void ReadData( const char *data, int len ) {}
+		virtual void ReadLine( const Cstring & sLine ) {}
+		
+		//////////////////////////////////////////////////	
 			
-			return( false );
-		}
-		void SetTimeout( int iTimeout ) { m_iTimeout = iTimeout; }
-		int GetSock() { return( m_sock ); }
-		
-protected:
-	
-		//
-		// override these events
-		// Only use if going into SelectLoop()
-		// Otherwise you have control
-		virtual void Connected() {}										// Socket Connected Event
-		virtual void ConnectionFailed( int iFailure ) {}				// Socket Failed Event
-		virtual void Disconnected() {}									// Socket Disconnected Event
-		
-		virtual void LineBuffer( const Cstring & sLine ) {}				// Full Line read event, without Trailing newline
-		
-		virtual void ReadyRead( const char *data, int len ) {}			// Ready to read event
-		
-		virtual void ReadEOF() {}					// EOF event
-		
-		virtual void Timeout() {}				// overall timeout
-		virtual void SelectTimeout() {}			// Select timeout event, good place for chores
-		virtual void SelectError() {}			// Select Error event
-		///////////// End Events ////////////////////
-		
+#endif /* _HAS_SSL */				
 private:
-		void PushBuff( const char *data, int len )
-		{
-			m_sBuffer.append( data, len );
-			
-			u_int iFind = m_sBuffer.find( "\n" );
-			
-			if ( iFind != Cstring::npos )
-			{
-				int iShow = iFind;
-				
-				if ( m_sBuffer.substr( 0, iFind ).search( "\\r$" ) )
-					iShow--;
-				
-				LineBuffer( m_sBuffer.substr( 0, iShow ) );
-				m_sBuffer.erase( 0, iFind + 1 );
-			}	
-		
-		}
-		
-#ifdef _HAS_SSL
-		void clearSSL()
-		{
-			if ( m_ssl )
-			{
-				SSL_shutdown( m_ssl );
-				SSL_free( m_ssl );
-			}
-										
-			if ( m_ssl_ctx )
-				SSL_CTX_free( m_ssl_ctx );
-			
-			m_ssl = NULL;
-			m_ssl_ctx = NULL;
-				
-		}
-#endif /* _HAS_SSL */
+		int			m_isock, m_itimeout, m_iport;
+		bool		m_bssl, m_bhaswrite, m_bNeverWritten;
+		Cstring		m_shostname;
 
-		virtual void Init()
-		{		
-			m_sock = 0;
-			m_bHasWrite = false;
-			m_sBuffer.clear();
-			m_iTimeoutPasses = 0;
-#ifdef _HAS_SSL
-			clearSSL();
-#endif /* _HAS_SSL */
-		}
-
-		int		m_sock, m_iTimeout, m_iTimeoutPasses, m_http_sslversion;
-		bool	m_isSSL, m_bHasWrite;
-		
 		struct hostent		*m_hent, m_hentbuff;
 		struct sockaddr_in 	m_address;
-		
-		Cstring	m_sBuffer;
 		
 #ifdef _HAS_SSL
 		SSL 				*m_ssl;
 		SSL_CTX				*m_ssl_ctx;
 		SSL_METHOD			*m_ssl_method;
-#endif /* _HAS_SSL */
+#endif /* _HAS_SSL */	
 
-		fd_set 		m_rfds, m_wfds;
+};
+
+//
+// new it and forget it
+//
+template<class T>
+class TConn : public vector<T *>
+{
+public:
+		TConn() {}
+		virtual ~TConn() {}
+
+		typedef enum
+		{
+			SUCCESS		= 0,
+			HOST_ERR 	= 1,
+			CONNECT_ERR = 2,
+			SSL_ERR		= 3,
+			REFUSED_ERR	= 4,
+			SELECT_ERR	= 5
+			
+		} eMessages;
+
+		virtual bool Connect( T * pcSock, bool isSSL = false )
+		{
+			
+			// figure out the hostname we're connecting to.		
+			if ( !pcSock->Resolve() )
+			{
+				delete( pcSock );
+				return( false );
+			}
+			
+			if ( !pcSock->Connect() )
+			{
+				delete( pcSock );
+				return( false );
+			}
+	
+			if ( isSSL )
+			{
+				if ( !pcSock->ConnectSSL() )
+				{
+					delete( pcSock );
+					return( false );
+				}
+			}
+			
+			push_back( pcSock );
+			return( true );
+		}
+		
+		//
+		// returns a pointer to the ready Csock class thats available
+		// returns NULL if none are ready, check getErr() for the error, if not SUCCESS Select() failed
+		//
+		
+		T *Select( int iTime_sec = 1, int iTime_usec = 0 )
+		{		
+			struct timeval tv;
+			fd_set 		rfds, wfds;
+			
+			tv.tv_sec = iTime_sec;	// one second timeout, good for clocks
+			tv.tv_usec = iTime_usec;
+			
+
+			FD_ZERO( &rfds );						
+			FD_ZERO( &wfds );
+			
+			bool bHasWriteable = false;
+			
+			for( unsigned int i = 0; i < size(); i++ )
+			{
+				Csock *pcSock = (*this)[i];
+				int & iSock = pcSock->GetSock();
+				
+				if ( !pcSock->hasWrite() )
+					FD_SET( iSock, &rfds );
+				else
+				{
+					FD_SET( iSock, &rfds );
+					FD_SET( iSock, &wfds );
+					bHasWriteable = true;
+				}
+			}
+			
+			// now select on them
+			while( true )
+			{
+				int iSel;
+				 
+				if ( bHasWriteable )
+					iSel = select(FD_SETSIZE, &rfds, &wfds, NULL, &tv);
+				else
+					iSel = select(FD_SETSIZE, &rfds, NULL, NULL, &tv);
+				
+				if ( iSel == 0 )
+				{
+					m_errno = SUCCESS;
+					return( NULL );
+				}
+				
+				if ( ( iSel == -1 ) && ( errno != EINTR ) )
+				{
+					m_errno = SELECT_ERR;
+					return( NULL );
+				
+				}
+				
+				if ( iSel > 0 )
+				{
+					// find out wich one is ready
+					for( unsigned int i = 0; i < size(); i++ )
+					{
+						Csock *pcSock = (*this)[i];
+						int & iSock = pcSock->GetSock();
+						
+						if ( FD_ISSET( iSock, &rfds ) )
+							return( pcSock );
+						else if ( FD_ISSET( iSock, &wfds ) )
+						{
+							pcSock->setWrite( true );
+							return( pcSock );
+						}
+					}
+					
+					// it said one was ready, but none of them were :(
+					m_errno = SELECT_ERR;	
+					return( NULL );
+				}
+			}
+		}			
+		
+		
+		void DelSock( T *pcSock )
+		{
+			vector<T *>::iterator p;
+			
+			for( unsigned int i = 0; i < size(); i++ )
+			{
+				if ( (*this)[i] == pcSock )
+				{
+					p = this->begin() + i;
+					delete( (*this)[i] );
+					this->erase( p );
+					return;
+				}
+			}
+			cerr << "WARNING!!! Could not find " << (unsigned int *)pcSock << endl;
+		}
+
+		int getErr() { return( m_errno ); }
+private:
+
+		int			m_errno;
 };
 
 #endif /* _HAS_CSOCKET_ */
