@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.97 $
+* $Revision: 1.98 $
 */
 
 #ifndef _HAS_CSOCKET_
@@ -1292,7 +1292,7 @@ namespace Csocket
 			unsigned long long iDifference = ( millitime() - m_iStartTime );
 			
 			if ( ( m_iBytesWritten == 0 ) || ( iSample > iDifference ) )
-				return( (double)m_iBytesRead );
+				return( (double)m_iBytesWritten );
 
 			return( ( (double)m_iBytesWritten / ( (double)iDifference / (double)iSample ) ) );
 		}
@@ -2230,9 +2230,10 @@ namespace Csocket
 			}
 		}
 
-		//! Get the Select Timeout in MILLISECONDS
+		//! Get the Select Timeout in MICROSECONDS ( 1000 == 1 millisecond )
 		u_int GetSelectTimeout() { return( m_iSelectWait ); }
-		//! Set the Select Timeout in MILLISECONDS
+		//! Set the Select Timeout in MICROSECODS ( 1000 == 1 millisecond )
+		//! Setting this to 0 will cause no timeout to happen, select will return instantly
 		void  SetSelectTimeout( u_int iTimeout ) { m_iSelectWait = iTimeout; }
 
 		vector<CCron *> & GetCrons() { return( m_vcCrons ); }
@@ -2286,7 +2287,11 @@ namespace Csocket
 			
 			tv.tv_sec = 0;
 			tv.tv_usec = m_iSelectWait;
-		
+			
+			u_int iQuickReset = 1000;
+			if ( m_iSelectWait == 0 )
+				iQuickReset = 0;
+
 			TFD_ZERO( &rfds );						
 			TFD_ZERO( &wfds );
 
@@ -2320,13 +2325,14 @@ namespace Csocket
 					
 					if ( ( pcSock->GetSSL() ) && ( pcSock->GetType() == T::INBOUND ) && ( !pcSock->FullSSLAccept() ) )
 					{
-						tv.tv_usec = 1000;	// just make sure this returns quick incase we still need pending
+						tv.tv_usec = iQuickReset;	// just make sure this returns quick incase we still need pending
 						// try accept on this socket again
 						if ( !pcSock->AcceptSSL() )
 							pcSock->Close();
 
 					} else if ( ( pcSock->IsConnected() ) && ( pcSock->GetSendBuff().empty() ) )
 					{
+						//TODO don't read if bNoRead = true
 						TFD_SET( iRSock, &rfds );
 					
 					} else if ( ( pcSock->GetSSL() ) && ( !pcSock->SslIsEstablished() ) && ( !pcSock->GetSendBuff().empty() ) )
@@ -2342,6 +2348,7 @@ namespace Csocket
 		
 					} else 
 					{
+						//TODO don't read if bNoRead = true
 						TFD_SET( iRSock, &rfds );
 						TFD_SET( iWSock, &wfds );
 						bHasWriteable = true;
@@ -2359,6 +2366,7 @@ namespace Csocket
 		
 				if ( ( pcSock->GetSSL() ) && ( pcSock->GetType() != Csock::LISTENER ) )
 				{
+					//TODO don't read if bNoRead = true
 					if ( pcSock->GetPending() > 0 )
 						SelectSock( mpeSocks, SUCCESS, pcSock );
 				}
@@ -2368,7 +2376,7 @@ namespace Csocket
 			int iSel;
 
 			if ( !mpeSocks.empty() )
-				tv.tv_usec = 1000;	// this won't be a timeout, 1 ms pause to see if anything else is ready (IE if there is SSL data pending, don't wait too long)
+				tv.tv_usec = iQuickReset;	// this won't be a timeout, 1 ms pause to see if anything else is ready (IE if there is SSL data pending, don't wait too long)
 				
 			if ( bHasWriteable )
 				iSel = select(FD_SETSIZE, &rfds, &wfds, NULL, &tv);
