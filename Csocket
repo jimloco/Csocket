@@ -374,7 +374,7 @@ public:
 		int Accept( Cstring & sHost, int & iRPort )
 		{
 			struct sockaddr_in client;
-			socklen_t clen;
+			socklen_t clen = sizeof(struct sockaddr *);
 			
 			int iSock = accept( m_isock , (struct sockaddr *) &client, &clen );
 			
@@ -391,7 +391,7 @@ public:
 				
 				sHost = inet_ntoa( client.sin_addr );
 				iRPort = ntohs( client.sin_port );
-			
+
 				ConnectionFrom( sHost, iRPort );
 
 			}
@@ -749,7 +749,7 @@ public:
 			if ( m_bssl )							
 				bytes = SSL_read( m_ssl, data, len );
 			else
-#endif /* _HAS_SSL */							
+#endif /* _HAS_SSL */
 				bytes = read( m_isock, data, len );
 
 		    if ( bytes == -1 )
