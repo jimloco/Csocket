@@ -744,11 +744,12 @@ public:
 		m_ssl = SSL_new ( m_ssl_ctx );
 		if ( !m_ssl )
 			return( false );
-		
+	
+		// Call for client Verification
 		SSL_set_rfd( m_ssl, m_iReadSock );
 		SSL_set_wfd( m_ssl, m_iWriteSock );
 		SSL_set_accept_state( m_ssl );
-		
+
 		return( true );
 #else
 		return( false );
@@ -1222,6 +1223,38 @@ public:
 			return( SSL_get_peer_certificate( m_ssl ) );
 
 		return( NULL );
+	}
+
+	//!
+	//! Returns The Peers Public Key
+	//!
+	Cstring GetPeerPubKey()
+	{
+		Cstring sKey;
+
+		SSL_SESSION *pSession = GetSSLSession();
+
+		if ( ( pSession ) && ( pSession->peer ) )
+		{
+			EVP_PKEY *pKey = X509_get_pubkey( pSession->peer );
+			if ( pKey )
+			{
+				BIO *bio = BIO_new( BIO_s_mem() );
+				PEM_write_bio_PUBKEY( bio, pKey );
+				int iLen = BIO_pending( bio );
+				if ( iLen > 0 )
+				{
+					unsigned char *pszOutput = (unsigned char *)malloc( iLen + 1 );
+					memset( (unsigned char *)pszOutput, '\0', iLen + 1 );
+					iLen = BIO_read( bio, pszOutput, iLen );
+					sKey.append( (char *)pszOutput, iLen );
+					free( pszOutput );
+				}
+				BIO_free( bio );
+				EVP_PKEY_free( pKey );
+			}
+		} 
+		return( sKey );
 	}
 #endif /* HAVE_LIBSSL */
 
