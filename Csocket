@@ -514,7 +514,11 @@ public:
 		void setWrite( bool b ) { m_bhaswrite = b; }	
 
 		//
-		// tells you that the socket is ready for write, and has yet to be written to
+		// has never been written too, you can easy use the two to find a first case scenario
+		// if ( ( hasWrite() ) && ( !needsWrite() ) )
+		//		first time write
+		//
+		
 		bool needsWrite()
 		{
 			return( m_bNeverWritten );
