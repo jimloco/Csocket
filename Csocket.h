@@ -85,7 +85,7 @@ inline void TFD_CLR( int iSock, fd_set *set )
 	FD_CLR( iSock, set );
 }
 
-#ifdef HAVE_SSL
+#ifdef HAVE_LIBSSL
 inline void SSLErrors()
 {
 	unsigned long iSSLError = 0;
@@ -98,7 +98,7 @@ inline void SSLErrors()
 			WARN( szError );
 	}
 }
-#endif
+#endif /* HAVE_LIBSSL */
 
 inline bool GetHostByName( const Cstring & sHostName, struct in_addr *paddr )
 {
