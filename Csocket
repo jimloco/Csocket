@@ -153,7 +153,7 @@ public:
 		
 		//
 		// Returns sock on success, -1 on failure
-		int Accept()
+		int Accept( Cstring & sHost, int & iRPort )
 		{
 			struct sockaddr_in 	client;
 			socklen_t clen;
@@ -164,8 +164,8 @@ public:
 			{
 				getpeername( m_isock, (struct sockaddr *) &client, &clen );
 				
-				Cstring sHost = inet_ntoa( client.sin_addr );
-				int iRPort = ntohs( client.sin_port );
+				sHost = inet_ntoa( client.sin_addr );
+				iRPort = ntohs( client.sin_port );
 				
 				ConnectionFrom( sHost, iRPort );
 			}
@@ -408,6 +408,8 @@ public:
 		}
 		
 		int GetType() { return( m_iConnType ); }
+		void SetType( int iType ) { m_iConnType = iType; }
+		void SetSock( int iSock ) { m_isock = iSock; }
 		
 		//
 		// Override these functions for an easy interface
@@ -534,7 +536,22 @@ public:
 						bHasWriteable = true;
 					}
 				} else
-					pcSock->Accept();
+				{
+					Cstring sHost;
+					int port;
+					
+					int inSock = pcSock->Accept( sHost, port );
+					
+					if ( inSock != -1 )
+					{	
+						cerr << "New Connection" << endl;
+						// if we have a new sock, then add it
+						T * NewpcSock = new T( sHost, port );
+						NewpcSock->SetType( T::INBOUND );
+						NewpcSock->SetSock( inSock );
+						AddSock( NewpcSock );
+					}
+				}
 			}
 			
 			// now select on them
