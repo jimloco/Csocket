@@ -79,6 +79,14 @@ public:
 #endif /* _HAS_SSL */				
 		}
 
+		typedef enum
+		{
+			OUTBOUND	= 0,
+			LISTENER	= 1,
+			INBOUND		= 2
+			
+		} eConnType;
+		
 		bool Resolve()
 		{
 			char hbuff[2048];
@@ -105,6 +113,8 @@ public:
 			// set it none blocking
 			int fdflags = fcntl (m_isock, F_GETFL, 0);
 			fcntl( m_isock, F_SETFL, fdflags|O_NONBLOCK );
+			
+			m_iConnType = OUTBOUND;
 			
 			// connect
 			connect( m_isock, (struct sockaddr *)&m_address, sizeof( m_address ) );
@@ -309,7 +319,7 @@ public:
 		
 		//
 		// Override these functions for an easy interface
-		// They do nothing yet
+		// 
 		virtual void Connected() {}
 		virtual void Disconnected() {}
 		virtual void ReadData( const char *data, int len ) {}
@@ -319,7 +329,7 @@ public:
 			
 #endif /* _HAS_SSL */				
 private:
-		int			m_isock, m_itimeout, m_iport;
+		int			m_isock, m_itimeout, m_iport, m_iConnType;
 		bool		m_bssl, m_bhaswrite, m_bNeverWritten;
 		Cstring		m_shostname;
 
