@@ -944,7 +944,19 @@ public:
 		//
 		// Get the send buffer
 		const Cstring & GetSendBuff() { return( m_sSend ); }
-		
+
+		//
+		// Get the peer's X509 cert
+#ifdef HAVE_LIBSSL
+		X509 *getX509()
+		{
+			if ( m_ssl )
+				return( SSL_get_peer_certificate( m_ssl ) );
+
+			return( NULL );
+		}
+#endif /* HAVE_LIBSSL */
+
 		//
 		// Set The INBOUND Parent sockname
 		void SetParentSockName( const Cstring & sParentName ) { m_sParentName = sParentName; }
