@@ -5,8 +5,8 @@
 *
 *    CVS Info:
 *       $Author: imaginos $
-*       $Date: 2003/05/10 03:58:21 $
-*       $Revision: 1.15 $
+*       $Date: 2003/05/10 16:42:48 $
+*       $Revision: 1.16 $
 */
 
 #ifndef _HAS_CSOCKET_
@@ -260,12 +260,11 @@ public:
 			int err;
 			if ( gethostbyname_r( m_shostname.c_str(), &m_hentbuff, hbuff, 2048, &m_hent, &err ) != 0 )
 				return( false );
-#endif /* __linux__ */
-#if defined(__FreeBSD__) || defined(__sun)
+#else
 			m_hent = gethostbyname( m_shostname.c_str() );
 			if ( !m_hent )
 				return( false );
-#endif /* __FreeBSD__ || __sun */
+#endif /* __linux__ */
 			
 			return( true );
 			
@@ -294,13 +293,18 @@ public:
 			if ( !sBindHost.empty() )
 			{
 				struct sockaddr_in vh;
+#ifdef __linux__
 				char hbuff[2048];
 				int iErr;
 				memset( (char *)hbuff, '\0', 2048 );
-				struct hostent *h, hentbuff;
-				
+				struct hostent hentbuff;
+				struct hostent *h;
 				if ( gethostbyname_r( sBindHost.c_str(), &hentbuff, hbuff, 2048, &h, &iErr ) != 0 )
 					return( false );
+#else
+				struct hostent *h;
+				h = gethostbyname( sBindHost.c_str() );
+#endif /* __linux__ */
 					
 				if ( h )
 				{
@@ -324,7 +328,8 @@ public:
 						ERROR( "Failure to bind to " + sBindHost );
 						return( false );
 					}
-				}
+				} else
+					return( false );
 			}
 			
 			// set it none blocking
