@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.109 $
+* $Revision: 1.110 $
 */
 
 #ifndef _HAS_CSOCKET_
@@ -1286,6 +1286,7 @@ namespace Csocket
 					CS_STRING sBuff = m_sbuffer.substr( 0, iFind + 1 );	// read up to(including) the newline
 					m_sbuffer.erase( 0, iFind + 1 );					// erase past the newline
 					ReadLine( sBuff );
+					iStartPos = 0; // reset this back to 0, since we need to look for the next newline here.
 
 				} else
 					break;
