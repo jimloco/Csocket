@@ -5,8 +5,8 @@
 *
 *    CVS Info:
 *       $Author: imaginos $
-*       $Date: 2003/09/06 03:06:04 $
-*       $Revision: 1.28 $
+*       $Date: 2003/09/06 09:25:10 $
+*       $Revision: 1.29 $
 */
 
 #ifndef _HAS_CSOCKET_
@@ -993,7 +993,12 @@ public:
 				break;
 		}
 	}
-	
+
+	//! This gives access to the internal buffer, if your
+	//! not going to use GetLine(), then you may want to clear this out
+	//! (if its binary data and not many '\n'
+	Cstring & GetInternalByffer() { return( m_sbuffer ); }	
+
 	//! Returns the connection type from enum eConnType
 	int GetType() { return( m_iConnType ); }
 	void SetType( int iType ) { m_iConnType = iType; }
