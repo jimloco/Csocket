@@ -761,6 +761,9 @@ public:
 		void ResetTimer() { m_iTcount = 0; }
 		
 		//
+		// this timeout isn't just connection timeout, but also timeout on
+		// NOT recieving data, to disable this set it to 0
+		// then the normal TCP timeout will apply (basically TCP will kill a dead connection)
 		// Set the timeout, set to 0 to never timeout
 		void SetTimeout( int iTimeout ) { m_itimeout = iTimeout; }
 		
@@ -902,7 +905,7 @@ public:
 		virtual void Connected() {}
 		// Disconnected event
 		virtual void Disconnected() {}
-		// Timeout Event
+		// Timeout
 		virtual void Timeout() {}
 		// Data Ready for Read Event
 		virtual void ReadData( const char *data, int len ) {}
@@ -1109,16 +1112,17 @@ public:
 
 			for( unsigned int i = 0; i < size(); i++ )
 			{
-				// listener is just a placeholder, it doesn't have crons attached, it should never close
-				if ( (*this)[i]->GetType() != T::LISTENER )
+
+				if ( (*this)[i]->isClosed() )
 				{
-					if ( (*this)[i]->isClosed() )
-						DestroySock( (*this)[i] );
-					else
-					{
-						// call the Cron handler here
-						(*this)[i]->Cron();
-					}
+					if ( (*this)[i]->GetType() == T::LISTENER )
+						cerr << "Closing Listener" << endl;
+
+					DestroySock( (*this)[i] );
+				} else
+				{
+					// call the Cron handler here
+					(*this)[i]->Cron();
 				}
 			}
 
