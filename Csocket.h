@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.111 $
+* $Revision: 1.112 $
 */
 
 #ifndef _HAS_CSOCKET_
@@ -148,11 +148,12 @@ namespace Csocket
 	}
 
 #ifdef HAVE_LIBSSL
-	inline void SSLErrors()
+	inline void SSLErrors( const char *filename, u_int iLineNum )
 	{
 		unsigned long iSSLError = 0;
 		while( ( iSSLError = ERR_get_error() ) != 0 )
 		{
+			CS_DEBUG( "at " << filename << ":" << iLineNum );
 			char szError[512];
 			memset( (char *) szError, '\0', 512 );
 			ERR_error_string_n( iSSLError, szError, 511 );
@@ -682,7 +683,6 @@ namespace Csocket
 			if ( !m_ssl )
 				if ( !SSLServerSetup() )
 					return( false );
-				
 			
 			int err = SSL_accept( m_ssl );
 
@@ -699,7 +699,7 @@ namespace Csocket
 			if ( ( sslErr == SSL_ERROR_WANT_READ ) || ( sslErr == SSL_ERROR_WANT_WRITE ) )
 				return( true );
 
-			SSLErrors();
+			SSLErrors( __FILE__, __LINE__ );
 
 #endif /* HAVE_LIBSSL */
 			
@@ -763,13 +763,13 @@ namespace Csocket
 				if ( SSL_CTX_use_certificate_file( m_ssl_ctx, m_sPemFile.c_str() , SSL_FILETYPE_PEM ) <= 0 )
 				{
 					CS_DEBUG( "Error with PEM file [" << m_sPemFile << "]" );
-					SSLErrors();
+					SSLErrors( __FILE__, __LINE__ );
 				}
 			
 				if ( SSL_CTX_use_PrivateKey_file( m_ssl_ctx, m_sPemFile.c_str(), SSL_FILETYPE_PEM ) <= 0 )
 				{
 					CS_DEBUG( "Error with PEM file [" << m_sPemFile << "]" );
-					SSLErrors();
+					SSLErrors( __FILE__, __LINE__ );
 				}
 			}
 			
@@ -850,14 +850,14 @@ namespace Csocket
 			if ( SSL_CTX_use_certificate_file( m_ssl_ctx, m_sPemFile.c_str() , SSL_FILETYPE_PEM ) <= 0 )
 			{
 				CS_DEBUG( "Error with PEM file [" << m_sPemFile << "]" );
-				SSLErrors();
+				SSLErrors( __FILE__, __LINE__ );
 				return( false );
 			}
 			
 			if ( SSL_CTX_use_PrivateKey_file( m_ssl_ctx, m_sPemFile.c_str(), SSL_FILETYPE_PEM ) <= 0 )
 			{
 				CS_DEBUG( "Error with PEM file [" << m_sPemFile << "]" );
-				SSLErrors();
+				SSLErrors( __FILE__, __LINE__ );
 				return( false );
 			}
 			
@@ -1031,7 +1031,7 @@ namespace Csocket
 						
 					case SSL_ERROR_SSL:
 					{
-						SSLErrors();
+						SSLErrors( __FILE__, __LINE__ );
 						return( false );
 					}
 				}
