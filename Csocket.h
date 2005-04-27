@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.117 $
+* $Revision: 1.118 $
 */
 
 #ifndef _HAS_CSOCKET_
@@ -256,7 +256,7 @@ namespace Csocket
 #endif /* __linux__ */
 
 		if ( bRet )
-			bcopy( hent->h_addr_list[0], &paddr->s_addr, 4 );
+			memcpy( &paddr->s_addr, hent->h_addr_list[0], 4 );
 
 		return( bRet );
 	}
