@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.120 $
+* $Revision: 1.121 $
 */
 
 #ifndef _HAS_CSOCKET_
@@ -69,6 +69,7 @@
 #include <set>
 #include <map>
 
+#include "defines.h"	// require this as a general rule, most projects have a defines.h or the like
 
 #ifndef CS_STRING
 #	ifdef _HAS_CSTRING_
