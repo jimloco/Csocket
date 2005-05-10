@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.3 $
+* $Revision: 1.4 $
 */
 
 #include "Csocket.h"
@@ -264,14 +264,20 @@ Csock *Csock::GetSockObj( const CS_STRING & sHostname, int iPort )
 	return( NULL );
 }
 
+#ifdef _WIN32
+#define CS_CLOSE closesocket
+#else
+#define CS_CLOSE close
+#endif /* _WIN32 */
+
 Csock::~Csock()
 {
 	if ( m_iReadSock != m_iWriteSock )
 	{
-		close( m_iReadSock );
-		close( m_iWriteSock );
+		CS_CLOSE( m_iReadSock );
+		CS_CLOSE( m_iWriteSock );
 	} else
-		close( m_iReadSock );
+		CS_CLOSE( m_iReadSock );
 
 	m_iReadSock = -1;
 	m_iWriteSock = -1;
