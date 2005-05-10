@@ -28,8 +28,10 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.121 $
+* $Revision: 1.122 $
 */
+
+// note to compile with win32 need to link to winsock2, using gcc its -lws2_32
 
 #ifndef _HAS_CSOCKET_
 #define _HAS_CSOCKET_
@@ -37,19 +39,31 @@
 #include <unistd.h>
 #include <sys/time.h>
 #include <sys/types.h>
-#include <sys/socket.h>
 #include <sys/fcntl.h>
 #include <sys/file.h>
+
+#ifndef _WIN32
 #include <netinet/in.h>
 #include <arpa/inet.h>
-#include <stdlib.h>
+#include <sys/socket.h>
+#include <sys/ioctl.h>
 #include <netdb.h>
+#else
+
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#include <sys/timeb.h>
+#define ECONNREFUSED WSAECONNREFUSED
+#define EINPROGRESS WSAEINPROGRESS
+#define ETIMEDOUT WSAETIMEDOUT
+
+#endif /* _WIN32 */
+
+#include <stdlib.h>
 #include <errno.h>
 #include <string.h>
 #include <ctype.h>
 #include <assert.h>
-#include <sys/ioctl.h>
-#include <sys/timeb.h>
 
 #ifdef HAVE_LIBSSL
 #include <openssl/ssl.h>
@@ -118,18 +132,44 @@ bool InitSSL( ECompType eCompressionType = CT_NONE );
 void SSLErrors( const char *filename, u_int iLineNum );
 #endif /* HAVE_LIBSSL */
 
+// TODO need to make this sock specific via getsockopt
+inline int GetSockError()
+{
+#ifdef _WIN32
+	return( WSAGetLastError() );
+#else
+	return( errno );
+#endif /* _WIN32 */
+}
+
+#ifdef _WIN32
+inline bool InitWin32()
+{
+	WSADATA wsaData;
+	int iResult = WSAStartup( MAKEWORD( 2, 2 ), &wsaData );
+	if( iResult != NO_ERROR )
+		return( false );
+
+	return( true );
+}
+inline void ShutdownWin32()
+{
+	WSACleanup();
+}
+#endif /* _WIN32 */
+
 // wrappers for FD_SET and such to work in templates
 inline void TFD_ZERO( fd_set *set )
 {
 	FD_ZERO( set );
 }
 
-inline void TFD_SET( int iSock, fd_set *set )
+inline void TFD_SET( u_int iSock, fd_set *set )
 {
 	FD_SET( iSock, set );
 }
 
-inline bool TFD_ISSET( int iSock, fd_set *set )
+inline bool TFD_ISSET( u_int iSock, fd_set *set )
 {
 	if ( FD_ISSET( iSock, set ) )
 		return( true );
@@ -137,7 +177,7 @@ inline bool TFD_ISSET( int iSock, fd_set *set )
 	return( false );
 }
 
-inline void TFD_CLR( int iSock, fd_set *set )
+inline void TFD_CLR( u_int iSock, fd_set *set )
 {
 	FD_CLR( iSock, set );
 }
@@ -764,7 +804,7 @@ public:
 
 		if ( !pcSock->Connect( sBindHost ) )
 		{
-			if ( errno == ECONNREFUSED )
+			if ( GetSockError() == ECONNREFUSED )
 				pcSock->ConnectionRefused();
 
 			CS_Delete( pcSock );
@@ -776,7 +816,7 @@ public:
 		{
 			if ( !pcSock->ConnectSSL() )
 			{
-				if ( errno == ECONNREFUSED )
+				if ( GetSockError() == ECONNREFUSED )
 					pcSock->ConnectionRefused();
 
 				CS_Delete( pcSock );
@@ -911,7 +951,7 @@ public:
 
 							case T::READ_ERR:
 							{
-								pcSock->SockError( errno );
+								pcSock->SockError( GetSockError() );
 								DelSockByAddr( pcSock );
 								break;
 							}

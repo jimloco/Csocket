@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.2 $
+* $Revision: 1.3 $
 */
 
 #include "Csocket.h"
@@ -39,6 +39,7 @@ using namespace std;
 namespace Csocket
 {
 #endif /* _NO_CSOCKET_NS */
+
 
 #ifdef HAVE_LIBSSL
 bool InitSSL( ECompType eCompressionType )
@@ -96,12 +97,12 @@ void SSLErrors( const char *filename, u_int iLineNum )
 
 void __Perror( const CS_STRING & s )
 {
-#ifdef __sun
-	CS_DEBUG( s << ": " << strerror( errno ) );
+#if defined(__sun) || defined(_WIN32)
+	CS_DEBUG( s << ": " << strerror( GetSockError() ) );
 #else
 	char buff[512];
 	memset( (char *)buff, '\0', 512 );
-	if ( strerror_r( errno, buff, 511 ) == 0 )
+	if ( strerror_r( GetSockError(), buff, 511 ) == 0 )
 		CS_DEBUG( s << ": " << buff );
 	else
 		CS_DEBUG( s << ": Unknown Error Occured" );
@@ -110,11 +111,18 @@ void __Perror( const CS_STRING & s )
 
 unsigned long long millitime()
 {
-	struct timeval tv;
 	unsigned long long iTime = 0;
+#ifdef _WIN32
+	struct timeb tm;
+	ftime( &tm );
+	iTime = tm.time * 1000;
+	iTime += tm.millitm;
+#else
+	struct timeval tv;
 	gettimeofday( &tv, NULL );
 	iTime = (unsigned long long )tv.tv_sec * 1000;
 	iTime += ( (unsigned long long)tv.tv_usec / 1000 );
+#endif /* _WIN32 */
 	return( iTime );
 }
 
@@ -374,7 +382,11 @@ bool Csock::Connect( const CS_STRING & sBindHost )
 				bBound = true;
 				break;
 			}
+#ifdef _WIN32
+			Sleep( 5000 );
+#else
 			usleep( 5000 );	// quick pause, common lets BIND!)(!*!
+#endif /* _WIN32 */
 		}
 
 		if ( !bBound )
@@ -385,24 +397,35 @@ bool Csock::Connect( const CS_STRING & sBindHost )
 	}
 
 	// set it none blocking
+#ifdef _WIN32
+	u_long iOpts = 1;
+	ioctlsocket( m_iReadSock, FIONBIO, &iOpts );
+#else
 	int fdflags = fcntl (m_iReadSock, F_GETFL, 0);
 	fcntl( m_iReadSock, F_SETFL, fdflags|O_NONBLOCK );
+#endif /* _WIN32 */
+
 	m_iConnType = OUTBOUND;
 
 	// connect
 	int ret = connect( m_iReadSock, (struct sockaddr *)&m_address, sizeof( m_address ) );
-	if ( ( ret == -1 ) && ( errno != EINPROGRESS ) )
+	if ( ( ret == -1 ) && ( GetSockError() != EINPROGRESS ) )
 	{
-		CS_DEBUG( "Connect Failed. ERRNO [" << errno << "] FD [" << m_iReadSock << "]" );
+		CS_DEBUG( "Connect Failed. ERRNO [" << GetSockError() << "] FD [" << m_iReadSock << "]" );
 		return( false );
 	}
 
 	if ( m_bBLOCK )
 	{
+#ifdef _WIN32
+		u_long iOpts = 0;
+		ioctlsocket( m_iReadSock, FIONBIO, &iOpts );
+#else
 		// unset the flags afterwords, rather than have connect block
 		int fdflags = fcntl (m_iReadSock, F_GETFL, 0);
 		fdflags &= ~O_NONBLOCK;
 		fcntl( m_iReadSock, F_SETFL, fdflags );
+#endif /* _WIN32 */
 	}
 
 	return( true );
@@ -429,7 +452,7 @@ int Csock::WriteSelect()
 
 	if ( ret == -1 )
 	{
-		if ( errno == EINTR )
+		if ( GetSockError() == EINTR )
 			return( SEL_EAGAIN );
 		else
 			return( SEL_ERR );
@@ -459,7 +482,7 @@ int Csock::ReadSelect()
 
 	if ( ret == -1 )
 	{
-		if ( errno == EINTR )
+		if ( GetSockError() == EINTR )
 			return( SEL_EAGAIN );
 		else
 			return( SEL_ERR );
@@ -486,7 +509,8 @@ bool Csock::Listen( int iPort, int iMaxConns, const CS_STRING & sBindHost, u_int
 			return( false );
 	}
 	m_address.sin_port = htons( iPort );
-	bzero(&(m_address.sin_zero), 8);
+	memset( &(m_address.sin_zero), '\0', sizeof( m_address.sin_zero ) );
+// TODO	bzero(&(m_address.sin_zero), 8);
 
 	if ( bind( m_iReadSock, (struct sockaddr *) &m_address, sizeof( m_address ) ) == -1 )
 		return( false );
@@ -497,8 +521,13 @@ bool Csock::Listen( int iPort, int iMaxConns, const CS_STRING & sBindHost, u_int
 	if ( !m_bBLOCK )
 	{
 		// set it none blocking
+#ifdef _WIN32
+		u_long iOpts = 1;
+		ioctlsocket( m_iReadSock, FIONBIO, &iOpts );
+#else
 		int fdflags = fcntl ( m_iReadSock, F_GETFL, 0);
 		fcntl( m_iReadSock, F_SETFL, fdflags|O_NONBLOCK );
+#endif /* _WIN32 */
 	}
 
 	return( true );
@@ -515,8 +544,13 @@ int Csock::Accept( CS_STRING & sHost, int & iRPort )
 		if ( !m_bBLOCK )
 		{
 			// make it none blocking
+#ifdef _WIN32
+			u_long iOpts = 1;
+			ioctlsocket( m_iReadSock, FIONBIO, &iOpts );
+#else
 			int fdflags = fcntl (iSock, F_GETFL, 0);
 			fcntl( iSock, F_SETFL, fdflags|O_NONBLOCK );
+#endif /* _WIN32 */
 		}
 
 		getpeername( iSock, (struct sockaddr *) &client, &clen );
@@ -835,7 +869,7 @@ bool Csock::Write( const char *data, int len )
 
 		int iErr = SSL_write( m_ssl, m_sSSLBuffer.data(), m_sSSLBuffer.length() );
 
-		if ( ( iErr < 0 ) && ( errno == ECONNREFUSED ) )
+		if ( ( iErr < 0 ) && ( GetSockError() == ECONNREFUSED ) )
 		{
 			// If ret == -1, the underlying BIO reported an I/O error (man SSL_get_error)
 			ConnectionRefused();
@@ -885,16 +919,25 @@ bool Csock::Write( const char *data, int len )
 		return( true );
 	}
 #endif /* HAVE_LIBSSL */
+#ifdef _WIN32
+	int bytes = send( m_iWriteSock, m_sSend.data(), iBytesToSend, 0 );
+#else
 	int bytes = write( m_iWriteSock, m_sSend.data(), iBytesToSend );
+#endif /* _WIN32 */
 
-	if ( ( bytes == -1 ) && ( errno == ECONNREFUSED ) )
+	if ( ( bytes == -1 ) && ( GetSockError() == ECONNREFUSED ) )
 	{
 		ConnectionRefused();
 		return( false );
 	}
 
-	if ( ( bytes <= 0 ) && ( errno != EAGAIN ) )
+#ifdef _WIN32
+	if ( ( bytes <= 0 ) && ( GetSockError() != WSAEWOULDBLOCK ) )
 		return( false );
+#else
+	if ( ( bytes <= 0 ) && ( GetSockError() != EAGAIN ) )
+		return( false );
+#endif /* _WIN32 */
 
 	// delete the bytes we sent
 	if ( bytes > 0 )
@@ -939,18 +982,27 @@ int Csock::Read( char *data, int len )
 		bytes = SSL_read( m_ssl, data, len );
 	else
 #endif /* HAVE_LIBSSL */
+#ifdef _WIN32
+		bytes = recv( m_iReadSock, data, len, 0 );
+#else
 		bytes = read( m_iReadSock, data, len );
-
+#endif /* _WIN32 */
 	if ( bytes == -1 )
 	{
-		if ( errno == ECONNREFUSED )
+		if ( GetSockError() == ECONNREFUSED )
 			return( READ_CONNREFUSED );
 
-		if ( errno == ETIMEDOUT )
+		if ( GetSockError() == ETIMEDOUT )
 			return( READ_TIMEDOUT );
 
-		if ( ( errno == EINTR ) || ( errno == EAGAIN ) )
+		if ( ( GetSockError() == EINTR ) || ( GetSockError() == EAGAIN ) )
 			return( READ_EAGAIN );
+
+#ifdef _WIN32
+		if ( GetSockError() == WSAEWOULDBLOCK )
+			return( READ_EAGAIN );
+#endif /* _WIN32 */
+
 #ifdef HAVE_LIBSSL
 		if ( m_bssl )
 		{
@@ -1167,13 +1219,23 @@ void Csock::BlockIO( bool bBLOCK ) { m_bBLOCK = bBLOCK; }
 
 void Csock::NonBlockingIO()
 {
+#ifdef _WIN32
+	u_long iOpts = 1;
+	ioctlsocket( m_iReadSock, FIONBIO, &iOpts );
+#else
 	int fdflags = fcntl ( m_iReadSock, F_GETFL, 0);
 	fcntl( m_iReadSock, F_SETFL, fdflags|O_NONBLOCK );
+#endif /* _WIN32 */
 
 	if ( m_iReadSock != m_iWriteSock )
 	{
+#ifdef _WIN32
+		iOpts = 1;
+		ioctlsocket( m_iReadSock, FIONBIO, &iOpts );
+#else
 		fdflags = fcntl ( m_iWriteSock, F_GETFL, 0);
 		fcntl( m_iWriteSock, F_SETFL, fdflags|O_NONBLOCK );
+#endif /* _WIN32 */
 	}
 
 	BlockIO( false );
@@ -1461,7 +1523,7 @@ int Csock::SOCKET( bool bListen )
 	{
 		const int on = 1;
 
-		if ( setsockopt( iRet, SOL_SOCKET, SO_REUSEADDR, &on, sizeof( on ) ) != 0 )
+		if ( setsockopt( iRet, SOL_SOCKET, SO_REUSEADDR, (char *)&on, sizeof( on ) ) != 0 )
 			PERROR( "setsockopt" );
 
 	} else if ( iRet == -1 )
