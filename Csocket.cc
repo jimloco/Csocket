@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.4 $
+* $Revision: 1.5 $
 */
 
 #include "Csocket.h"
@@ -51,6 +51,7 @@ bool InitSSL( ECompType eCompressionType )
 		return( false );
 	}
 
+#ifndef _WIN32
 	if ( access( "/dev/urandom", R_OK ) == 0 )
 		RAND_load_file( "/dev/urandom", 1024 );
 	else if( access( "/dev/random", R_OK ) == 0 )
@@ -60,6 +61,7 @@ bool InitSSL( ECompType eCompressionType )
 		CS_DEBUG( "Unable to locate entropy location! Tried /dev/urandom and /dev/random" );
 		return( false );
 	}
+#endif /* _WIN32 */
 
 	COMP_METHOD *cm = NULL;
 
@@ -793,8 +795,13 @@ bool Csock::ConnectSSL( const CS_STRING & sBindhost )
 
 	if ( m_bBLOCK )
 	{
+#ifdef _WIN32
+		u_long iOpts = 1;
+		ioctlsocket( m_iReadSock, FIONBIO, &iOpts );
+#else
 		int fdflags = fcntl ( m_iReadSock, F_GETFL, 0);
 		fcntl( m_iReadSock, F_SETFL, fdflags|O_NONBLOCK );
+#endif /* _WIN32 */
 	}
 
 	int iErr = SSL_connect( m_ssl );
@@ -810,9 +817,14 @@ bool Csock::ConnectSSL( const CS_STRING & sBindhost )
 	if ( m_bBLOCK )
 	{
 		// unset the flags afterwords, rather then have connect block
+#ifdef _WIN32
+		u_long iOpts = 0;
+		ioctlsocket( m_iReadSock, FIONBIO, &iOpts );
+#else
 		int fdflags = fcntl (m_iReadSock, F_GETFL, 0);
 		fdflags &= ~O_NONBLOCK;
 		fcntl( m_iReadSock, F_SETFL, fdflags );
+#endif /* _WIN32 */
 
 	}
 
