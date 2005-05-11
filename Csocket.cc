@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.5 $
+* $Revision: 1.6 $
 */
 
 #include "Csocket.h"
@@ -417,7 +417,12 @@ bool Csock::Connect( const CS_STRING & sBindHost )
 
 	// connect
 	int ret = connect( m_iReadSock, (struct sockaddr *)&m_address, sizeof( m_address ) );
+#ifndef _WIN32
 	if ( ( ret == -1 ) && ( GetSockError() != EINPROGRESS ) )
+#else
+	if ( ( ret == -1 ) && ( GetSockError() != EINPROGRESS ) && ( GetSockError() != WSAEWOULDBLOCK ) )
+#endif /* _WIN32 */
+
 	{
 		CS_DEBUG( "Connect Failed. ERRNO [" << GetSockError() << "] FD [" << m_iReadSock << "]" );
 		return( false );
