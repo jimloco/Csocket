@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.122 $
+* $Revision: 1.123 $
 */
 
 // note to compile with win32 need to link to winsock2, using gcc its -lws2_32
@@ -1050,6 +1050,16 @@ public:
 	{
 		for( unsigned int i = 0; i < this->size(); i++ )
 			if ( (*this)[i]->GetSockName() == sName )
+				return( (*this)[i] );
+
+		return( NULL );
+	}
+
+	//! returns a pointer to the FIRST sock found by filedescriptor or NULL on no match
+	virtual T * FindSockByFD( int iFd )
+	{
+		for( unsigned int i = 0; i < this->size(); i++ )
+			if ( ( (*this)[i]->GetRSock() == iFD ) || ( (*this)[i]->GetWSock() == iFD ) )
 				return( (*this)[i] );
 
 		return( NULL );
