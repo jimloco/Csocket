@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.6 $
+* $Revision: 1.7 $
 */
 
 #include "Csocket.h"
@@ -261,7 +261,7 @@ Csock::Csock( const CS_STRING & sHostname, int iport, int itimeout )
 }
 
 // override this for accept sockets
-Csock *Csock::GetSockObj( const CS_STRING & sHostname, int iPort )
+Csock *Csock::GetSockObj( const CS_STRING & sHostname, int iPort, int iNewSockFD )
 {
 	return( NULL );
 }

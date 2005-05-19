@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.123 $
+* $Revision: 1.124 $
 */
 
 // note to compile with win32 need to link to winsock2, using gcc its -lws2_32
@@ -83,7 +83,7 @@
 #include <set>
 #include <map>
 
-#include "defines.h"	// require this as a general rule, most projects have a defines.h or the like
+#include "defines.h" // require this as a general rule, most projects have a defines.h or the like
 
 #ifndef CS_STRING
 #	ifdef _HAS_CSTRING_
@@ -634,6 +634,8 @@ public:
 	//! set the value of m_bEnableReadLine to true, we don't want to store a buffer for ReadLine, unless we want it
 	void EnableReadLine();
 	void DisableReadLine();
+	//! returns the value of m_bEnableReadLine, if ReadLine is enabled
+	bool HasReadLine() const { return( m_bEnableReadLine ); }
 
 	/**
 	 * Override these functions for an easy interface when using the Socket Manager
@@ -1056,7 +1058,7 @@ public:
 	}
 
 	//! returns a pointer to the FIRST sock found by filedescriptor or NULL on no match
-	virtual T * FindSockByFD( int iFd )
+	virtual T * FindSockByFD( int iFD )
 	{
 		for( unsigned int i = 0; i < this->size(); i++ )
 			if ( ( (*this)[i]->GetRSock() == iFD ) || ( (*this)[i]->GetWSock() == iFD ) )
