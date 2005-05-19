@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.12 $
+* $Revision: 1.13 $
 */
 
 #include "Csocket.h"
@@ -1568,6 +1568,7 @@ int Csock::DNSLookup( bool bLookupBindHost )
 		// since GetHostByName() eventually HAS to return, try forever
 		//
 		// need to investigate killing a thread if our Csock class goes away, should be simple
+		// probably use pthread_cancel
 	}
 	return( ETIMEDOUT );
 #endif /* _REENTRANT */
