@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.14 $
+* $Revision: 1.15 $
 */
 
 #include "Csocket.h"
@@ -40,7 +40,86 @@ namespace Csocket
 {
 #endif /* _NO_CSOCKET_NS */
 
+#ifdef ___DO_THREADS
+CSMutex::CSMutex() 
+{
+	pthread_mutexattr_init( &m_mattrib );
+	if ( pthread_mutexattr_settype( &m_mattrib, PTHREAD_MUTEX_FAST_NP ) != 0 )
+		throw CS_STRING( "ERROR: pthread_mutexattr_settype failed!" );
+		
+	if ( pthread_mutex_init( &m_mutex, &m_mattrib ) != 0 )
+		throw CS_STRING( "ERROR: pthread_mutex_init failed!" );
+}
 
+CSMutex::~CSMutex() 
+{
+	pthread_mutexattr_destroy( &m_mattrib );
+	pthread_mutex_destroy( &m_mutex );
+}
+
+bool CSThread::start()
+{
+	// mark the job as running
+	lock();
+	m_eStatus = RUNNING;
+	unlock();
+
+	pthread_attr_t attr;
+	if ( pthread_attr_init( &attr ) != 0 )
+	{
+		WARN( "pthread_attr_init failed" );
+		lock();
+		m_eStatus = FINISHED;
+		unlock();
+		return( false );
+	}
+
+	if ( pthread_attr_setdetachstate( &attr, PTHREAD_CREATE_DETACHED ) != 0 )
+	{
+		WARN( "pthread_attr_setdetachstate failed" );
+		lock();
+		m_eStatus = FINISHED;
+		unlock();
+		return( false );
+	}
+
+	int iRet = pthread_create( &m_ppth, &attr, start_thread, this );
+	if ( iRet != 0 )
+	{
+		WARN( "pthread_create failed " );
+		lock();
+		m_eStatus = FINISHED;
+		unlock();
+		return( false );
+	}
+
+	return( true );
+}		
+
+void CSThread::wait()
+{
+	while( true )
+	{
+		lock();
+		EStatus e = Status();
+		unlock();
+		if ( e == FINISHED )
+			break;
+		usleep( 100 );
+	}
+}
+
+void *CSThread::start_thread( void *args )
+{
+	CSThread *curThread = (CSThread *)args;
+	curThread->run();
+	curThread->lock();
+	curThread->SetStatus( CSThread::FINISHED );
+	curThread->unlock();
+	pthread_exit( NULL );   
+}
+
+#endif /* ___DO_THREADS */
 #ifdef HAVE_LIBSSL
 bool InitSSL( ECompType eCompressionType )
 {
@@ -162,7 +241,7 @@ int GetHostByName( const CS_STRING & sHostName, struct in_addr *paddr, u_int iNu
 #endif /* __linux__ */
 
 	if ( iReturn == 0 )
-		memcpy( &paddr->s_addr, hent->h_addr_list[0], 4 );
+		memcpy( &paddr->s_addr, hent->h_addr_list[0], sizeof( paddr->s_addr ) );
 
 	return( iReturn );
 }
@@ -270,6 +349,14 @@ Csock *Csock::GetSockObj( const CS_STRING & sHostname, int iPort )
 
 Csock::~Csock()
 {
+#ifdef ___DO_THREADS
+	m_cResolver.lock();
+	CDNSResolver::EStatus eStatus = m_cResolver.Status();
+	m_cResolver.unlock();
+	if ( eStatus == CDNSResolver::RUNNING )
+		m_cResolver.cancel();
+#endif /* __DO_THREADS_ */
+
 	if ( m_iReadSock != m_iWriteSock )
 	{
 		CS_CLOSE( m_iReadSock );
@@ -352,7 +439,6 @@ Csock & Csock::operator<<( double i )
 	return( *this );
 }
 
-// TODO change sBindHost to sBindIP
 bool Csock::Connect( const CS_STRING & sBindHost, bool bSkipSetup )
 {
 	if ( !bSkipSetup )
@@ -363,7 +449,7 @@ bool Csock::Connect( const CS_STRING & sBindHost, bool bSkipSetup )
 		int iDNSRet = ETIMEDOUT;
 		while( true )
 		{
-			iDNSRet = DNSLookup();
+			iDNSRet = DNSLookup( DNS_VHOST );
 			if ( iDNSRet == EAGAIN )
 				continue;
 
@@ -380,7 +466,7 @@ bool Csock::Connect( const CS_STRING & sBindHost, bool bSkipSetup )
 			bool bBound = false;
 			for( int a = 0; a < 3 && !bBound; a++ )
 			{
-				if ( Bind() )
+				if ( SetupVHost() )
 					bBound = true;
 #ifdef _WIN32
 				Sleep( 5000 );
@@ -406,7 +492,7 @@ bool Csock::Connect( const CS_STRING & sBindHost, bool bSkipSetup )
 	fcntl( m_iReadSock, F_SETFL, fdflags|O_NONBLOCK );
 #endif /* _WIN32 */
 
-	m_iConnType = OUTBOUND; // TODO do this in the initial setup
+	m_iConnType = OUTBOUND;
 
 	// connect
 	int ret = connect( m_iReadSock, (struct sockaddr *)&m_address, sizeof( m_address ) );
@@ -500,7 +586,6 @@ int Csock::ReadSelect()
 	return( SEL_OK );
 }
 
-// TODO change sBindHost to sBindIP
 bool Csock::Listen( int iPort, int iMaxConns, const CS_STRING & sBindHost, u_int iTimeout )
 {
 	m_iReadSock = m_iWriteSock = SOCKET( true );
@@ -517,7 +602,6 @@ bool Csock::Listen( int iPort, int iMaxConns, const CS_STRING & sBindHost, u_int
 		m_address.sin_addr.s_addr = htonl( INADDR_ANY );
 	else
 	{
-		// TODO use gethostbyattr() instead
 		if ( GetHostByName( sBindHost, &(m_address.sin_addr) ) != 0 )
 			return( false );
 	}
@@ -1518,14 +1602,14 @@ int Csock::GetPending()
 #endif /* HAVE_LIBSSL */
 }
 
-int Csock::DNSLookup( bool bLookupBindHost )
+int Csock::DNSLookup( EDNSLType eDNSLType )
 {
-	if ( bLookupBindHost )
+	if ( eDNSLType == DNS_VHOST )
 	{
 		if ( m_sBindHost.empty() )
 		{
 			if ( m_eConState != CST_OK )
-				m_eConState = CST_BIND;
+				m_eConState = CST_BINDVHOST;
 			return( 0 );
 		}
 
@@ -1537,9 +1621,41 @@ int Csock::DNSLookup( bool bLookupBindHost )
 // if we are set to _REENTRANT then use that class to do dns lookups for this socket
 //
 
-#ifndef _REENTRANT
+#ifdef ___DO_THREADS
+	// TODO
+	if ( m_iDNSTryCount == 0 )
+	{
+		m_cResolver.Lookup( ( eDNSLType == DNS_VHOST ) ? m_sBindHost : m_shostname );
+		m_iDNSTryCount++;
+		return( EAGAIN );
+	}
+   
+	m_cResolver.lock();
+	CDNSResolver::EStatus e = m_cResolver.Status();
+	m_cResolver.unlock();
+	if ( e == CDNSResolver::FINISHED )
+	{
+		m_iDNSTryCount = 0;
+		if ( m_cResolver.Suceeded() )
+		{
+			if ( eDNSLType == DNS_VHOST )
+				memcpy( &(m_bindhost.sin_addr), m_cResolver.GetAddr(), sizeof( m_bindhost.sin_addr ) );
+			else
+				memcpy( &(m_address.sin_addr), m_cResolver.GetAddr(), sizeof( m_address.sin_addr ) );
+
+			if ( m_eConState != CST_OK )
+				m_eConState = ( ( eDNSLType == DNS_VHOST ) ? CST_BINDVHOST : CST_VHOSTDNS );
+
+			return( 0 );
+		}
+
+		return( ETIMEDOUT );
+	}
+	return( EAGAIN );
+	
+#else
 	int iRet;
-	if ( bLookupBindHost ) // TODO change bindhost to use gethostbyattr and force an ip
+	if ( eDNSLType == DNS_VHOST )
 		iRet = GetHostByName( m_sBindHost, &(m_bindhost.sin_addr), 1 );
 	else
 		iRet = GetHostByName( m_shostname, &(m_address.sin_addr), 1 );
@@ -1547,7 +1663,7 @@ int Csock::DNSLookup( bool bLookupBindHost )
 	if ( iRet == 0 )
 	{
 		if ( m_eConState != CST_OK )
-			m_eConState = ( bLookupBindHost ? CST_BIND : CST_BINDDNS );
+			m_eConState = ( ( eDNSLType == DNS_VHOST ) ? CST_BINDVHOST : CST_VHOSTDNS );
 		m_iDNSTryCount = 0;
 		return( 0 );
 	}
@@ -1563,31 +1679,10 @@ int Csock::DNSLookup( bool bLookupBindHost )
 	}
 	m_iDNSTryCount = 0;
 	return( ETIMEDOUT );
-#else
-	// TODO
-	if ( m_iDNSTryCount == 0 )
-	{
-		// start thread, return EAGAIN
-		m_iDNSTryCount++;
-	} else
-	{
-		// check thread
-		// if dns is done, set m_iDNSTryCount to 0.
-		// 		if successfull set appropriate sin_addr and return 0, else return ETIMEDOUT
-		// 
-		// if dns is not done, return EAGAIN
-		// 
-		// since GetHostByName() eventually HAS to return, try forever
-		//
-		// need to investigate killing a thread if our Csock class goes away, should be simple
-		// probably use pthread_cancel
-	}
-	return( ETIMEDOUT );
-#endif /* _REENTRANT */
+#endif /* ___DO_THREADS */
 }
 
-// TODO use gethostbyattr instead
-bool Csock::Bind()
+bool Csock::SetupVHost()
 {
 	if ( m_sBindHost.empty() )
 	{

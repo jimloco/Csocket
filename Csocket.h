@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.129 $
+* $Revision: 1.130 $
 */
 
 // note to compile with win32 need to link to winsock2, using gcc its -lws2_32
@@ -112,6 +112,91 @@ namespace Csocket
 {
 #endif /* _NO_CSOCKET_NS */
 
+int GetHostByName( const CS_STRING & sHostName, struct in_addr *paddr, u_int iNumRetries = 20 );
+
+#if defined( _REENTRANT ) && defined( _USE_THREADED_DNS )
+#define ___DO_THREADS
+#include <pthread.h>
+
+#ifndef PTHREAD_MUTEX_FAST_NP 
+#define PTHREAD_MUTEX_FAST_NP PTHREAD_MUTEX_NORMAL
+#endif /* PTHREAD_MUTEX_FAST_NP */
+
+class CSMutex
+{
+public:
+	CSMutex ();
+	virtual ~CSMutex();
+	int lock() { return( pthread_mutex_lock( &m_mutex ) ); }
+	int unlock() { return( pthread_mutex_unlock( &m_mutex ) ); }
+	int trylock() { return( pthread_mutex_trylock( &m_mutex ) ); }
+private:
+	pthread_mutex_t			m_mutex;
+	pthread_mutexattr_t		m_mattrib;
+	
+};
+
+class CSThread
+{
+public:
+	CSThread() { m_eStatus = WAITING; }
+	virtual ~CSThread() {}
+	
+	enum EStatus
+	{
+		WAITING = 1,
+		RUNNING = 2,
+		FINISHED = 3
+	};
+
+	bool start();
+	void wait();
+	virtual void run() = 0;
+	static void *start_thread( void *args );
+	EStatus Status() { return( m_eStatus ); }
+	void SetStatus( EStatus e ) { m_eStatus = e; }
+	int lock() { return( m_mutex.lock() ); }
+	int unlock() { return( m_mutex.unlock() ); }
+	int cancel() { return( pthread_cancel( m_ppth ) ); }
+
+private:
+	pthread_t	m_ppth;
+	EStatus m_eStatus;
+	CSMutex  m_mutex;
+};
+
+class CDNSResolver : public CSThread
+{
+public:
+	CDNSResolver() : CSThread() { m_bSuccess = false; }
+	virtual ~CDNSResolver() {}
+
+	void Lookup( const CS_STRING & sHostname )
+	{
+		m_bSuccess = false;
+		m_sHostname = sHostname;
+		start();
+	}
+	virtual void run()
+	{
+		if ( GetHostByName( m_sHostname, &m_inAddr ) != 0 )
+			m_bSuccess = false;
+		else
+			m_bSuccess = true;
+	}
+
+	const struct in_addr * GetAddr() const { return( &m_inAddr ); }
+	bool Suceeded() const { return( m_bSuccess ); }
+
+private:
+	bool		m_bSuccess;
+	CS_STRING	m_sHostname;
+	struct in_addr	m_inAddr;
+};
+
+
+#endif /* ___DO_THREADS */
+
 const u_int CS_BLOCKSIZE = 4096;
 template <class T> inline void CS_Delete( T * & p ) { if( p ) { delete p; p = NULL; } }
 
@@ -185,7 +270,6 @@ inline void TFD_CLR( u_int iSock, fd_set *set )
 void __Perror( const CS_STRING & s );
 unsigned long long millitime();
 
-int GetHostByName( const CS_STRING & sHostName, struct in_addr *paddr, u_int iNumRetries = 20 );
 
 /**
 * @class CCron
@@ -307,8 +391,8 @@ public:
 	{
 		CST_START		= 0,
 		CST_DNS			= CST_START,
-		CST_BINDDNS		= 1,
-		CST_BIND		= 2,
+		CST_VHOSTDNS	= 1,
+		CST_BINDVHOST	= 2,
 		CST_CONNECT		= 3,
 		CST_OK			= 4
 	};
@@ -349,7 +433,6 @@ public:
 	* @param iPort the port to listen on
 	* @param iMaxConns the maximum amount of connections to allow
 	*/
-	// TODO change sBindHost to sBindIP
 	virtual bool Listen( int iPort, int iMaxConns = SOMAXCONN, const CS_STRING & sBindHost = "", u_int iTimeout = 0 );
 
 	//! Accept an inbound connection, this is used internally
@@ -718,15 +801,21 @@ public:
 	const CS_STRING & GetBindHost() const { return( m_sBindHost ); }
 	void SetBindHost( const CS_STRING & sBindHost ) { m_sBindHost = sBindHost; }
 		
+	enum EDNSLType
+	{
+		DNS_VHOST,
+		DNS_DEST
+	};
+	
 	/**
 	 * DNSLookup nonblocking dns lookup (when -pthread is set to compile
 	 * 
 	 * @return 0 for success, EAGAIN to check back again (same arguments as before, ETIMEDOUT on failure
 	 */
-	int DNSLookup( bool bLookupBindHost = false );
+	int DNSLookup( EDNSLType eDNSLType );
 
 	//! this is only used on outbound connections, listeners bind in a different spot
-	bool Bind();
+	bool SetupVHost();
 	
 	//////////////////////////////////////////////////
 
@@ -763,6 +852,11 @@ private:
 	ECONState		m_eConState;
 	CS_STRING		m_sBindHost;
 	u_int			m_iCurBindCount, m_iDNSTryCount;
+
+#ifdef ___DO_THREADS
+	CDNSResolver	m_cResolver;
+#endif /* ___DO_THREADS */
+
 };
 
 /**
@@ -882,7 +976,6 @@ public:
 	* @param iMaxConns the maximum amount of connections to accept
 	* @return pointer to sock, NULL if not successfull
 	*/
-	// TODO change sBindHost to sBindIP
 	virtual T * ListenHost( int iPort, const CS_STRING & sSockName, const CS_STRING & sBindHost, int isSSL = false, int iMaxConns = SOMAXCONN, T *pcSock = NULL, u_int iTimeout = 0 )
 	{
 		if ( !pcSock )
@@ -909,7 +1002,6 @@ public:
 	/*
 	 * @return the port number being listened on
 	 */
-	// TODO change sBindHost to sBindIP
 	virtual u_short ListenRand( const CS_STRING & sSockName, const CS_STRING & sBindHost, int isSSL = false, int iMaxConns = SOMAXCONN, T *pcSock = NULL, u_int iTimeout = 0 )
 	{
 		u_short iPort = 0;
@@ -1053,7 +1145,7 @@ public:
 
 			if ( pcSock->GetConState() == T::CST_DNS )
 			{
-				if ( pcSock->DNSLookup() == ETIMEDOUT )
+				if ( pcSock->DNSLookup( T::DNS_DEST ) == ETIMEDOUT )
 				{
 					pcSock->SockError( EDOM );
 					DelSock( a-- );
@@ -1061,9 +1153,9 @@ public:
 				}
 			}
 
-			if ( pcSock->GetConState() == T::CST_BINDDNS )
+			if ( pcSock->GetConState() == T::CST_VHOSTDNS )
 			{
-				if ( pcSock->DNSLookup( true ) == ETIMEDOUT )
+				if ( pcSock->DNSLookup( T::DNS_VHOST ) == ETIMEDOUT )
 				{
 					pcSock->SockError( EADDRNOTAVAIL );
 					DelSock( a-- );
@@ -1071,9 +1163,9 @@ public:
 				}
 			}
 
-			if ( pcSock->GetConState() == T::CST_BIND )
+			if ( pcSock->GetConState() == T::CST_BINDVHOST )
 			{
-				if ( !pcSock->Bind() )
+				if ( !pcSock->SetupVHost() )
 				{
 					pcSock->SockError( errno );
 					DelSock( a-- );
