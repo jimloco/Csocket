@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.9 $
+* $Revision: 1.10 $
 */
 
 #include "Csocket.h"
@@ -128,47 +128,43 @@ unsigned long long millitime()
 	return( iTime );
 }
 
-bool GetHostByName( const CS_STRING & sHostName, struct in_addr *paddr )
+int GetHostByName( const CS_STRING & sHostName, struct in_addr *paddr, u_int iNumRetries )
 {
-	bool bRet = false;
+	int iReturn = HOST_NOT_FOUND;
 	struct hostent *hent = NULL;
 #ifdef __linux__
 	char hbuff[2048];
 	struct hostent hentbuff;
 
 	int err;
-	for( u_int a = 0; a < 20; a++ )
+	for( u_int a = 0; a < iNumRetries; a++ )
 	{
 		memset( (char *)hbuff, '\0', 2048 );
-		int iRet = gethostbyname_r( sHostName.c_str(), &hentbuff, hbuff, 2048, &hent, &err );
+		iReturn = gethostbyname_r( sHostName.c_str(), &hentbuff, hbuff, 2048, &hent, &err );
 
-		if ( iRet == 0 )
-		{
-			bRet = true;
+		if ( iReturn == 0 )
 			break;
-		}
 
-		if ( iRet != TRY_AGAIN )
+		if ( iReturn != TRY_AGAIN )
 			break;
 
 		PERROR( "gethostbyname_r" );
 	}
-
-	if ( !hent )
-		bRet = false;
+	if ( ( !hent ) && ( iReturn == 0 ) )
+		iReturn = HOST_NOT_FOUND;
 #else
 	hent = gethostbyname( sHostName.c_str() );
 	PERROR( "gethostbyname" );
 
 	if ( hent )
-		bRet = true;
+		iReturn = 0;
 
 #endif /* __linux__ */
 
-	if ( bRet )
+	if ( iReturn == 0 )
 		memcpy( &paddr->s_addr, hent->h_addr_list[0], 4 );
 
-	return( bRet );
+	return( iReturn );
 }
 
 #ifndef _NO_CSOCKET_NS // some people may not want to use a namespace
@@ -510,7 +506,7 @@ bool Csock::Listen( int iPort, int iMaxConns, const CS_STRING & sBindHost, u_int
 		m_address.sin_addr.s_addr = htonl( INADDR_ANY );
 	else
 	{
-		if ( !GetHostByName( sBindHost, &(m_address.sin_addr) ) )
+		if ( GetHostByName( sBindHost, &(m_address.sin_addr) ) != 0 )
 			return( false );
 	}
 	m_address.sin_port = htons( iPort );
@@ -835,6 +831,9 @@ bool Csock::Write( const char *data, int len )
 	m_sSend.append( data, len );
 
 	if ( m_sSend.empty() )
+		return( true );
+
+	if ( m_eConState != CST_OK )
 		return( true );
 
 	if ( m_bBLOCK )
@@ -1521,18 +1520,40 @@ bool Csock::DNSLookup( bool bLookupBindHost )
 		m_bindhost.sin_family = PF_INET;
 		m_bindhost.sin_port = htons( 0 );
 
-		if ( GetHostByName( m_sBindHost, &(m_bindhost.sin_addr) ) )
+		int iRet = GetHostByName( m_sBindHost, &(m_bindhost.sin_addr), 1 );
+		if ( iRet == 0 )
 		{
 			if ( m_eConState != CST_OK )
 				m_eConState = CST_BIND;
 			return( true );
 		}
+		else if ( iRet == TRY_AGAIN )
+		{
+			m_iDNSBindCount++;
+			if ( m_iDNSBindCount > 20 )
+				return( false );
+			return( true );
+		}
+		return( false );
 	}
-	else if ( GetHostByName( m_shostname, &(m_address.sin_addr) ) )
+	else
 	{
-		if ( m_eConState != CST_OK )
-			m_eConState = CST_BINDDNS; // bind dns next
-		return( true );
+		int iRet = GetHostByName( m_shostname, &(m_address.sin_addr), 1 );
+
+		if ( iRet == 0 )
+		{
+			if ( m_eConState != CST_OK )
+				m_eConState = CST_BINDDNS; // bind dns next
+			return( true );
+		}
+		else if ( iRet == TRY_AGAIN )
+		{
+			m_iDNSTryCount++;
+			if ( m_iDNSTryCount > 20 )
+				return( false );
+			return( true );
+		}
+		return( false );
 	}
 	return( false );
 }
@@ -1636,5 +1657,8 @@ void Csock::Init( const CS_STRING & sHostname, int iport, int itimeout )
 	m_bPauseRead = false;
 	m_iTimeoutType = TMO_ALL;
 	m_eConState = CST_OK;	// default should be ok
+	m_iDNSTryCount = 0;
+	m_iDNSBindCount = 0;
+	m_iCurBindCount = 0;
 }
 

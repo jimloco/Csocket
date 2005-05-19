@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.126 $
+* $Revision: 1.127 $
 */
 
 // note to compile with win32 need to link to winsock2, using gcc its -lws2_32
@@ -184,7 +184,7 @@ inline void TFD_CLR( u_int iSock, fd_set *set )
 
 void __Perror( const CS_STRING & s );
 unsigned long long millitime();
-bool GetHostByName( const CS_STRING & sHostName, struct in_addr *paddr );
+int GetHostByName( const CS_STRING & sHostName, struct in_addr *paddr, u_int iNumRetries = 20 );
 
 /**
 * @class CCron
@@ -732,7 +732,7 @@ private:
 	CS_STRING	m_sSend, m_sSSLBuffer, m_sPemPass, m_sLocalIP, m_sRemoteIP;
 
 	unsigned long long	m_iMaxMilliSeconds, m_iLastSendTime, m_iBytesRead, m_iBytesWritten, m_iStartTime;
-	unsigned int		m_iMaxBytes, m_iLastSend, m_iMaxStoredBufferLength, m_iTimeoutType, m_iCurBindCount;
+	unsigned int		m_iMaxBytes, m_iLastSend, m_iMaxStoredBufferLength, m_iTimeoutType;
 
 	struct sockaddr_in 	m_address, m_bindhost;
 
@@ -756,6 +756,7 @@ private:
 	// Connection State Info
 	ECONState		m_eConState;
 	CS_STRING		m_sBindHost;
+	u_int			m_iCurBindCount, m_iDNSTryCount, m_iDNSBindCount;
 };
 
 /**
@@ -1041,7 +1042,6 @@ public:
 
 			if ( ( pcSock->GetType() != T::OUTBOUND ) || ( pcSock->GetConState() == T::CST_OK ) )
 				continue;
-
 
 			if ( pcSock->GetConState() == T::CST_DNS )
 			{
