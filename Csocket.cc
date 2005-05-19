@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.15 $
+* $Revision: 1.16 $
 */
 
 #include "Csocket.h"
@@ -117,6 +117,41 @@ void *CSThread::start_thread( void *args )
 	curThread->SetStatus( CSThread::FINISHED );
 	curThread->unlock();
 	pthread_exit( NULL );   
+}
+
+void CDNSResolver::Lookup( const CS_STRING & sHostname )
+{
+	m_bSuccess = false;
+	m_sHostname = sHostname;
+	memset( (struct in_addr *)&m_inAddr, '\0', sizeof( m_inAddr ) );
+	start();
+}
+
+void CDNSResolver::run()
+{
+	if ( GetHostByName( m_sHostname, &m_inAddr ) != 0 )
+		m_bSuccess = false;
+	else
+	{
+		m_bSuccess = true;
+	}
+}
+
+bool CDNSResolver::IsCompleted()
+{
+	lock();
+	EStatus e = Status();
+	unlock();
+	if ( e == FINISHED )
+		return( true );
+	return( false );
+}
+
+CS_STRING CDNSResolver::CreateIP( const struct in_addr *pAddr ) 
+{ 
+	struct in_addr inAddr;
+	memcpy( (struct in_addr *)&inAddr, pAddr, sizeof( inAddr ) );
+	return( inet_ntoa( inAddr ) ); 
 }
 
 #endif /* ___DO_THREADS */
@@ -1616,24 +1651,15 @@ int Csock::DNSLookup( EDNSLType eDNSLType )
 		m_bindhost.sin_family = PF_INET;
 		m_bindhost.sin_port = htons( 0 );
 	}
-//
-// TODO add a class CDNSResolver as a member to Csock
-// if we are set to _REENTRANT then use that class to do dns lookups for this socket
-//
 
 #ifdef ___DO_THREADS
-	// TODO
 	if ( m_iDNSTryCount == 0 )
 	{
 		m_cResolver.Lookup( ( eDNSLType == DNS_VHOST ) ? m_sBindHost : m_shostname );
 		m_iDNSTryCount++;
-		return( EAGAIN );
 	}
    
-	m_cResolver.lock();
-	CDNSResolver::EStatus e = m_cResolver.Status();
-	m_cResolver.unlock();
-	if ( e == CDNSResolver::FINISHED )
+	if ( m_cResolver.IsCompleted() )
 	{
 		m_iDNSTryCount = 0;
 		if ( m_cResolver.Suceeded() )

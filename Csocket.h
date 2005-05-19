@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.130 $
+* $Revision: 1.131 $
 */
 
 // note to compile with win32 need to link to winsock2, using gcc its -lws2_32
@@ -170,23 +170,21 @@ class CDNSResolver : public CSThread
 public:
 	CDNSResolver() : CSThread() { m_bSuccess = false; }
 	virtual ~CDNSResolver() {}
+	//! returns imediatly, from here out check if IsCompleted() returns true before looking at ANY of the data
+	void Lookup( const CS_STRING & sHostname );
 
-	void Lookup( const CS_STRING & sHostname )
-	{
-		m_bSuccess = false;
-		m_sHostname = sHostname;
-		start();
-	}
-	virtual void run()
-	{
-		if ( GetHostByName( m_sHostname, &m_inAddr ) != 0 )
-			m_bSuccess = false;
-		else
-			m_bSuccess = true;
-	}
+	virtual void run();
 
+	//! returns the underlying in_addr structure containing the resolved hostname
 	const struct in_addr * GetAddr() const { return( &m_inAddr ); }
+	//! true if dns entry was successfuly found
 	bool Suceeded() const { return( m_bSuccess ); }
+
+	//! true if task is finished, this function is thread safe
+	bool IsCompleted();
+
+	//! note!! inet_ntoa uses an internally static buffer, its not thread safe
+	static CS_STRING CreateIP( const struct in_addr *pAddr );
 
 private:
 	bool		m_bSuccess;
