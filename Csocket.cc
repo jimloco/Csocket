@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.7 $
+* $Revision: 1.8 $
 */
 
 #include "Csocket.h"
@@ -261,7 +261,7 @@ Csock::Csock( const CS_STRING & sHostname, int iport, int itimeout )
 }
 
 // override this for accept sockets
-Csock *Csock::GetSockObj( const CS_STRING & sHostname, int iPort, int iNewSockFD )
+Csock *Csock::GetSockObj( const CS_STRING & sHostname, int iPort )
 {
 	return( NULL );
 }
@@ -356,51 +356,38 @@ Csock & Csock::operator<<( double i )
 	return( *this );
 }
 
-bool Csock::Connect( const CS_STRING & sBindHost )
+bool Csock::Connect( const CS_STRING & sBindHost, bool bSkipSetup )
 {
-	// create the socket
-	m_iReadSock = m_iWriteSock = SOCKET();
-
-	if ( m_iReadSock == -1 )
-		return( false );
-
-	m_address.sin_family = PF_INET;
-	m_address.sin_port = htons( m_iport );
-
-	if ( !GetHostByName( m_shostname, &(m_address.sin_addr) ) )
-		return( false );
-
-	// bind to a hostname if requested
-	if ( !sBindHost.empty() )
+	if ( !bSkipSetup )
 	{
-		struct sockaddr_in vh;
-
-		vh.sin_family = PF_INET;
-		vh.sin_port = htons( 0 );
-
-		if ( !GetHostByName( sBindHost, &(vh.sin_addr) ) )
+		if ( !CreateSocksFD() )
 			return( false );
 
-		// try to bind 3 times, otherwise exit failure
-		bool bBound = false;
-		for( int a = 0; a < 3; a++ )
+		if ( !DNSLookup() )
+			return( false );
+
+		// bind to a hostname if requested
+		m_sBindHost = sBindHost;
+		if ( !sBindHost.empty() )
 		{
-			if ( bind( m_iReadSock, (struct sockaddr *) &vh, sizeof( vh ) ) == 0 )
+			// try to bind 3 times, otherwise exit failure
+			bool bBound = false;
+			for( int a = 0; a < 3 && !bBound; a++ )
 			{
-				bBound = true;
-				break;
-			}
+				if ( Bind() )
+					bBound = true;
 #ifdef _WIN32
-			Sleep( 5000 );
+				Sleep( 5000 );
 #else
-			usleep( 5000 );	// quick pause, common lets BIND!)(!*!
+				usleep( 5000 );	// quick pause, common lets BIND!)(!*!
 #endif /* _WIN32 */
-		}
+			}
 
-		if ( !bBound )
-		{
-			CS_DEBUG( "Failure to bind to " << sBindHost );
-			return( false );
+			if ( !bBound )
+			{
+				CS_DEBUG( "Failure to bind to " << sBindHost );
+				return( false );
+			}
 		}
 	}
 
@@ -413,7 +400,7 @@ bool Csock::Connect( const CS_STRING & sBindHost )
 	fcntl( m_iReadSock, F_SETFL, fdflags|O_NONBLOCK );
 #endif /* _WIN32 */
 
-	m_iConnType = OUTBOUND;
+	m_iConnType = OUTBOUND; // TODO do this in the initial setup
 
 	// connect
 	int ret = connect( m_iReadSock, (struct sockaddr *)&m_address, sizeof( m_address ) );
@@ -440,6 +427,9 @@ bool Csock::Connect( const CS_STRING & sBindHost )
 		fcntl( m_iReadSock, F_SETFL, fdflags );
 #endif /* _WIN32 */
 	}
+
+	if ( m_eConState != CST_OK )
+		m_eConState = CST_OK;
 
 	return( true );
 }
@@ -523,7 +513,6 @@ bool Csock::Listen( int iPort, int iMaxConns, const CS_STRING & sBindHost, u_int
 	}
 	m_address.sin_port = htons( iPort );
 	memset( &(m_address.sin_zero), '\0', sizeof( m_address.sin_zero ) );
-// TODO	bzero(&(m_address.sin_zero), 8);
 
 	if ( bind( m_iReadSock, (struct sockaddr *) &m_address, sizeof( m_address ) ) == -1 )
 		return( false );
@@ -1591,5 +1580,6 @@ void Csock::Init( const CS_STRING & sHostname, int iport, int itimeout )
 	m_iStartTime = millitime();
 	m_bPauseRead = false;
 	m_iTimeoutType = TMO_ALL;
+	m_eConState = CST_OK;	// default should be ok
 }
 

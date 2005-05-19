@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.124 $
+* $Revision: 1.125 $
 */
 
 // note to compile with win32 need to link to winsock2, using gcc its -lws2_32
@@ -302,6 +302,16 @@ public:
 		SSL3				= 3
 	};
 
+	enum ECONState
+	{
+		CST_START		= 0,
+		CST_DNS			= CST_START,
+		CST_BINDDNS		= 1,
+		CST_BIND		= 2,
+		CST_CONNECT		= 3,
+		CST_OK			= 4
+	};
+
 	Csock & operator<<( const CS_STRING & s );
 	Csock & operator<<( std::ostream & ( *io )( std::ostream & ) );
 	Csock & operator<<( int i );
@@ -318,7 +328,7 @@ public:
 	* @param sBindHost the ip you want to bind to locally
 	* @return true on success
 	*/
-	virtual bool Connect( const CS_STRING & sBindHost = "" );
+	virtual bool Connect( const CS_STRING & sBindHost = "", bool bSkipSetup = false );
 
 	/**
 	* WriteSelect on this socket
@@ -683,6 +693,81 @@ public:
 	//! return the data imediatly ready for read
 	virtual int GetPending();
 
+	//////////////////////////
+	// Connection State Stuff
+	//! returns the current connection state
+	ECONState GetConState() const { return( m_eConState ); }
+	//! sets the connection state to eState
+	void SetConState( ECONState eState ) { m_eConState = eState; }
+
+	//! grabs fd's for the sockets
+	bool CreateSocksFD()
+	{
+		m_iReadSock = m_iWriteSock = SOCKET();
+		if ( m_iReadSock == -1 )
+			return( false );
+
+		m_address.sin_family = PF_INET;
+		m_address.sin_port = htons( m_iport );
+
+		return( true );
+	}
+
+	const CS_STRING & GetBindHost() const { return( m_sBindHost ); }
+	void SetBindHost( const CS_STRING & sBindHost ) { m_sBindHost = sBindHost; }
+		
+	bool DNSLookup( bool bLookupBindHost = false )
+	{
+		if ( bLookupBindHost )
+		{
+			if ( m_sBindHost.empty() )
+			{
+				if ( m_eConState != CST_OK )
+					m_eConState = CST_BIND;
+				return( true );
+			}
+
+			m_bindhost.sin_family = PF_INET;
+			m_bindhost.sin_port = htons( 0 );
+
+			if ( GetHostByName( m_sBindHost, &(m_bindhost.sin_addr) ) )
+			{
+				if ( m_eConState != CST_OK )
+					m_eConState = CST_BIND;
+				return( true );
+			}
+		}
+		else if ( GetHostByName( m_shostname, &(m_address.sin_addr) ) )
+		{
+			if ( m_eConState != CST_OK )
+				m_eConState = CST_BINDDNS; // bind dns next
+			return( true );
+		}
+		return( false );
+	}
+
+	bool Bind()
+	{
+		if ( m_sBindHost.empty() )
+		{
+			if ( m_eConState != CST_OK )
+				m_eConState = CST_CONNECT;
+		}
+		if ( bind( m_iReadSock, (struct sockaddr *) &m_bindhost, sizeof( m_bindhost ) ) == 0 )
+		{
+			if ( m_eConState != CST_OK )
+				m_eConState = CST_CONNECT;
+			return( true );
+		}
+		m_iCurBindCount++;
+		if ( m_iCurBindCount > 3 )
+		{
+			CS_DEBUG( "Failure to bind to " << m_sBindHost );
+			return( false );
+		}
+
+		return( true );
+	}
 	//////////////////////////////////////////////////
 
 private:
@@ -693,9 +778,9 @@ private:
 	CS_STRING	m_sSend, m_sSSLBuffer, m_sPemPass, m_sLocalIP, m_sRemoteIP;
 
 	unsigned long long	m_iMaxMilliSeconds, m_iLastSendTime, m_iBytesRead, m_iBytesWritten, m_iStartTime;
-	unsigned int		m_iMaxBytes, m_iLastSend, m_iMaxStoredBufferLength, m_iTimeoutType;
+	unsigned int		m_iMaxBytes, m_iLastSend, m_iMaxStoredBufferLength, m_iTimeoutType, m_iCurBindCount;
 
-	struct sockaddr_in 	m_address;
+	struct sockaddr_in 	m_address, m_bindhost;
 
 #ifdef HAVE_LIBSSL
 	SSL 				*m_ssl;
@@ -712,6 +797,11 @@ private:
 	//! Create the socket
 	virtual int SOCKET( bool bListen = false );
 	virtual void Init( const CS_STRING & sHostname, int iport, int itimeout = 60 );
+
+
+	// Connection State Info
+	ECONState		m_eConState;
+	CS_STRING		m_sBindHost;
 };
 
 /**
@@ -804,29 +894,16 @@ public:
 		// make it NON-Blocking IO
 		pcSock->BlockIO( false );
 
-		if ( !pcSock->Connect( sBindHost ) )
-		{
-			if ( GetSockError() == ECONNREFUSED )
-				pcSock->ConnectionRefused();
-
-			CS_Delete( pcSock );
-			return( false );
-		}
-
 #ifdef HAVE_LIBSSL
-		if ( isSSL )
-		{
-			if ( !pcSock->ConnectSSL() )
-			{
-				if ( GetSockError() == ECONNREFUSED )
-					pcSock->ConnectionRefused();
-
-				CS_Delete( pcSock );
-				return( false );
-			}
-		}
+		pcSock->SetSSL( isSSL );
 #endif /* HAVE_LIBSSL */
 
+		if ( !pcSock->CreateSocksFD() )
+			return( false );
+
+		pcSock->SetType( T::OUTBOUND );
+
+		pcSock->SetConState( T::CST_START );
 		AddSock( pcSock, sSockName );
 		return( true );
 	}
@@ -1000,6 +1077,75 @@ public:
 				break;
 		}
 
+		for( u_int a = 0; a < this->size(); a++ )
+		{
+			T *pcSock = (*this)[a];
+
+			if ( ( pcSock->GetType() != T::OUTBOUND ) || ( pcSock->GetConState() == T::CST_OK ) )
+				continue;
+
+
+			if ( pcSock->GetConState() == T::CST_DNS )
+			{
+				if ( !pcSock->DNSLookup() )
+				{
+					pcSock->SockError( EDOM );
+					DelSock( a-- );
+					continue;
+				}
+			}
+
+			if ( pcSock->GetConState() == T::CST_BINDDNS )
+			{
+				if ( !pcSock->DNSLookup( true ) )
+				{
+					pcSock->SockError( EADDRNOTAVAIL );
+					DelSock( a-- );
+					continue;
+				}
+			}
+
+			if ( pcSock->GetConState() == T::CST_BIND )
+			{
+				if ( !pcSock->Bind() )
+				{
+					pcSock->SockError( errno );
+					DelSock( a-- );
+					continue;
+				}
+			}
+
+			if ( pcSock->GetConState() == T::CST_CONNECT )
+			{
+		
+				if ( !pcSock->Connect( pcSock->GetBindHost(), true ) )
+				{
+					if ( GetSockError() == ECONNREFUSED )
+						pcSock->ConnectionRefused();
+					else
+						pcSock->SockError( ECONNABORTED );
+
+					DelSock( a-- );
+					continue;
+				}
+
+#ifdef HAVE_LIBSSL
+				if ( pcSock->GetSSL() )
+				{
+					if ( !pcSock->ConnectSSL() )
+					{
+						if ( GetSockError() == ECONNREFUSED )
+							pcSock->ConnectionRefused();
+						else
+							pcSock->SockError( ECONNABORTED );
+
+						DelSock( a-- );
+						continue;
+					}
+				}
+#endif /* HAVE_LIBSSL */
+			}
+		}
 		unsigned long long iMilliNow = millitime();
 		if ( ( iMilliNow - m_iCallTimeouts ) > 1000 )
 		{
@@ -1007,6 +1153,9 @@ public:
 			// call timeout on all the sockets that recieved no data
 			for( unsigned int i = 0; i < this->size(); i++ )
 			{
+				if ( (*this)[i]->GetConState() != T::CST_OK )
+					continue;
+
 				if ( (*this)[i]->CheckTimeout() )
 					DelSock( i-- );
 			}
@@ -1217,8 +1366,10 @@ private:
 
 		for( unsigned int i = 0; i < this->size(); i++ )
 		{
-
 			T *pcSock = (*this)[i];
+
+			if ( pcSock->GetConState() != T::CST_OK )
+				continue;
 
 			int & iRSock = pcSock->GetRSock();
 			int & iWSock = pcSock->GetWSock();
@@ -1277,6 +1428,9 @@ private:
 		{
 			T *pcSock = (*this)[i];
 
+			if ( pcSock->GetConState() != T::CST_OK )
+				continue;
+
 			if ( ( pcSock->GetSSL() ) && ( pcSock->GetType() != Csock::LISTENER ) )
 			{
 				if ( ( pcSock->GetPending() > 0 ) && ( !pcSock->IsReadPaused() ) )
@@ -1330,6 +1484,10 @@ private:
 		for( unsigned int i = 0; i < this->size(); i++ )
 		{
 			T *pcSock = (*this)[i];
+
+			if ( pcSock->GetConState() != T::CST_OK )
+				continue;
+
 			int & iRSock = pcSock->GetRSock();
 			int & iWSock = pcSock->GetWSock();
 			EMessages iErrno = SUCCESS;
@@ -1452,6 +1610,14 @@ private:
 		}
 	}
 
+	////////
+	// Connection State Functions
+	
+
+
+
+	///////////
+	// members
 	EMessages				m_errno;
 	std::vector<CCron *>			m_vcCrons;
 	unsigned long long		m_iCallTimeouts;
