@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.10 $
+* $Revision: 1.11 $
 */
 
 #include "Csocket.h"
@@ -1564,6 +1564,8 @@ bool Csock::Bind()
 	{
 		if ( m_eConState != CST_OK )
 			m_eConState = CST_CONNECT;
+
+		return( true );
 	}
 	if ( bind( m_iReadSock, (struct sockaddr *) &m_bindhost, sizeof( m_bindhost ) ) == 0 )
 	{
