@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.125 $
+* $Revision: 1.126 $
 */
 
 // note to compile with win32 need to link to winsock2, using gcc its -lws2_32
@@ -716,58 +716,12 @@ public:
 	const CS_STRING & GetBindHost() const { return( m_sBindHost ); }
 	void SetBindHost( const CS_STRING & sBindHost ) { m_sBindHost = sBindHost; }
 		
-	bool DNSLookup( bool bLookupBindHost = false )
-	{
-		if ( bLookupBindHost )
-		{
-			if ( m_sBindHost.empty() )
-			{
-				if ( m_eConState != CST_OK )
-					m_eConState = CST_BIND;
-				return( true );
-			}
+	//! this does a dns lookup for the 
+	bool DNSLookup( bool bLookupBindHost = false );
 
-			m_bindhost.sin_family = PF_INET;
-			m_bindhost.sin_port = htons( 0 );
-
-			if ( GetHostByName( m_sBindHost, &(m_bindhost.sin_addr) ) )
-			{
-				if ( m_eConState != CST_OK )
-					m_eConState = CST_BIND;
-				return( true );
-			}
-		}
-		else if ( GetHostByName( m_shostname, &(m_address.sin_addr) ) )
-		{
-			if ( m_eConState != CST_OK )
-				m_eConState = CST_BINDDNS; // bind dns next
-			return( true );
-		}
-		return( false );
-	}
-
-	bool Bind()
-	{
-		if ( m_sBindHost.empty() )
-		{
-			if ( m_eConState != CST_OK )
-				m_eConState = CST_CONNECT;
-		}
-		if ( bind( m_iReadSock, (struct sockaddr *) &m_bindhost, sizeof( m_bindhost ) ) == 0 )
-		{
-			if ( m_eConState != CST_OK )
-				m_eConState = CST_CONNECT;
-			return( true );
-		}
-		m_iCurBindCount++;
-		if ( m_iCurBindCount > 3 )
-		{
-			CS_DEBUG( "Failure to bind to " << m_sBindHost );
-			return( false );
-		}
-
-		return( true );
-	}
+	//! this is only used on outbound connections, listeners bind in a different spot
+	bool Bind();
+	
 	//////////////////////////////////////////////////
 
 private:
@@ -909,13 +863,17 @@ public:
 	}
 
 	/**
-	* Create a listening socket
+	* @brief Create a listening socket
 	*
-	* \param iPort the port to listen on
-	* \param sSockName the name of the socket
-	* \param isSSL if the sockets created require an ssl layer
-	* \param iMaxConns the maximum amount of connections to accept
-	* \return true on success
+	* Given the design of this function, when binding to a hostname, its best to use an
+	* since dns lookups are blocking, but since your binding to a local ip, it should never be
+	* problem anyhow.
+	*
+	* @param iPort the port to listen on
+	* @param sSockName the name of the socket
+	* @param isSSL if the sockets created require an ssl layer
+	* @param iMaxConns the maximum amount of connections to accept
+	* @return pointer to sock, NULL if not successfull
 	*/
 	virtual T * ListenHost( int iPort, const CS_STRING & sSockName, const CS_STRING & sBindHost, int isSSL = false, int iMaxConns = SOMAXCONN, T *pcSock = NULL, u_int iTimeout = 0 )
 	{

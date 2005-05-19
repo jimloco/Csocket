@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.8 $
+* $Revision: 1.9 $
 */
 
 #include "Csocket.h"
@@ -502,6 +502,8 @@ bool Csock::Listen( int iPort, int iMaxConns, const CS_STRING & sBindHost, u_int
 
 	if ( m_iReadSock == -1 )
 		return( false );
+
+	m_sBindHost = sBindHost;
 
 	m_address.sin_family = PF_INET;
 	if ( sBindHost.empty() )
@@ -1503,6 +1505,59 @@ int Csock::GetPending()
 #else
 	return( 0 );
 #endif /* HAVE_LIBSSL */
+}
+
+bool Csock::DNSLookup( bool bLookupBindHost )
+{
+	if ( bLookupBindHost )
+	{
+		if ( m_sBindHost.empty() )
+		{
+			if ( m_eConState != CST_OK )
+				m_eConState = CST_BIND;
+			return( true );
+		}
+
+		m_bindhost.sin_family = PF_INET;
+		m_bindhost.sin_port = htons( 0 );
+
+		if ( GetHostByName( m_sBindHost, &(m_bindhost.sin_addr) ) )
+		{
+			if ( m_eConState != CST_OK )
+				m_eConState = CST_BIND;
+			return( true );
+		}
+	}
+	else if ( GetHostByName( m_shostname, &(m_address.sin_addr) ) )
+	{
+		if ( m_eConState != CST_OK )
+			m_eConState = CST_BINDDNS; // bind dns next
+		return( true );
+	}
+	return( false );
+}
+
+bool Csock::Bind()
+{
+	if ( m_sBindHost.empty() )
+	{
+		if ( m_eConState != CST_OK )
+			m_eConState = CST_CONNECT;
+	}
+	if ( bind( m_iReadSock, (struct sockaddr *) &m_bindhost, sizeof( m_bindhost ) ) == 0 )
+	{
+		if ( m_eConState != CST_OK )
+			m_eConState = CST_CONNECT;
+		return( true );
+	}
+	m_iCurBindCount++;
+	if ( m_iCurBindCount > 3 )
+	{
+		CS_DEBUG( "Failure to bind to " << m_sBindHost );
+		return( false );
+	}
+
+	return( true );
 }
 
 #ifdef HAVE_LIBSSL
