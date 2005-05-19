@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.11 $
+* $Revision: 1.12 $
 */
 
 #include "Csocket.h"
@@ -359,7 +359,7 @@ bool Csock::Connect( const CS_STRING & sBindHost, bool bSkipSetup )
 		if ( !CreateSocksFD() )
 			return( false );
 
-		if ( !DNSLookup() )
+		if ( DNSLookup() != 0 )
 			return( false );
 
 		// bind to a hostname if requested
@@ -1506,7 +1506,7 @@ int Csock::GetPending()
 #endif /* HAVE_LIBSSL */
 }
 
-bool Csock::DNSLookup( bool bLookupBindHost )
+int Csock::DNSLookup( bool bLookupBindHost )
 {
 	if ( bLookupBindHost )
 	{
@@ -1514,48 +1514,63 @@ bool Csock::DNSLookup( bool bLookupBindHost )
 		{
 			if ( m_eConState != CST_OK )
 				m_eConState = CST_BIND;
-			return( true );
+			return( 0 );
 		}
 
 		m_bindhost.sin_family = PF_INET;
 		m_bindhost.sin_port = htons( 0 );
-
-		int iRet = GetHostByName( m_sBindHost, &(m_bindhost.sin_addr), 1 );
-		if ( iRet == 0 )
-		{
-			if ( m_eConState != CST_OK )
-				m_eConState = CST_BIND;
-			return( true );
-		}
-		else if ( iRet == TRY_AGAIN )
-		{
-			m_iDNSBindCount++;
-			if ( m_iDNSBindCount > 20 )
-				return( false );
-			return( true );
-		}
-		return( false );
 	}
+//
+// TODO add a class CDNSResolver as a member to Csock
+// if we are set to _REENTRANT then use that class to do dns lookups for this socket
+//
+
+#ifndef _REENTRANT
+	int iRet;
+	if ( bLookupBindHost )
+		iRet = GetHostByName( m_sBindHost, &(m_bindhost.sin_addr), 1 );
 	else
-	{
-		int iRet = GetHostByName( m_shostname, &(m_address.sin_addr), 1 );
+		iRet = GetHostByName( m_shostname, &(m_address.sin_addr), 1 );
 
-		if ( iRet == 0 )
-		{
-			if ( m_eConState != CST_OK )
-				m_eConState = CST_BINDDNS; // bind dns next
-			return( true );
-		}
-		else if ( iRet == TRY_AGAIN )
-		{
-			m_iDNSTryCount++;
-			if ( m_iDNSTryCount > 20 )
-				return( false );
-			return( true );
-		}
-		return( false );
+	if ( iRet == 0 )
+	{
+		if ( m_eConState != CST_OK )
+			m_eConState = ( bLookupBindHost ? CST_BIND : CST_BINDDNS );
+		m_iDNSTryCount = 0;
+		return( 0 );
 	}
-	return( false );
+	else if ( iRet == TRY_AGAIN )
+	{
+		m_iDNSTryCount++;
+		if ( m_iDNSTryCount > 20 )
+		{
+			m_iDNSTryCount = 0;
+			return( ETIMEDOUT );
+		}
+		return( EAGAIN );
+	}
+	m_iDNSTryCount = 0;
+	return( ETIMEDOUT );
+#else
+	// TODO
+	if ( m_iDNSTryCount == 0 )
+	{
+		// start thread, return EAGAIN
+		m_iDNSTryCount++;
+	} else
+	{
+		// check thread
+		// if dns is done, set m_iDNSTryCount to 0.
+		// 		if successfull set appropriate sin_addr and return 0, else return ETIMEDOUT
+		// 
+		// if dns is not done, return EAGAIN
+		// 
+		// since GetHostByName() eventually HAS to return, try forever
+		//
+		// need to investigate killing a thread if our Csock class goes away, should be simple
+	}
+	return( ETIMEDOUT );
+#endif /* _REENTRANT */
 }
 
 bool Csock::Bind()
@@ -1660,7 +1675,6 @@ void Csock::Init( const CS_STRING & sHostname, int iport, int itimeout )
 	m_iTimeoutType = TMO_ALL;
 	m_eConState = CST_OK;	// default should be ok
 	m_iDNSTryCount = 0;
-	m_iDNSBindCount = 0;
 	m_iCurBindCount = 0;
 }
 

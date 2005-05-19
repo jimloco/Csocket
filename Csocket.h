@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.127 $
+* $Revision: 1.128 $
 */
 
 // note to compile with win32 need to link to winsock2, using gcc its -lws2_32
@@ -184,6 +184,7 @@ inline void TFD_CLR( u_int iSock, fd_set *set )
 
 void __Perror( const CS_STRING & s );
 unsigned long long millitime();
+
 int GetHostByName( const CS_STRING & sHostName, struct in_addr *paddr, u_int iNumRetries = 20 );
 
 /**
@@ -716,8 +717,12 @@ public:
 	const CS_STRING & GetBindHost() const { return( m_sBindHost ); }
 	void SetBindHost( const CS_STRING & sBindHost ) { m_sBindHost = sBindHost; }
 		
-	//! this does a dns lookup for the 
-	bool DNSLookup( bool bLookupBindHost = false );
+	/**
+	 * DNSLookup nonblocking dns lookup (when -pthread is set to compile
+	 * 
+	 * @return 0 for success, EAGAIN to check back again (same arguments as before, ETIMEDOUT on failure
+	 */
+	int DNSLookup( bool bLookupBindHost = false );
 
 	//! this is only used on outbound connections, listeners bind in a different spot
 	bool Bind();
@@ -756,7 +761,7 @@ private:
 	// Connection State Info
 	ECONState		m_eConState;
 	CS_STRING		m_sBindHost;
-	u_int			m_iCurBindCount, m_iDNSTryCount, m_iDNSBindCount;
+	u_int			m_iCurBindCount, m_iDNSTryCount;
 };
 
 /**
@@ -1045,7 +1050,7 @@ public:
 
 			if ( pcSock->GetConState() == T::CST_DNS )
 			{
-				if ( !pcSock->DNSLookup() )
+				if ( pcSock->DNSLookup() == ETIMEDOUT )
 				{
 					pcSock->SockError( EDOM );
 					DelSock( a-- );
@@ -1055,7 +1060,7 @@ public:
 
 			if ( pcSock->GetConState() == T::CST_BINDDNS )
 			{
-				if ( !pcSock->DNSLookup( true ) )
+				if ( pcSock->DNSLookup( true ) == ETIMEDOUT )
 				{
 					pcSock->SockError( EADDRNOTAVAIL );
 					DelSock( a-- );
