@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.13 $
+* $Revision: 1.14 $
 */
 
 #include "Csocket.h"
@@ -352,6 +352,7 @@ Csock & Csock::operator<<( double i )
 	return( *this );
 }
 
+// TODO change sBindHost to sBindIP
 bool Csock::Connect( const CS_STRING & sBindHost, bool bSkipSetup )
 {
 	if ( !bSkipSetup )
@@ -359,7 +360,16 @@ bool Csock::Connect( const CS_STRING & sBindHost, bool bSkipSetup )
 		if ( !CreateSocksFD() )
 			return( false );
 
-		if ( DNSLookup() != 0 )
+		int iDNSRet = ETIMEDOUT;
+		while( true )
+		{
+			iDNSRet = DNSLookup();
+			if ( iDNSRet == EAGAIN )
+				continue;
+
+			break;
+		}
+		if ( iDNSRet != 0 )
 			return( false );
 
 		// bind to a hostname if requested
@@ -490,6 +500,7 @@ int Csock::ReadSelect()
 	return( SEL_OK );
 }
 
+// TODO change sBindHost to sBindIP
 bool Csock::Listen( int iPort, int iMaxConns, const CS_STRING & sBindHost, u_int iTimeout )
 {
 	m_iReadSock = m_iWriteSock = SOCKET( true );
@@ -506,6 +517,7 @@ bool Csock::Listen( int iPort, int iMaxConns, const CS_STRING & sBindHost, u_int
 		m_address.sin_addr.s_addr = htonl( INADDR_ANY );
 	else
 	{
+		// TODO use gethostbyattr() instead
 		if ( GetHostByName( sBindHost, &(m_address.sin_addr) ) != 0 )
 			return( false );
 	}
@@ -1527,7 +1539,7 @@ int Csock::DNSLookup( bool bLookupBindHost )
 
 #ifndef _REENTRANT
 	int iRet;
-	if ( bLookupBindHost )
+	if ( bLookupBindHost ) // TODO change bindhost to use gethostbyattr and force an ip
 		iRet = GetHostByName( m_sBindHost, &(m_bindhost.sin_addr), 1 );
 	else
 		iRet = GetHostByName( m_shostname, &(m_address.sin_addr), 1 );
@@ -1574,6 +1586,7 @@ int Csock::DNSLookup( bool bLookupBindHost )
 #endif /* _REENTRANT */
 }
 
+// TODO use gethostbyattr instead
 bool Csock::Bind()
 {
 	if ( m_sBindHost.empty() )

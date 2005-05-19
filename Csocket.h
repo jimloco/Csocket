@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.128 $
+* $Revision: 1.129 $
 */
 
 // note to compile with win32 need to link to winsock2, using gcc its -lws2_32
@@ -349,6 +349,7 @@ public:
 	* @param iPort the port to listen on
 	* @param iMaxConns the maximum amount of connections to allow
 	*/
+	// TODO change sBindHost to sBindIP
 	virtual bool Listen( int iPort, int iMaxConns = SOMAXCONN, const CS_STRING & sBindHost = "", u_int iTimeout = 0 );
 
 	//! Accept an inbound connection, this is used internally
@@ -881,6 +882,7 @@ public:
 	* @param iMaxConns the maximum amount of connections to accept
 	* @return pointer to sock, NULL if not successfull
 	*/
+	// TODO change sBindHost to sBindIP
 	virtual T * ListenHost( int iPort, const CS_STRING & sSockName, const CS_STRING & sBindHost, int isSSL = false, int iMaxConns = SOMAXCONN, T *pcSock = NULL, u_int iTimeout = 0 )
 	{
 		if ( !pcSock )
@@ -907,6 +909,7 @@ public:
 	/*
 	 * @return the port number being listened on
 	 */
+	// TODO change sBindHost to sBindIP
 	virtual u_short ListenRand( const CS_STRING & sSockName, const CS_STRING & sBindHost, int isSSL = false, int iMaxConns = SOMAXCONN, T *pcSock = NULL, u_int iTimeout = 0 )
 	{
 		u_short iPort = 0;
