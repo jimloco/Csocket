@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.131 $
+* $Revision: 1.132 $
 */
 
 // note to compile with win32 need to link to winsock2, using gcc its -lws2_32
@@ -347,10 +347,10 @@ public:
 	* @param iport the port you are connectint to
 	* @param itimeout how long to wait before ditching the connection, default is 60 seconds
 	*/
-	Csock( const CS_STRING & sHostname, int iport, int itimeout = 60 );
+	Csock( const CS_STRING & sHostname, u_short iport, int itimeout = 60 );
 
 	// override this for accept sockets
-	virtual Csock *GetSockObj( const CS_STRING & sHostname, int iPort );
+	virtual Csock *GetSockObj( const CS_STRING & sHostname, u_short iPort );
 
 	virtual ~Csock();
 
@@ -431,10 +431,10 @@ public:
 	* @param iPort the port to listen on
 	* @param iMaxConns the maximum amount of connections to allow
 	*/
-	virtual bool Listen( int iPort, int iMaxConns = SOMAXCONN, const CS_STRING & sBindHost = "", u_int iTimeout = 0 );
+	virtual bool Listen( u_short iPort, int iMaxConns = SOMAXCONN, const CS_STRING & sBindHost = "", u_int iTimeout = 0 );
 
 	//! Accept an inbound connection, this is used internally
-	virtual int Accept( CS_STRING & sHost, int & iRPort );
+	virtual int Accept( CS_STRING & sHost, u_short & iRPort );
 
 	//! Accept an inbound SSL connection, this is used internally and called after Accept
 	virtual bool AcceptSSL();
@@ -583,14 +583,14 @@ public:
 	double GetAvgWrite( unsigned long long iSample = 1000 );
 
 	//! Returns the remote port
-	int GetRemotePort();
+	u_short GetRemotePort();
 
 	//! Returns the local port
-	int GetLocalPort();
+	u_short GetLocalPort();
 
 	//! Returns the port
-	int GetPort();
-	void SetPort( int iPort );
+	u_short GetPort();
+	void SetPort( u_short iPort );
 
 	//! just mark us as closed, the parent can pick it up
 	void Close();
@@ -757,7 +757,7 @@ public:
 	* return false and the connection will fail
 	* default returns true
 	*/
-	virtual bool ConnectionFrom( const CS_STRING & sHost, int iPort ) { return( true ); }
+	virtual bool ConnectionFrom( const CS_STRING & sHost, u_short iPort ) { return( true ); }
 
 	/**
 	 * Override these functions for an easy interface when using the Socket Manager
@@ -818,7 +818,8 @@ public:
 	//////////////////////////////////////////////////
 
 private:
-	int			m_iReadSock, m_iWriteSock, m_itimeout, m_iport, m_iConnType, m_iTcount, m_iMethod, m_iRemotePort, m_iLocalPort;
+	u_short		m_iport, m_iRemotePort, m_iLocalPort;
+	int			m_iReadSock, m_iWriteSock, m_itimeout, m_iConnType, m_iTcount, m_iMethod;
 	bool		m_bssl, m_bIsConnected, m_bClosed, m_bBLOCK, m_bFullsslAccept;
 	bool		m_bsslEstablished, m_bEnableReadLine, m_bRequireClientCert, m_bPauseRead;
 	CS_STRING	m_shostname, m_sbuffer, m_sSockName, m_sPemFile, m_sCipherType, m_sParentName;
@@ -843,7 +844,7 @@ private:
 
 	//! Create the socket
 	virtual int SOCKET( bool bListen = false );
-	virtual void Init( const CS_STRING & sHostname, int iport, int itimeout = 60 );
+	virtual void Init( const CS_STRING & sHostname, u_short iport, int itimeout = 60 );
 
 
 	// Connection State Info
@@ -932,7 +933,7 @@ public:
 	* \param sBindHost the host to bind too
 	* \return true on success
 	*/
-	virtual bool Connect( const CS_STRING & sHostname, int iPort , const CS_STRING & sSockName, int iTimeout = 60, bool isSSL = false, const CS_STRING & sBindHost = "", T *pcSock = NULL )
+	virtual bool Connect( const CS_STRING & sHostname, u_short iPort , const CS_STRING & sSockName, int iTimeout = 60, bool isSSL = false, const CS_STRING & sBindHost = "", T *pcSock = NULL )
 	{
 		// create the new object
 		if ( !pcSock )
@@ -974,7 +975,7 @@ public:
 	* @param iMaxConns the maximum amount of connections to accept
 	* @return pointer to sock, NULL if not successfull
 	*/
-	virtual T * ListenHost( int iPort, const CS_STRING & sSockName, const CS_STRING & sBindHost, int isSSL = false, int iMaxConns = SOMAXCONN, T *pcSock = NULL, u_int iTimeout = 0 )
+	virtual T * ListenHost( u_short iPort, const CS_STRING & sSockName, const CS_STRING & sBindHost, int isSSL = false, int iMaxConns = SOMAXCONN, T *pcSock = NULL, u_int iTimeout = 0 )
 	{
 		if ( !pcSock )
 			pcSock = new T();
@@ -992,7 +993,7 @@ public:
 		return( NULL );
 	}
 
-	virtual bool ListenAll( int iPort, const CS_STRING & sSockName, int isSSL = false, int iMaxConns = SOMAXCONN, T *pcSock = NULL, u_int iTimeout = 0 )
+	virtual bool ListenAll( u_short iPort, const CS_STRING & sSockName, int isSSL = false, int iMaxConns = SOMAXCONN, T *pcSock = NULL, u_int iTimeout = 0 )
 	{
 		return( ListenHost( iPort, sSockName, "", isSSL, iMaxConns, pcSock, iTimeout ) );
 	}
@@ -1231,7 +1232,7 @@ public:
 	}
 
 	//! returns a pointer to the FIRST sock found by port or NULL on no match
-	virtual T * FindSockByRemotePort( int iPort )
+	virtual T * FindSockByRemotePort( u_short iPort )
 	{
 		for( unsigned int i = 0; i < this->size(); i++ )
 		{
@@ -1243,7 +1244,7 @@ public:
 	}
 
 	//! returns a pointer to the FIRST sock found by port or NULL on no match
-	virtual T * FindSockByLocalPort( int iPort )
+	virtual T * FindSockByLocalPort( u_short iPort )
 	{
 		for( unsigned int i = 0; i < this->size(); i++ )
 			if ( (*this)[i]->GetLocalPort() == iPort )
@@ -1586,7 +1587,7 @@ private:
 				else // someone is coming in!
 				{
 					CS_STRING sHost;
-					int port;
+					u_short port;
 					int inSock = pcSock->Accept( sHost, port );
 
 					if ( inSock != -1 )

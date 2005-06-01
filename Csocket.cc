@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.16 $
+* $Revision: 1.17 $
 */
 
 #include "Csocket.h"
@@ -365,13 +365,13 @@ Csock::Csock( int itimeout )
 	Init( "", 0, itimeout );
 }
 
-Csock::Csock( const CS_STRING & sHostname, int iport, int itimeout )
+Csock::Csock( const CS_STRING & sHostname, u_short iport, int itimeout )
 {
 	Init( sHostname, iport, itimeout );
 }
 
 // override this for accept sockets
-Csock *Csock::GetSockObj( const CS_STRING & sHostname, int iPort )
+Csock *Csock::GetSockObj( const CS_STRING & sHostname, u_short iPort )
 {
 	return( NULL );
 }
@@ -621,7 +621,7 @@ int Csock::ReadSelect()
 	return( SEL_OK );
 }
 
-bool Csock::Listen( int iPort, int iMaxConns, const CS_STRING & sBindHost, u_int iTimeout )
+bool Csock::Listen( u_short iPort, int iMaxConns, const CS_STRING & sBindHost, u_int iTimeout )
 {
 	m_iReadSock = m_iWriteSock = SOCKET( true );
 	m_iConnType = LISTENER;
@@ -664,7 +664,7 @@ bool Csock::Listen( int iPort, int iMaxConns, const CS_STRING & sBindHost, u_int
 	return( true );
 }
 
-int Csock::Accept( CS_STRING & sHost, int & iRPort )
+int Csock::Accept( CS_STRING & sHost, u_short & iRPort )
 {
 	struct sockaddr_in client;
 	socklen_t clen = sizeof(struct sockaddr);
@@ -1319,7 +1319,7 @@ double Csock::GetAvgWrite( unsigned long long iSample )
 	return( ( (double)m_iBytesWritten / ( (double)iDifference / (double)iSample ) ) );
 }
 
-int Csock::GetRemotePort()
+u_short Csock::GetRemotePort()
 {
 	if ( m_iRemotePort > 0 )
 		return( m_iRemotePort );
@@ -1337,7 +1337,7 @@ int Csock::GetRemotePort()
 	return( m_iRemotePort );
 }
 
-int Csock::GetLocalPort()
+u_short Csock::GetLocalPort()
 {
 	if ( m_iLocalPort > 0 )
 		return( m_iLocalPort );
@@ -1355,8 +1355,8 @@ int Csock::GetLocalPort()
 	return( m_iLocalPort );
 }
 
-int Csock::GetPort() { return( m_iport ); }
-void Csock::SetPort( int iPort ) { m_iport = iPort; }
+u_short Csock::GetPort() { return( m_iport ); }
+void Csock::SetPort( u_short iPort ) { m_iport = iPort; }
 void Csock::Close() { m_bClosed = true; }
 bool Csock::isClosed() { return( m_bClosed ); }
 void Csock::BlockIO( bool bBLOCK ) { m_bBLOCK = bBLOCK; }
@@ -1772,7 +1772,7 @@ int Csock::SOCKET( bool bListen )
 	return( iRet );
 }
 
-void Csock::Init( const CS_STRING & sHostname, int iport, int itimeout )
+void Csock::Init( const CS_STRING & sHostname, u_short iport, int itimeout )
 {
 #ifdef HAVE_LIBSSL
 	m_ssl = NULL;
