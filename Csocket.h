@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.132 $
+* $Revision: 1.133 $
 */
 
 // note to compile with win32 need to link to winsock2, using gcc its -lws2_32
@@ -947,6 +947,9 @@ public:
 
 		// make it NON-Blocking IO
 		pcSock->BlockIO( false );
+
+		// bind the vhost
+		pcSock->SetBindHost( sBindHost );
 
 #ifdef HAVE_LIBSSL
 		pcSock->SetSSL( isSSL );
