@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.133 $
+* $Revision: 1.134 $
 */
 
 // note to compile with win32 need to link to winsock2, using gcc its -lws2_32
@@ -1114,8 +1114,8 @@ public:
 								if ( T::TMO_READ & pcSock->GetTimeoutType() )
 									pcSock->ResetTimer();	// reset the timeout timer
 
+								pcSock->ReadData( buff, bytes );	// Call ReadData() before PushBuff() so that it is called before the ReadLine() event - LD  07/18/05
 								pcSock->PushBuff( buff, bytes );
-								pcSock->ReadData( buff, bytes );
 								break;
 							}
 						}
