@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.136 $
+* $Revision: 1.137 $
 */
 
 // note to compile with win32 need to link to winsock2, using gcc its -lws2_32
@@ -603,6 +603,7 @@ public:
 	void Close( ECloseType eCloseType = CLT_NOW );
 	//! returns int of type to close @see ECloseType
 	ECloseType GetCloseType() { return( m_eCloseType ); }
+	bool IsClosed() { return( GetCloseType() != CLT_DONT ); }
 
 	//! Set rather to NON Blocking IO on this socket, default is true
 	void BlockIO( bool bBLOCK );
