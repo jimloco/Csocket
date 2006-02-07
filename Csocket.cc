@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.22 $
+* $Revision: 1.23 $
 */
 
 #include "Csocket.h"
@@ -40,6 +40,89 @@ namespace Csocket
 {
 #endif /* _NO_CSOCKET_NS */
 
+#ifdef HAVE_IPV6
+int GetHostByName6( const CS_STRING & sHostName, in6_addr * paddr, u_int iNumRetries )
+{
+	int iReturn = HOST_NOT_FOUND;
+	struct hostent *hent = NULL;
+	if( ( sHostName.find( ":" ) != Cstring::npos ) && ( inet_pton( AF_INET6, sHostName.c_str(), paddr ) > 0 ) )
+		return( 0 );
+
+#ifdef __linux__
+	char hbuff[2048];
+	struct hostent hentbuff;
+
+	int err;
+	for( u_int a = 0; a < iNumRetries; a++ )
+	{
+		memset( (char *)hbuff, '\0', 2048 );
+		iReturn = gethostbyname_r( sHostName.c_str(), &hentbuff, hbuff, 2048, &hent, &err );
+
+		if ( iReturn == 0 )
+			break;
+
+		if ( iReturn != TRY_AGAIN )
+			break;
+
+		PERROR( "gethostbyname_r" );
+	}
+	if ( ( !hent ) && ( iReturn == 0 ) )
+		iReturn = HOST_NOT_FOUND;
+#else
+	hent = gethostbyname( sHostName.c_str() );
+	PERROR( "gethostbyname" );
+
+	if ( hent )
+		iReturn = 0;
+
+#endif /* __linux__ */
+
+	if ( iReturn == 0 )
+		memcpy( &paddr->s6_addr, hent->h_addr_list[0], sizeof( paddr->s6_addr ) );
+
+	return( iReturn );
+}
+#endif /* HAVE_IPV6 */
+
+int GetHostByName( const CS_STRING & sHostName, in_addr * paddr, u_int iNumRetries )
+{
+	int iReturn = HOST_NOT_FOUND;
+	struct hostent *hent = NULL;
+
+#ifdef __linux__
+	char hbuff[2048];
+	struct hostent hentbuff;
+
+	int err;
+	for( u_int a = 0; a < iNumRetries; a++ )
+	{
+		memset( (char *)hbuff, '\0', 2048 );
+		iReturn = gethostbyname_r( sHostName.c_str(), &hentbuff, hbuff, 2048, &hent, &err );
+
+		if ( iReturn == 0 )
+			break;
+
+		if ( iReturn != TRY_AGAIN )
+			break;
+
+		PERROR( "gethostbyname_r" );
+	}
+	if ( ( !hent ) && ( iReturn == 0 ) )
+		iReturn = HOST_NOT_FOUND;
+#else
+	hent = gethostbyname( sHostName.c_str() );
+	PERROR( "gethostbyname" );
+
+	if ( hent )
+		iReturn = 0;
+
+#endif /* __linux__ */
+
+	if ( iReturn == 0 )
+		memcpy( &paddr->s_addr, hent->h_addr_list[0], sizeof( paddr->s_addr ) );
+
+	return( iReturn );
+}
 #ifdef ___DO_THREADS
 CSMutex::CSMutex() 
 {
@@ -240,45 +323,6 @@ unsigned long long millitime()
 	iTime += ( (unsigned long long)tv.tv_usec / 1000 );
 #endif /* _WIN32 */
 	return( iTime );
-}
-
-int GetHostByName( const CS_STRING & sHostName, struct in_addr *paddr, u_int iNumRetries )
-{
-	int iReturn = HOST_NOT_FOUND;
-	struct hostent *hent = NULL;
-#ifdef __linux__
-	char hbuff[2048];
-	struct hostent hentbuff;
-
-	int err;
-	for( u_int a = 0; a < iNumRetries; a++ )
-	{
-		memset( (char *)hbuff, '\0', 2048 );
-		iReturn = gethostbyname_r( sHostName.c_str(), &hentbuff, hbuff, 2048, &hent, &err );
-
-		if ( iReturn == 0 )
-			break;
-
-		if ( iReturn != TRY_AGAIN )
-			break;
-
-		PERROR( "gethostbyname_r" );
-	}
-	if ( ( !hent ) && ( iReturn == 0 ) )
-		iReturn = HOST_NOT_FOUND;
-#else
-	hent = gethostbyname( sHostName.c_str() );
-	PERROR( "gethostbyname" );
-
-	if ( hent )
-		iReturn = 0;
-
-#endif /* __linux__ */
-
-	if ( iReturn == 0 )
-		memcpy( &paddr->s_addr, hent->h_addr_list[0], sizeof( paddr->s_addr ) );
-
-	return( iReturn );
 }
 
 #ifndef _NO_CSOCKET_NS // some people may not want to use a namespace
@@ -529,8 +573,13 @@ bool Csock::Connect( const CS_STRING & sBindHost, bool bSkipSetup )
 
 	m_iConnType = OUTBOUND;
 
-	// connect
-	int ret = connect( m_iReadSock, (struct sockaddr *)&m_address, sizeof( m_address ) );
+	int ret = -1;
+	if( !GetIPv6() )
+		ret = connect( m_iReadSock, (struct sockaddr *)m_address.GetSockAddr(), m_address.GetSockAddrLen() );
+#ifdef HAVE_IPV6
+	else
+		ret = connect( m_iReadSock, (struct sockaddr *)m_address.GetSockAddr6(), m_address.GetSockAddrLen6() );
+#endif /* HAVE_IPV6 */
 #ifndef _WIN32
 	if ( ( ret == -1 ) && ( GetSockError() != EINPROGRESS ) )
 #else
@@ -631,18 +680,39 @@ bool Csock::Listen( u_short iPort, int iMaxConns, const CS_STRING & sBindHost, u
 		return( false );
 
 	m_sBindHost = sBindHost;
-
-	memset( (struct sockaddr_in *)&m_address, '\0', sizeof( m_address ) );
-	m_address.sin_family = PF_INET;
+	m_address.SinFamily();
 	if ( !sBindHost.empty() )
 	{
-		if ( GetHostByName( sBindHost, &(m_address.sin_addr) ) != 0 )
+#ifdef HAVE_IPV6
+		if( GetIPv6() )
+		{
+			if ( GetHostByName6( sBindHost, m_address.GetAddr6() ) != 0 )
+				return( false );
+		}
+		else
+		{
+			if ( GetHostByName( sBindHost, m_address.GetAddr() ) != 0 )
+				return( false );
+		}
+#else
+		if ( GetHostByName( sBindHost, m_address.GetAddr() ) != 0 )
+			return( false );
+#endif /* HAVE_IPV6 */
+	}
+	m_address.SinPort( iPort );
+
+	if( !GetIPv6() )
+	{
+		if ( bind( m_iReadSock, (struct sockaddr *) m_address.GetSockAddr(), m_address.GetSockAddrLen() ) == -1 )
 			return( false );
 	}
-	m_address.sin_port = htons( iPort );
-
-	if ( bind( m_iReadSock, (struct sockaddr *) &m_address, sizeof( m_address ) ) == -1 )
-		return( false );
+#ifdef HAVE_IPV6
+	else
+	{
+		if ( bind( m_iReadSock, (struct sockaddr *) m_address.GetSockAddr6(), m_address.GetSockAddrLen6() ) == -1 )
+			return( false );
+	}
+#endif /* HAVE_IPV6 */
 
 	if ( listen( m_iReadSock, iMaxConns ) == -1 )
 		return( false );
@@ -664,10 +734,33 @@ bool Csock::Listen( u_short iPort, int iMaxConns, const CS_STRING & sBindHost, u
 
 int Csock::Accept( CS_STRING & sHost, u_short & iRPort )
 {
-	struct sockaddr_in client;
-	socklen_t clen = sizeof(struct sockaddr);
+	int iSock = -1;
+	if( !GetIPv6() )
+	{
+		struct sockaddr_in client;
+		socklen_t clen = sizeof( client );
+		iSock = accept( m_iReadSock, (struct sockaddr *) &client, &clen );
+		getpeername( iSock, (struct sockaddr *) &client, &clen );
+		sHost = inet_ntoa( client.sin_addr );
+		iRPort = ntohs( client.sin_port );
+	}
+#ifdef HAVE_IPV6
+	else
+	{
+		char straddr[INET6_ADDRSTRLEN];
+		struct sockaddr_in6 client;
+		socklen_t clen = sizeof( client );
+		iSock = accept( m_iReadSock, (struct sockaddr *) &client, &clen );
+		getpeername( iSock, (struct sockaddr *) &client, &clen );
+		if( inet_ntop( AF_INET6, &client.sin6_addr, straddr, sizeof(straddr) ) > 0 )
+		{
+			sHost = straddr;
+			iRPort = ntohs( client.sin6_port );
+		}
+	}
+#endif /* HAVE_IPV6 */
 
-	int iSock = accept( m_iReadSock , (struct sockaddr *) &client, &clen );
+	
 	if ( iSock != -1 )
 	{
 		if ( !m_bBLOCK )
@@ -681,11 +774,6 @@ int Csock::Accept( CS_STRING & sHost, u_short & iRPort )
 			fcntl( iSock, F_SETFL, fdflags|O_NONBLOCK );
 #endif /* _WIN32 */
 		}
-
-		getpeername( iSock, (struct sockaddr *) &client, &clen );
-
-		sHost = inet_ntoa( client.sin_addr );
-		iRPort = ntohs( client.sin_port );
 
 		if ( !ConnectionFrom( sHost, iRPort ) )
 		{
@@ -1174,10 +1262,26 @@ CS_STRING Csock::GetLocalIP()
 	if ( iSock < 0 )
 		return( "" );
 
-	struct sockaddr_in mLocalAddr;
-	socklen_t mLocalLen = sizeof( mLocalAddr );
-	if ( getsockname( iSock, (struct sockaddr *) &mLocalAddr, &mLocalLen ) == 0 )
-		m_sLocalIP = inet_ntoa( mLocalAddr.sin_addr );
+	if( !GetIPv6() )
+	{
+		struct sockaddr_in mLocalAddr;
+		socklen_t mLocalLen = sizeof( mLocalAddr );
+		if ( getsockname( iSock, (struct sockaddr *) &mLocalAddr, &mLocalLen ) == 0 )
+			m_sLocalIP = inet_ntoa( mLocalAddr.sin_addr );
+	}
+#ifdef HAVE_IPV6
+	else
+	{
+		char straddr[INET6_ADDRSTRLEN];
+		struct sockaddr_in6 mLocalAddr;
+		socklen_t mLocalLen = sizeof( mLocalAddr );
+		if ( ( getsockname( iSock, (struct sockaddr *) &mLocalAddr, &mLocalLen ) == 0 ) 
+			&& ( inet_ntop( AF_INET6, &mLocalAddr.sin6_addr, straddr, sizeof(straddr) ) ) )
+		{
+			m_sLocalIP = straddr;
+		}
+	}
+#endif /* HAVE_IPV6 */
 
 	return( m_sLocalIP );
 }
@@ -1195,10 +1299,26 @@ CS_STRING Csock::GetRemoteIP()
 		return( "" );
 	}
 
-	struct sockaddr_in mRemoteAddr;
-	socklen_t mRemoteLen = sizeof( mRemoteAddr );
-	if ( getpeername( iSock, (struct sockaddr *) &mRemoteAddr, &mRemoteLen ) == 0 )
-		m_sRemoteIP = inet_ntoa( mRemoteAddr.sin_addr );
+	if( !GetIPv6() )
+	{
+		struct sockaddr_in mRemoteAddr;
+		socklen_t mRemoteLen = sizeof( mRemoteAddr );
+		if ( getpeername( iSock, (struct sockaddr *) &mRemoteAddr, &mRemoteLen ) == 0 )
+			m_sRemoteIP = inet_ntoa( mRemoteAddr.sin_addr );
+	}
+#ifdef HAVE_IPV6
+	else
+	{
+		char straddr[INET6_ADDRSTRLEN];
+		struct sockaddr_in6 mRemoteAddr;
+		socklen_t mRemoteLen = sizeof( mRemoteAddr );
+		if ( ( getpeername( iSock, (struct sockaddr *) &mRemoteAddr, &mRemoteLen ) == 0 ) 
+			&& ( inet_ntop( AF_INET6, &mRemoteAddr.sin6_addr, straddr, sizeof(straddr) ) ) )
+		{
+			m_sRemoteIP = straddr;
+		}
+	}
+#endif /* HAVE_IPV6 */
 
 	return( m_sRemoteIP );
 }
@@ -1326,10 +1446,22 @@ u_short Csock::GetRemotePort()
 
 	if ( iSock >= 0 )
 	{
-		struct sockaddr_in mAddr;
-		socklen_t mLen = sizeof(struct sockaddr);
-		if ( getpeername( iSock, (struct sockaddr *) &mAddr, &mLen ) == 0 )
-			m_iRemotePort = ntohs( mAddr.sin_port );
+		if( !GetIPv6() )
+		{
+			struct sockaddr_in mAddr;
+			socklen_t mLen = sizeof( mAddr );
+			if ( getpeername( iSock, (struct sockaddr *) &mAddr, &mLen ) == 0 )
+				m_iRemotePort = ntohs( mAddr.sin_port );
+		}
+#ifdef HAVE_IPV6
+		else
+		{
+			struct sockaddr_in6 mAddr;
+			socklen_t mLen = sizeof( mAddr );
+			if ( getpeername( iSock, (struct sockaddr *) &mAddr, &mLen ) == 0 )
+				m_iRemotePort = ntohs( mAddr.sin6_port );
+		}
+#endif /* HAVE_IPV6 */
 	}
 
 	return( m_iRemotePort );
@@ -1344,10 +1476,22 @@ u_short Csock::GetLocalPort()
 
 	if ( iSock >= 0 )
 	{
-		struct sockaddr_in mLocalAddr;
-		socklen_t mLocalLen = sizeof(struct sockaddr);
-		if ( getsockname( iSock, (struct sockaddr *) &mLocalAddr, &mLocalLen ) == 0 )
-			m_iLocalPort = ntohs( mLocalAddr.sin_port );
+		if( !GetIPv6() )
+		{
+			struct sockaddr_in mLocalAddr;
+			socklen_t mLocalLen = sizeof( mLocalLen );
+			if ( getsockname( iSock, (struct sockaddr *) &mLocalAddr, &mLocalLen ) == 0 )
+				m_iLocalPort = ntohs( mLocalAddr.sin_port );
+		}
+#ifdef HAVE_IPV6
+		else
+		{
+			struct sockaddr_in6 mLocalAddr;
+			socklen_t mLocalLen = sizeof( mLocalLen );
+			if ( getsockname( iSock, (struct sockaddr *) &mLocalAddr, &mLocalLen ) == 0 )
+				m_iLocalPort = ntohs( mLocalAddr.sin6_port );
+		}
+#endif /* HAVE_IPV6 */
 	}
 
 	return( m_iLocalPort );
@@ -1648,8 +1792,8 @@ int Csock::DNSLookup( EDNSLType eDNSLType )
 			return( 0 );
 		}
 
-		m_bindhost.sin_family = PF_INET;
-		m_bindhost.sin_port = htons( 0 );
+		m_bindhost.SinFamily();
+		m_bindhost.SinPort( 0 );
 	}
 
 #ifdef ___DO_THREADS
@@ -1665,9 +1809,29 @@ int Csock::DNSLookup( EDNSLType eDNSLType )
 		if ( m_cResolver.Suceeded() )
 		{
 			if ( eDNSLType == DNS_VHOST )
-				memcpy( &(m_bindhost.sin_addr), m_cResolver.GetAddr(), sizeof( m_bindhost.sin_addr ) );
+			{
+				if( !GetIPv6() )
+					memcpy( m_bindhost.GetAddr(), m_cResolver.GetAddr(), sizeof( *(m_bindhost.GetAddr()) ) );
+#ifdef HAVE_IPV6
+				else
+				{
+					CS_DEBUG( "Not Supported Yet!" );
+					return( ETIMEDOUT );
+				}
+#endif /* HAVE_IPV6 */
+			}
 			else
-				memcpy( &(m_address.sin_addr), m_cResolver.GetAddr(), sizeof( m_address.sin_addr ) );
+			{
+				if( !GetIPv6() )
+					memcpy( m_address.GetAddr()), m_cResolver.GetAddr(), sizeof( *(m_address.GetAddr()) );
+#ifdef HAVE_IPV6
+				else
+				{
+					CS_DEBUG( "Not Supported Yet!" );
+					return( ETIMEDOUT );
+				}
+#endif /* HAVE_IPV6 */
+			}
 
 			if ( m_eConState != CST_OK )
 				m_eConState = ( ( eDNSLType == DNS_VHOST ) ? CST_BINDVHOST : CST_VHOSTDNS );
@@ -1682,9 +1846,27 @@ int Csock::DNSLookup( EDNSLType eDNSLType )
 #else
 	int iRet;
 	if ( eDNSLType == DNS_VHOST )
-		iRet = GetHostByName( m_sBindHost, &(m_bindhost.sin_addr), 1 );
+	{
+		if( !GetIPv6() )
+			iRet = GetHostByName( m_sBindHost, m_bindhost.GetAddr(), 1 );
+#ifdef HAVE_IPV6
+		else
+		{
+			iRet = GetHostByName6( m_sBindHost, m_bindhost.GetAddr6(), 1 );
+		}
+#endif /* HAVE_IPV6 */
+	}
 	else
-		iRet = GetHostByName( m_shostname, &(m_address.sin_addr), 1 );
+	{
+		if( !GetIPv6() )
+			iRet = GetHostByName( m_shostname, m_address.GetAddr(), 1 );
+#ifdef HAVE_IPV6
+		else
+		{
+			iRet = GetHostByName6( m_shostname, m_bindhost.GetAddr6(), 1 );
+		}
+#endif /* HAVE_IPV6 */
+	}
 
 	if ( iRet == 0 )
 	{
@@ -1756,7 +1938,7 @@ void Csock::FREE_CTX()
 //! Create the socket
 int Csock::SOCKET( bool bListen )
 {
-	int iRet = socket( PF_INET, SOCK_STREAM, IPPROTO_TCP );
+	int iRet = socket( ( GetIPv6() ? PF_INET6 : PF_INET ), SOCK_STREAM, IPPROTO_TCP );
 
 	if ( ( iRet > -1 ) && ( bListen ) )
 	{
@@ -1810,5 +1992,6 @@ void Csock::Init( const CS_STRING & sHostname, u_short iport, int itimeout )
 	m_eConState = CST_OK;	// default should be ok
 	m_iDNSTryCount = 0;
 	m_iCurBindCount = 0;
+	m_bIsIPv6 = false;
 }
 

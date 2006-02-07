@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.137 $
+* $Revision: 1.138 $
 */
 
 // note to compile with win32 need to link to winsock2, using gcc its -lws2_32
@@ -112,7 +112,70 @@ namespace Csocket
 {
 #endif /* _NO_CSOCKET_NS */
 
-int GetHostByName( const CS_STRING & sHostName, struct in_addr *paddr, u_int iNumRetries = 20 );
+#ifdef HAVE_IPV6
+int GetHostByName6( const CS_STRING & sHostName, in6_addr * paddr, u_int iNumRetries = 20 );
+#endif /* HAVE_IPV6 */
+int GetHostByName( const CS_STRING & sHostName, in_addr * paddr, u_int iNumRetries = 20 );
+
+class CSSockAddr
+{
+public:
+	CSSockAddr() 
+	{ 
+		m_bIsIPv6 = false; 
+		memset( (struct sockaddr_in *)&m_saddr, '\0', sizeof( m_saddr ) );
+#ifdef HAVE_IPV6
+		memset( (struct sockaddr_in6 *)&m_saddr, '\0', sizeof( m_saddr6 ) );
+#endif /* HAVE_IPV6 */
+	}
+	virtual ~CSSockAddr() {}
+
+
+	void SinFamily()
+	{
+#ifdef HAVE_IPV6
+		if( m_bIsIPv6 )
+		{
+			m_saddr6.sin6_family = PF_INET6;
+			return;
+		}
+#endif /* HAVE_IPV6 */
+		m_saddr.sin_family = PF_INET;
+	}
+	void SinPort( u_short iPort )
+	{
+#ifdef HAVE_IPV6
+		if( m_bIsIPv6 )
+		{
+			m_saddr6.sin6_port = htons( iPort );
+			return;
+		}
+#endif /* HAVE_IPV6 */
+		m_saddr.sin_port = htons( iPort );
+	}
+
+	void SetIPv6( bool b ) { m_bIsIPv6 = b; }
+	bool GetIPv6() const { return( m_bIsIPv6 ); }
+
+
+
+	socklen_t GetSockAddrLen() { return( sizeof( m_saddr ) ); }
+	sockaddr_in * GetSockAddr() { return( &m_saddr ); }
+	in_addr * GetAddr() { return( &(m_saddr.sin_addr) ); }
+#ifdef HAVE_IPV6
+	socklen_t GetSockAddrLen6() { return( sizeof( m_saddr6 ) ); }
+	sockaddr_in6 * GetSockAddr6() { return( &m_saddr6 ); }
+	in6_addr * GetAddr6() { return( &(m_saddr6.sin6_addr) ); }
+#endif /* HAVE_IPV6 */
+
+private:
+	bool			m_bIsIPv6;
+	sockaddr_in		m_saddr;
+#ifdef HAVE_IPV6
+	sockaddr_in6	m_saddr6;
+#endif /* HAVE_IPV6 */
+
+};
 
 #if defined( _REENTRANT ) && defined( _USE_THREADED_DNS )
 #define ___DO_THREADS
@@ -798,8 +861,8 @@ public:
 		if ( m_iReadSock == -1 )
 			return( false );
 
-		m_address.sin_family = PF_INET;
-		m_address.sin_port = htons( m_iport );
+		m_address.SinFamily();
+		m_address.SinPort( m_iport );
 
 		return( true );
 	}
@@ -823,7 +886,13 @@ public:
 	//! this is only used on outbound connections, listeners bind in a different spot
 	bool SetupVHost();
 	
-	//////////////////////////////////////////////////
+	bool GetIPv6() const { return( m_bIsIPv6 ); }
+	void SetIPv6( bool b ) 
+	{ 
+		m_bIsIPv6 = b; 
+		m_address.SetIPv6( b );
+		m_bindhost.SetIPv6( b );
+	}
 
 private:
 	u_short		m_iport, m_iRemotePort, m_iLocalPort;
@@ -837,7 +906,8 @@ private:
 	unsigned long long	m_iMaxMilliSeconds, m_iLastSendTime, m_iBytesRead, m_iBytesWritten, m_iStartTime;
 	unsigned int		m_iMaxBytes, m_iLastSend, m_iMaxStoredBufferLength, m_iTimeoutType;
 
-	struct sockaddr_in 	m_address, m_bindhost;
+	CSSockAddr 		m_address, m_bindhost;
+	bool			m_bIsIPv6;
 
 #ifdef HAVE_LIBSSL
 	SSL 				*m_ssl;
@@ -942,7 +1012,7 @@ public:
 	* \param sBindHost the host to bind too
 	* \return true on success
 	*/
-	virtual bool Connect( const CS_STRING & sHostname, u_short iPort , const CS_STRING & sSockName, int iTimeout = 60, bool isSSL = false, const CS_STRING & sBindHost = "", T *pcSock = NULL )
+	virtual bool Connect( const CS_STRING & sHostname, u_short iPort , const CS_STRING & sSockName, int iTimeout = 60, bool isSSL = false, const CS_STRING & sBindHost = "", T *pcSock = NULL, bool bIsIPv6 = false )
 	{
 		// create the new object
 		if ( !pcSock )
@@ -953,6 +1023,7 @@ public:
 			pcSock->SetPort( iPort );
 			pcSock->SetTimeout( iTimeout );
 		}
+		pcSock->SetIPv6( bIsIPv6 );
 
 		// make it NON-Blocking IO
 		pcSock->BlockIO( false );
@@ -973,6 +1044,12 @@ public:
 		AddSock( pcSock, sSockName );
 		return( true );
 	}
+#ifdef HAVE_IPV6
+	virtual bool Connect6( const CS_STRING & sHostname, u_short iPort , const CS_STRING & sSockName, int iTimeout = 60, bool isSSL = false, const CS_STRING & sBindHost = "", T *pcSock = NULL )
+	{
+		return( Connect( sHostname, iPort, sSockName, iTimeout, isSSL, sBindHost, pcSock, true ) );
+	}
+#endif /* HAVE_IPV6 */
 
 	/**
 	* @brief Create a listening socket
@@ -987,12 +1064,13 @@ public:
 	* @param iMaxConns the maximum amount of connections to accept
 	* @return pointer to sock, NULL if not successfull
 	*/
-	virtual T * ListenHost( u_short iPort, const CS_STRING & sSockName, const CS_STRING & sBindHost, int isSSL = false, int iMaxConns = SOMAXCONN, T *pcSock = NULL, u_int iTimeout = 0 )
+	virtual T * ListenHost( u_short iPort, const CS_STRING & sSockName, const CS_STRING & sBindHost, int isSSL = false, int iMaxConns = SOMAXCONN, T *pcSock = NULL, u_int iTimeout = 0, bool bIsIPv6 = false )
 	{
 		if ( !pcSock )
 			pcSock = new T();
 
 		pcSock->BlockIO( false );
+		pcSock->SetIPv6( bIsIPv6 );
 
 		pcSock->SetSSL( isSSL );
 
@@ -1005,18 +1083,18 @@ public:
 		return( NULL );
 	}
 
-	virtual bool ListenAll( u_short iPort, const CS_STRING & sSockName, int isSSL = false, int iMaxConns = SOMAXCONN, T *pcSock = NULL, u_int iTimeout = 0 )
+	virtual bool ListenAll( u_short iPort, const CS_STRING & sSockName, int isSSL = false, int iMaxConns = SOMAXCONN, T *pcSock = NULL, u_int iTimeout = 0, bool bIsIPv6 = false )
 	{
-		return( ListenHost( iPort, sSockName, "", isSSL, iMaxConns, pcSock, iTimeout ) );
+		return( ListenHost( iPort, sSockName, "", isSSL, iMaxConns, pcSock, iTimeout, bIsIPv6 ) );
 	}
 
 	/*
 	 * @return the port number being listened on
 	 */
-	virtual u_short ListenRand( const CS_STRING & sSockName, const CS_STRING & sBindHost, int isSSL = false, int iMaxConns = SOMAXCONN, T *pcSock = NULL, u_int iTimeout = 0 )
+	virtual u_short ListenRand( const CS_STRING & sSockName, const CS_STRING & sBindHost, int isSSL = false, int iMaxConns = SOMAXCONN, T *pcSock = NULL, u_int iTimeout = 0, bool bIsIPv6 = false )
 	{
 		u_short iPort = 0;
-		T *pNewSock = ListenHost( 0,  sSockName, sBindHost, isSSL, iMaxConns, pcSock, iTimeout );
+		T *pNewSock = ListenHost( 0, sSockName, sBindHost, isSSL, iMaxConns, pcSock, iTimeout, bIsIPv6 );
 		if ( pNewSock )
 		{
 			int iSock = pNewSock->GetSock();
@@ -1037,9 +1115,9 @@ public:
 
 		return( iPort );
 	}
-	virtual u_short ListenAllRand( const CS_STRING & sSockName, int isSSL = false, int iMaxConns = SOMAXCONN, T *pcSock = NULL, u_int iTimeout = 0 )
+	virtual u_short ListenAllRand( const CS_STRING & sSockName, int isSSL = false, int iMaxConns = SOMAXCONN, T *pcSock = NULL, u_int iTimeout = 0, bool bIsIPv6 = false )
 	{
-		return( ListenRand( sSockName, "", isSSL, iMaxConns, pcSock, iTimeout ) );
+		return( ListenRand( sSockName, "", isSSL, iMaxConns, pcSock, iTimeout, bIsIPv6 ) );
 	}
 
 	/*
@@ -1624,6 +1702,7 @@ private:
 						NewpcSock->SetType( T::INBOUND );
 						NewpcSock->SetRSock( inSock );
 						NewpcSock->SetWSock( inSock );
+						NewpcSock->SetIPv6( pcSock->GetIPv6() );
 
 						bool bAddSock = true;
 #ifdef HAVE_LIBSSL
