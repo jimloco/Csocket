@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.23 $
+* $Revision: 1.24 $
 */
 
 #include "Csocket.h"
@@ -202,22 +202,33 @@ void *CSThread::start_thread( void *args )
 	pthread_exit( NULL );   
 }
 
-void CDNSResolver::Lookup( const CS_STRING & sHostname )
+void CDNSResolver::Lookup( const CS_STRING & sHostname, bool bIsIPv6 )
 {
 	m_bSuccess = false;
 	m_sHostname = sHostname;
 	memset( (struct in_addr *)&m_inAddr, '\0', sizeof( m_inAddr ) );
+#ifdef HAVE_IPV6
+	m_bIsIPv6 = bIsIPv6;
+	memset( (struct in6_addr *)&m_inAddr6, '\0', sizeof( m_inAddr6 ) );
+#endif /* HAVE_IPV6 */
 	start();
 }
 
 void CDNSResolver::run()
 {
-	if ( GetHostByName( m_sHostname, &m_inAddr ) != 0 )
-		m_bSuccess = false;
+	m_bSuccess = false;
+	if( !m_bIsIPv6 )
+	{
+		if ( GetHostByName( m_sHostname, &m_inAddr ) == 0 )
+			m_bSuccess = true;
+	}
+#ifdef HAVE_IPV6
 	else
 	{
-		m_bSuccess = true;
+		if ( GetHostByName6( m_sHostname, &m_inAddr6 ) == 0 )
+			m_bSuccess = true;
 	}
+#endif /* HAVE_IPV6 */
 }
 
 bool CDNSResolver::IsCompleted()
@@ -1799,7 +1810,7 @@ int Csock::DNSLookup( EDNSLType eDNSLType )
 #ifdef ___DO_THREADS
 	if ( m_iDNSTryCount == 0 )
 	{
-		m_cResolver.Lookup( ( eDNSLType == DNS_VHOST ) ? m_sBindHost : m_shostname );
+		m_cResolver.Lookup( ( eDNSLType == DNS_VHOST ) ? m_sBindHost : m_shostname, GetIPv6() );
 		m_iDNSTryCount++;
 	}
    
@@ -1814,22 +1825,16 @@ int Csock::DNSLookup( EDNSLType eDNSLType )
 					memcpy( m_bindhost.GetAddr(), m_cResolver.GetAddr(), sizeof( *(m_bindhost.GetAddr()) ) );
 #ifdef HAVE_IPV6
 				else
-				{
-					CS_DEBUG( "Not Supported Yet!" );
-					return( ETIMEDOUT );
-				}
+					memcpy( m_bindhost.GetAddr6(), m_cResolver.GetAddr6(), sizeof( *(m_bindhost.GetAddr6()) ) );
 #endif /* HAVE_IPV6 */
 			}
 			else
 			{
 				if( !GetIPv6() )
-					memcpy( m_address.GetAddr()), m_cResolver.GetAddr(), sizeof( *(m_address.GetAddr()) );
+					memcpy( m_address.GetAddr(), m_cResolver.GetAddr(), sizeof( *(m_address.GetAddr()) ) );
 #ifdef HAVE_IPV6
 				else
-				{
-					CS_DEBUG( "Not Supported Yet!" );
-					return( ETIMEDOUT );
-				}
+					memcpy( m_address.GetAddr6(), m_cResolver.GetAddr6(), sizeof( *(m_address.GetAddr6()) ) );
 #endif /* HAVE_IPV6 */
 			}
 

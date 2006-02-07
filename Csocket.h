@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.139 $
+* $Revision: 1.140 $
 */
 
 // note to compile with win32 need to link to winsock2, using gcc its -lws2_32
@@ -231,15 +231,19 @@ private:
 class CDNSResolver : public CSThread
 {
 public:
-	CDNSResolver() : CSThread() { m_bSuccess = false; }
+	CDNSResolver() : CSThread() { m_bSuccess = false; m_bIsIPv6 = false; }
 	virtual ~CDNSResolver() {}
 	//! returns imediatly, from here out check if IsCompleted() returns true before looking at ANY of the data
-	void Lookup( const CS_STRING & sHostname );
+	void Lookup( const CS_STRING & sHostname, bool bIsIPv6 = false );
 
 	virtual void run();
 
 	//! returns the underlying in_addr structure containing the resolved hostname
 	const struct in_addr * GetAddr() const { return( &m_inAddr ); }
+#ifdef HAVE_IPV6
+	const struct in6_addr * GetAddr6() const { return( &m_inAddr6 ); }
+#endif /* HAVE_IPV6 */
+
 	//! true if dns entry was successfuly found
 	bool Suceeded() const { return( m_bSuccess ); }
 
@@ -250,9 +254,13 @@ public:
 	static CS_STRING CreateIP( const struct in_addr *pAddr );
 
 private:
-	bool		m_bSuccess;
+	bool		m_bSuccess, m_bIsIPv6;
 	CS_STRING	m_sHostname;
 	struct in_addr	m_inAddr;
+#ifdef HAVE_IPV6
+	struct in6_addr m_inAddr6;
+#endif /* HAVE_IPV6 */
+
 };
 
 
