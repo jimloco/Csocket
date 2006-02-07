@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.138 $
+* $Revision: 1.139 $
 */
 
 // note to compile with win32 need to link to winsock2, using gcc its -lws2_32
@@ -1010,6 +1010,7 @@ public:
 	* \param iTimeout the amount of time to try to connect
 	* \param isSSL does the connection require a SSL layer
 	* \param sBindHost the host to bind too
+	* \param bIsIPv6 set to true to connect to an ipv6 host, requires HAVE_IPV6 at compile time to work
 	* \return true on success
 	*/
 	virtual bool Connect( const CS_STRING & sHostname, u_short iPort , const CS_STRING & sSockName, int iTimeout = 60, bool isSSL = false, const CS_STRING & sBindHost = "", T *pcSock = NULL, bool bIsIPv6 = false )
@@ -1062,6 +1063,7 @@ public:
 	* @param sSockName the name of the socket
 	* @param isSSL if the sockets created require an ssl layer
 	* @param iMaxConns the maximum amount of connections to accept
+	* @param bIsIPv6 set to true to listen on an ipv6 host, requires HAVE_IPV6 at compile time to work
 	* @return pointer to sock, NULL if not successfull
 	*/
 	virtual T * ListenHost( u_short iPort, const CS_STRING & sSockName, const CS_STRING & sBindHost, int isSSL = false, int iMaxConns = SOMAXCONN, T *pcSock = NULL, u_int iTimeout = 0, bool bIsIPv6 = false )
