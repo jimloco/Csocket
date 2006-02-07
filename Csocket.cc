@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.21 $
+* $Revision: 1.22 $
 */
 
 #include "Csocket.h"
@@ -632,16 +632,14 @@ bool Csock::Listen( u_short iPort, int iMaxConns, const CS_STRING & sBindHost, u
 
 	m_sBindHost = sBindHost;
 
+	memset( (struct sockaddr_in *)&m_address, '\0', sizeof( m_address ) );
 	m_address.sin_family = PF_INET;
-	if ( sBindHost.empty() )
-		m_address.sin_addr.s_addr = htonl( INADDR_ANY );
-	else
+	if ( !sBindHost.empty() )
 	{
 		if ( GetHostByName( sBindHost, &(m_address.sin_addr) ) != 0 )
 			return( false );
 	}
 	m_address.sin_port = htons( iPort );
-	memset( &(m_address.sin_zero), '\0', sizeof( m_address.sin_zero ) );
 
 	if ( bind( m_iReadSock, (struct sockaddr *) &m_address, sizeof( m_address ) ) == -1 )
 		return( false );
