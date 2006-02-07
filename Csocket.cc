@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.20 $
+* $Revision: 1.21 $
 */
 
 #include "Csocket.h"
@@ -1177,7 +1177,7 @@ CS_STRING Csock::GetLocalIP()
 		return( "" );
 
 	struct sockaddr_in mLocalAddr;
-	socklen_t mLocalLen = sizeof(struct sockaddr);
+	socklen_t mLocalLen = sizeof( mLocalAddr );
 	if ( getsockname( iSock, (struct sockaddr *) &mLocalAddr, &mLocalLen ) == 0 )
 		m_sLocalIP = inet_ntoa( mLocalAddr.sin_addr );
 
@@ -1198,7 +1198,7 @@ CS_STRING Csock::GetRemoteIP()
 	}
 
 	struct sockaddr_in mRemoteAddr;
-	socklen_t mRemoteLen = sizeof(struct sockaddr);
+	socklen_t mRemoteLen = sizeof( mRemoteAddr );
 	if ( getpeername( iSock, (struct sockaddr *) &mRemoteAddr, &mRemoteLen ) == 0 )
 		m_sRemoteIP = inet_ntoa( mRemoteAddr.sin_addr );
 
