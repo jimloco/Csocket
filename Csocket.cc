@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.25 $
+* $Revision: 1.26 $
 */
 
 #include "Csocket.h"
@@ -1849,7 +1849,7 @@ int Csock::DNSLookup( EDNSLType eDNSLType )
 	return( EAGAIN );
 	
 #else
-	int iRet;
+	int iRet = ETIMEDOUT;
 	if ( eDNSLType == DNS_VHOST )
 	{
 		if( !GetIPv6() )
