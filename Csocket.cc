@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.24 $
+* $Revision: 1.25 $
 */
 
 #include "Csocket.h"
@@ -45,7 +45,7 @@ int GetHostByName6( const CS_STRING & sHostName, in6_addr * paddr, u_int iNumRet
 {
 	int iReturn = HOST_NOT_FOUND;
 	struct hostent *hent = NULL;
-	if( ( sHostName.find( ":" ) != Cstring::npos ) && ( inet_pton( AF_INET6, sHostName.c_str(), paddr ) > 0 ) )
+	if( ( sHostName.find( ":" ) != CS_STRING::npos ) && ( inet_pton( AF_INET6, sHostName.c_str(), paddr ) > 0 ) )
 		return( 0 );
 
 #ifdef __linux__
