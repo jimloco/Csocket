@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.27 $
+* $Revision: 1.28 $
 */
 
 #include "Csocket.h"
@@ -1898,7 +1898,15 @@ bool Csock::SetupVHost()
 			m_eConState = CST_CONNECT;
 		return( true );
 	}
-	if ( bind( m_iReadSock, (struct sockaddr *) &m_bindhost, sizeof( m_bindhost ) ) == 0 )
+	int iRet = -1;
+	if( !GetIPv6() )
+		iRet = bind( m_iReadSock, (struct sockaddr *) m_bindhost.GetSockAddr(), m_bindhost.GetSockAddrLen() );
+#ifdef HAVE_IPV6
+	else
+		iRet = bind( m_iReadSock, (struct sockaddr *) m_bindhost.GetSockAddr6(), m_bindhost.GetSockAddrLen6() );
+#endif /* HAVE_IPV6 */
+
+	if ( iRet == 0 )
 	{
 		if ( m_eConState != CST_OK )
 			m_eConState = CST_CONNECT;
