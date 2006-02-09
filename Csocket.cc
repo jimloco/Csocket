@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.26 $
+* $Revision: 1.27 $
 */
 
 #include "Csocket.h"
@@ -694,20 +694,17 @@ bool Csock::Listen( u_short iPort, int iMaxConns, const CS_STRING & sBindHost, u
 	m_address.SinFamily();
 	if ( !sBindHost.empty() )
 	{
-#ifdef HAVE_IPV6
-		if( GetIPv6() )
-		{
-			if ( GetHostByName6( sBindHost, m_address.GetAddr6() ) != 0 )
-				return( false );
-		}
-		else
+		if( !GetIPv6() )
 		{
 			if ( GetHostByName( sBindHost, m_address.GetAddr() ) != 0 )
 				return( false );
 		}
-#else
-		if ( GetHostByName( sBindHost, m_address.GetAddr() ) != 0 )
-			return( false );
+#ifdef HAVE_IPV6
+		else
+		{
+			if ( GetHostByName6( sBindHost, m_address.GetAddr6() ) != 0 )
+				return( false );
+		}
 #endif /* HAVE_IPV6 */
 	}
 	m_address.SinPort( iPort );
@@ -1856,9 +1853,7 @@ int Csock::DNSLookup( EDNSLType eDNSLType )
 			iRet = GetHostByName( m_sBindHost, m_bindhost.GetAddr(), 1 );
 #ifdef HAVE_IPV6
 		else
-		{
 			iRet = GetHostByName6( m_sBindHost, m_bindhost.GetAddr6(), 1 );
-		}
 #endif /* HAVE_IPV6 */
 	}
 	else
