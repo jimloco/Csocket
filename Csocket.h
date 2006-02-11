@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.142 $
+* $Revision: 1.143 $
 */
 
 // note to compile with win32 need to link to winsock2, using gcc its -lws2_32
@@ -396,11 +396,12 @@ public:
 	const CS_STRING & GetName() const;
 	void SetName( const CS_STRING & sName );
 
-protected:
+public:
 
 	//! this is the method you should override
 	virtual void RunJob();
 
+private:
 	time_t		m_iTime;
 	bool		m_bActive, m_bPause;
 	int			m_iTimeSequence;
@@ -1056,7 +1057,10 @@ public:
 #endif /* HAVE_LIBSSL */
 
 		if ( !pcSock->CreateSocksFD() )
+		{
+			CS_Delete( pcSock );
 			return( false );
+		}
 
 		pcSock->SetType( T::OUTBOUND );
 
@@ -1795,7 +1799,7 @@ private:
 	///////////
 	// members
 	EMessages				m_errno;
-	std::vector<CCron *>			m_vcCrons;
+	std::vector<CCron *>	m_vcCrons;
 	unsigned long long		m_iCallTimeouts;
 	u_int					m_iSelectWait;
 };
