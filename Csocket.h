@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.144 $
+* $Revision: 1.145 $
 */
 
 // note to compile with win32 need to link to winsock2, using gcc its -lws2_32
@@ -957,9 +957,18 @@ private:
 
 };
 
+/**
+ * @class CSConnection
+ * @brief options for creating a connection
+ */
 class CSConnection
 {
 public:
+	/**
+	 * @param sHostname hostname to connect to
+	 * @param iPort port to connect to
+	 * @param iTimeout connection timeout
+	 */
 	CSConnection( const CS_STRING & sHostname, u_short iPort, int iTimeout = 60 ) 
 	{
 		m_sHostname = sHostname;
@@ -978,13 +987,19 @@ public:
 	bool GetIsSSL() const { return( m_bIsSSL ); }
 	bool GetIsIPv6() const { return( m_bIsIPv6 ); }
 
-
+	//! sets the hostname to connect to
 	void SetHostname( const CS_STRING & s ) { m_sHostname = s; }
+	//! sets the name of the socket, used for reference, ie in FindSockByName()
 	void SetSockName( const CS_STRING & s ) { m_sSockName = s; }
+	//! sets the hostname to bind to (vhost support)
 	void SetBindHost( const CS_STRING & s ) { m_sBindHost = s; }
+	//! sets the port to connect to
 	void SetPort( u_short i ) { m_iPort = i; }
+	//! sets the connection timeout
 	void SetTimeout( int i ) { m_iTimeout = i; }
+	//! set to true to enable SSL
 	void SetIsSSL( bool b ) { m_bIsSSL = b; }
+	//! set to true to enable ipv6
 	void SetIsIPv6( bool b ) { m_bIsIPv6 = b; }
 
 protected:
@@ -1026,9 +1041,17 @@ public:
 };
 #endif /* HAVE_IPV6 */
 
+/**
+ * @class CSListener
+ * @brief options container to create a listener
+ */
 class CSListener
 {
 public:
+	/**
+	 * @param iPort port to listen on. Set to 0 to listen on a random port
+	 * @param sBindHost host to bind to
+	 */
 	CSListener( u_short iPort, const CS_STRING & sBindHost = "" ) 
 	{
 		m_iPort = iPort;
@@ -1048,14 +1071,20 @@ public:
 	int GetMaxConns() const { return( m_iMaxConns ); }
 	u_int GetTimeout() const { return( m_iTimeout ); }
 
+	//! sets the port to listen on. Set to 0 to listen on a random port
 	void SetPort( u_short iPort ) { m_iPort = iPort; }
+	//! sets the sock name for later reference (ie FindSockByName)
 	void SetSockName( const CS_STRING & sSockName ) { m_sSockName = sSockName; }
+	//! sets the host to bind to
 	void SetBindHost( const CS_STRING & sBindHost ) { m_sBindHost = sBindHost; }
+	//! set to true to enable SSL
 	void SetIsSSL( bool b ) { m_bIsSSL = b; }
+	//! set to true to enable ipv6
 	void SetIsIPv6( bool b ) { m_bIsIPv6 = b; }
+	//! set max connections as called by accept()
 	void SetMaxConns( int i ) { m_iMaxConns = i; }
+	//! sets the listen timeout. The listener class will close after timeout has been reached if not 0
 	void SetTimeout( u_int i ) { m_iTimeout = i; }
-
 
 private:
 	u_short		m_iPort;
