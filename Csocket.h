@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.145 $
+* $Revision: 1.146 $
 */
 
 // note to compile with win32 need to link to winsock2, using gcc its -lws2_32
@@ -976,6 +976,9 @@ public:
 		m_iTimeout = iTimeout;
 		m_bIsSSL = false;
 		m_bIsIPv6 = false;
+#ifdef HAVE_LIBSSL
+		m_sCipher = "HIGH";
+#endif /* HAVE_LIBSSL */
 	}
 	virtual ~CSConnection() {}
 
@@ -986,6 +989,11 @@ public:
 	int GetTimeout() const { return( m_iTimeout ); }
 	bool GetIsSSL() const { return( m_bIsSSL ); }
 	bool GetIsIPv6() const { return( m_bIsIPv6 ); }
+#ifdef HAVE_LIBSSL
+	const CS_STRING & GetCipher() const { return( m_sCipher ); }
+	const CS_STRING & GetPemLocation() const { return( m_sPemLocation ); }
+	const CS_STRING & GetPemPass() const { return( m_sPemPass ); }
+#endif /* HAVE_LIBSSL */
 
 	//! sets the hostname to connect to
 	void SetHostname( const CS_STRING & s ) { m_sHostname = s; }
@@ -1001,12 +1009,23 @@ public:
 	void SetIsSSL( bool b ) { m_bIsSSL = b; }
 	//! set to true to enable ipv6
 	void SetIsIPv6( bool b ) { m_bIsIPv6 = b; }
+	//! set the cipher strength to use, default is HIGH
+#ifdef HAVE_LIBSSL
+	void SetCipher( const CS_STRING & s ) { m_sCipher = s; }
+	//! set the location of the pemfile
+	void SetPemLocation( const CS_STRING & s ) { m_sPemLocation = s; }
+	//! set the pemfile pass
+	void SetPemPass( const CS_STRING & s ) { m_sPemPass = s; }
+#endif /* HAVE_LIBSSL */
 
 protected:
 	CS_STRING	m_sHostname, m_sSockName, m_sBindHost;
 	u_short		m_iPort;
 	int			m_iTimeout;
 	bool		m_bIsSSL, m_bIsIPv6;
+#ifdef HAVE_LIBSSL
+	CS_STRING	m_sPemLocation, m_sPemPass, m_sCipher;
+#endif /* HAVE_LIBSSL */
 };
 
 class CSSSLConnection : public CSConnection
@@ -1060,6 +1079,10 @@ public:
 		m_bIsIPv6 = false;
 		m_iMaxConns = SOMAXCONN;
 		m_iTimeout = 0;
+#ifdef HAVE_LIBSSL
+		m_sCipher = "HIGH";
+		m_bRequiresClientCert = false;
+#endif /* HAVE_LIBSSL */
 	}
 	virtual ~CSListener() {}
 
@@ -1070,6 +1093,12 @@ public:
 	bool GetIsIPv6() const { return( m_bIsIPv6 ); }
 	int GetMaxConns() const { return( m_iMaxConns ); }
 	u_int GetTimeout() const { return( m_iTimeout ); }
+#ifdef HAVE_LIBSSL
+	const CS_STRING & GetCipher() const { return( m_sCipher ); }
+	const CS_STRING & GetPemLocation() const { return( m_sPemLocation ); }
+	const CS_STRING & GetPemPass() const { return( m_sPemPass ); }
+	bool GetRequiresClientCert() const { return( m_bRequiresClientCert ); }
+#endif /* HAVE_LIBSSL */
 
 	//! sets the port to listen on. Set to 0 to listen on a random port
 	void SetPort( u_short iPort ) { m_iPort = iPort; }
@@ -1086,14 +1115,30 @@ public:
 	//! sets the listen timeout. The listener class will close after timeout has been reached if not 0
 	void SetTimeout( u_int i ) { m_iTimeout = i; }
 
+#ifdef HAVE_LIBSSL
+	//! set the cipher strength to use, default is HIGH
+	void SetCipher( const CS_STRING & s ) { m_sCipher = s; }
+	//! set the location of the pemfile
+	void SetPemLocation( const CS_STRING & s ) { m_sPemLocation = s; }
+	//! set the pemfile pass
+	void SetPemPass( const CS_STRING & s ) { m_sPemPass = s; }
+	//! set to true if require a client certificate
+	void SetRequiresClientCert( bool b ) { m_bRequiresClientCert = b; }
+#endif /* HAVE_LIBSSL */
 private:
 	u_short		m_iPort;
 	CS_STRING	m_sSockName, m_sBindHost;
 	bool		m_bIsSSL, m_bIsIPv6;
 	int			m_iMaxConns;
 	u_int		m_iTimeout;
+
+#ifdef HAVE_LIBSSL
+	CS_STRING	m_sPemLocation, m_sPemPass, m_sCipher;
+	bool		m_bRequiresClientCert;
+#endif /* HAVE_LIBSSL */
 };
 
+#ifdef HAVE_LIBSSL
 class CSSSListener : public CSListener
 {
 public:
@@ -1103,6 +1148,7 @@ public:
 		SetIsSSL( true );
 	}
 };
+#endif /* HAVE_LIBSSL */
 
 #ifdef HAVE_IPV6
 class CSIPv6Listener : public CSListener
@@ -1224,6 +1270,16 @@ public:
 
 #ifdef HAVE_LIBSSL
 		pcSock->SetSSL( cCon.GetIsSSL() );
+		if( cCon.GetIsSSL() )
+		{
+			if( !cCon.GetPemLocation().empty() )
+			{
+				pcSock->SetPemLocation( cCon.GetPemLocation() );
+				pcSock->SetPemPass( cCon.GetPemPass() );
+			}
+			if( !cCon.GetCipher().empty() )
+				pcSock->SetCipher( cCon.GetCipher() );
+		}
 #endif /* HAVE_LIBSSL */
 
 		if ( !pcSock->CreateSocksFD() )
@@ -1246,7 +1302,16 @@ public:
 
 		pcSock->BlockIO( false );
 		pcSock->SetIPv6( cListen.GetIsIPv6() );
+#ifdef HAVE_LIBSSL
 		pcSock->SetSSL( cListen.GetIsSSL() );
+		if( ( cListen.GetIsSSL() ) && ( !cListen.GetPemLocation().empty() ) )
+		{
+			pcSock->SetPemLocation( cListen.GetPemLocation() );
+			pcSock->SetPemPass( cListen.GetPemPass() );
+			pcSock->SetCipher( cListen.GetCipher() );
+			pcSock->SetRequiresClientCert( cListen.GetRequiresClientCert() );
+		}
+#endif /* HAVE_LIBSSL */
 
 		if( piRandPort )
 			*piRandPort = 0;
