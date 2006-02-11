@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.143 $
+* $Revision: 1.144 $
 */
 
 // note to compile with win32 need to link to winsock2, using gcc its -lws2_32
@@ -957,6 +957,147 @@ private:
 
 };
 
+class CSConnection
+{
+public:
+	CSConnection( const CS_STRING & sHostname, u_short iPort, int iTimeout = 60 ) 
+	{
+		m_sHostname = sHostname;
+		m_iPort = iPort;
+		m_iTimeout = iTimeout;
+		m_bIsSSL = false;
+		m_bIsIPv6 = false;
+	}
+	virtual ~CSConnection() {}
+
+	const CS_STRING & GetHostname() const { return( m_sHostname ); }
+	const CS_STRING & GetSockName() const { return( m_sSockName ); }
+	const CS_STRING & GetBindHost() const { return( m_sBindHost ); }
+	u_short GetPort() const { return( m_iPort ); }
+	int GetTimeout() const { return( m_iTimeout ); }
+	bool GetIsSSL() const { return( m_bIsSSL ); }
+	bool GetIsIPv6() const { return( m_bIsIPv6 ); }
+
+
+	void SetHostname( const CS_STRING & s ) { m_sHostname = s; }
+	void SetSockName( const CS_STRING & s ) { m_sSockName = s; }
+	void SetBindHost( const CS_STRING & s ) { m_sBindHost = s; }
+	void SetPort( u_short i ) { m_iPort = i; }
+	void SetTimeout( int i ) { m_iTimeout = i; }
+	void SetIsSSL( bool b ) { m_bIsSSL = b; }
+	void SetIsIPv6( bool b ) { m_bIsIPv6 = b; }
+
+protected:
+	CS_STRING	m_sHostname, m_sSockName, m_sBindHost;
+	u_short		m_iPort;
+	int			m_iTimeout;
+	bool		m_bIsSSL, m_bIsIPv6;
+};
+
+class CSSSLConnection : public CSConnection
+{
+public:
+	CSSSLConnection( const CS_STRING & sHostname, u_short iPort, int iTimeout = 60 ) :
+		CSConnection( sHostname, iPort, iTimeout )
+	{
+		SetIsSSL( true );
+	}
+};
+
+#ifdef HAVE_IPV6
+class CSIPv6Conn : public CSConnection
+{
+public:
+	CSIPv6Conn( const CS_STRING & sHostname, u_short iPort, int iTimeout = 60 ) :
+		CSConnection( sHostname, iPort, iTimeout )
+	{
+		SetIsIPv6( true );
+	}
+};
+
+class CSIPv6SSLConn : public CSIPv6Conn
+{
+public:
+	CSIPv6SSLConn( const CS_STRING & sHostname, u_short iPort, int iTimeout = 60 ) :
+		CSIPv6Conn( sHostname, iPort, iTimeout )
+	{
+		SetIsSSL( true );
+	}
+};
+#endif /* HAVE_IPV6 */
+
+class CSListener
+{
+public:
+	CSListener( u_short iPort, const CS_STRING & sBindHost = "" ) 
+	{
+		m_iPort = iPort;
+		m_sBindHost = sBindHost;
+		m_bIsSSL = false;
+		m_bIsIPv6 = false;
+		m_iMaxConns = SOMAXCONN;
+		m_iTimeout = 0;
+	}
+	virtual ~CSListener() {}
+
+	const u_short GetPort() const { return( m_iPort ); }
+	const CS_STRING & GetSockName() const { return( m_sSockName ); }
+	const CS_STRING & GetBindHost() const { return( m_sBindHost ); }
+	bool GetIsSSL() const { return( m_bIsSSL ); }
+	bool GetIsIPv6() const { return( m_bIsIPv6 ); }
+	int GetMaxConns() const { return( m_iMaxConns ); }
+	u_int GetTimeout() const { return( m_iTimeout ); }
+
+	void SetPort( u_short iPort ) { m_iPort = iPort; }
+	void SetSockName( const CS_STRING & sSockName ) { m_sSockName = sSockName; }
+	void SetBindHost( const CS_STRING & sBindHost ) { m_sBindHost = sBindHost; }
+	void SetIsSSL( bool b ) { m_bIsSSL = b; }
+	void SetIsIPv6( bool b ) { m_bIsIPv6 = b; }
+	void SetMaxConns( int i ) { m_iMaxConns = i; }
+	void SetTimeout( u_int i ) { m_iTimeout = i; }
+
+
+private:
+	u_short		m_iPort;
+	CS_STRING	m_sSockName, m_sBindHost;
+	bool		m_bIsSSL, m_bIsIPv6;
+	int			m_iMaxConns;
+	u_int		m_iTimeout;
+};
+
+class CSSSListener : public CSListener
+{
+public:
+	CSSSListener( u_short iPort, const CS_STRING & sBindHost = "" ) :
+		CSListener( iPort, sBindHost )
+	{
+		SetIsSSL( true );
+	}
+};
+
+#ifdef HAVE_IPV6
+class CSIPv6Listener : public CSListener
+{
+public:
+	CSIPv6Listener( u_short iPort, const CS_STRING & sBindHost = "" ) :
+		CSListener( iPort, sBindHost )
+	{
+		SetIsIPv6( true );
+	}
+};
+
+class CSSSLIPv6Listener : public CSIPv6Listener
+{
+public:
+	CSSSLIPv6Listener( u_short iPort, const CS_STRING & sBindHost = "" ) :
+		CSIPv6Listener( iPort, sBindHost )
+	{
+		SetIsSSL( true );
+	}
+};
+
+#endif /* HAVE_IPV6 */
+
 /**
 * @class TSocketManager
 * @brief Best class to use to interact with the sockets
@@ -1033,27 +1174,27 @@ public:
 	* \param bIsIPv6 set to true to connect to an ipv6 host, requires HAVE_IPV6 at compile time to work
 	* \return true on success
 	*/
-	virtual bool Connect( const CS_STRING & sHostname, u_short iPort , const CS_STRING & sSockName, int iTimeout = 60, bool isSSL = false, const CS_STRING & sBindHost = "", T *pcSock = NULL, bool bIsIPv6 = false )
+	bool Connect( const CSConnection & cCon, T * pcSock = NULL )
 	{
 		// create the new object
 		if ( !pcSock )
-			pcSock = new T( sHostname, iPort, iTimeout );
+			pcSock = new T( cCon.GetHostname(), cCon.GetPort(), cCon.GetTimeout() );
 		else
 		{
-			pcSock->SetHostName( sHostname );
-			pcSock->SetPort( iPort );
-			pcSock->SetTimeout( iTimeout );
+			pcSock->SetHostName( cCon.GetHostname() );
+			pcSock->SetPort( cCon.GetPort() );
+			pcSock->SetTimeout( cCon.GetTimeout() );
 		}
-		pcSock->SetIPv6( bIsIPv6 );
+		pcSock->SetIPv6( cCon.GetIsIPv6() );
 
 		// make it NON-Blocking IO
 		pcSock->BlockIO( false );
 
 		// bind the vhost
-		pcSock->SetBindHost( sBindHost );
+		pcSock->SetBindHost( cCon.GetBindHost() );
 
 #ifdef HAVE_LIBSSL
-		pcSock->SetSSL( isSSL );
+		pcSock->SetSSL( cCon.GetIsSSL() );
 #endif /* HAVE_LIBSSL */
 
 		if ( !pcSock->CreateSocksFD() )
@@ -1065,84 +1206,45 @@ public:
 		pcSock->SetType( T::OUTBOUND );
 
 		pcSock->SetConState( T::CST_START );
-		AddSock( pcSock, sSockName );
+		AddSock( pcSock, cCon.GetSockName() );
 		return( true );
 	}
-#ifdef HAVE_IPV6
-	virtual bool Connect6( const CS_STRING & sHostname, u_short iPort , const CS_STRING & sSockName, int iTimeout = 60, bool isSSL = false, const CS_STRING & sBindHost = "", T *pcSock = NULL )
-	{
-		return( Connect( sHostname, iPort, sSockName, iTimeout, isSSL, sBindHost, pcSock, true ) );
-	}
-#endif /* HAVE_IPV6 */
 
-	/**
-	* @brief Create a listening socket
-	*
-	* Given the design of this function, when binding to a hostname, its best to use an
-	* since dns lookups are blocking, but since your binding to a local ip, it should never be
-	* problem anyhow.
-	*
-	* @param iPort the port to listen on
-	* @param sSockName the name of the socket
-	* @param isSSL if the sockets created require an ssl layer
-	* @param iMaxConns the maximum amount of connections to accept
-	* @param bIsIPv6 set to true to listen on an ipv6 host, requires HAVE_IPV6 at compile time to work
-	* @return pointer to sock, NULL if not successfull
-	*/
-	virtual T * ListenHost( u_short iPort, const CS_STRING & sSockName, const CS_STRING & sBindHost, int isSSL = false, int iMaxConns = SOMAXCONN, T *pcSock = NULL, u_int iTimeout = 0, bool bIsIPv6 = false )
+	virtual bool Listen( const CSListener & cListen, T * pcSock = NULL, u_short *piRandPort = NULL )
 	{
 		if ( !pcSock )
 			pcSock = new T();
 
 		pcSock->BlockIO( false );
-		pcSock->SetIPv6( bIsIPv6 );
+		pcSock->SetIPv6( cListen.GetIsIPv6() );
+		pcSock->SetSSL( cListen.GetIsSSL() );
 
-		pcSock->SetSSL( isSSL );
+		if( piRandPort )
+			*piRandPort = 0;
 
-		if ( pcSock->Listen( iPort, iMaxConns, sBindHost, iTimeout ) )
+		if ( pcSock->Listen( cListen.GetPort(), cListen.GetMaxConns(), cListen.GetBindHost(), cListen.GetTimeout() ) )
 		{
-			AddSock( pcSock, sSockName );
-			return( pcSock );
-		}
-		CS_Delete( pcSock );
-		return( NULL );
-	}
-
-	virtual bool ListenAll( u_short iPort, const CS_STRING & sSockName, int isSSL = false, int iMaxConns = SOMAXCONN, T *pcSock = NULL, u_int iTimeout = 0, bool bIsIPv6 = false )
-	{
-		return( ListenHost( iPort, sSockName, "", isSSL, iMaxConns, pcSock, iTimeout, bIsIPv6 ) );
-	}
-
-	/*
-	 * @return the port number being listened on
-	 */
-	virtual u_short ListenRand( const CS_STRING & sSockName, const CS_STRING & sBindHost, int isSSL = false, int iMaxConns = SOMAXCONN, T *pcSock = NULL, u_int iTimeout = 0, bool bIsIPv6 = false )
-	{
-		u_short iPort = 0;
-		T *pNewSock = ListenHost( 0, sSockName, sBindHost, isSSL, iMaxConns, pcSock, iTimeout, bIsIPv6 );
-		if ( pNewSock )
-		{
-			int iSock = pNewSock->GetSock();
-
-			if ( iSock < 0 )
+			AddSock( pcSock, cListen.GetSockName() );
+			if( ( piRandPort ) && ( cListen.GetPort() == 0 ) )
 			{
-				CS_DEBUG( "Failed to attain a valid file descriptor" );
-				pNewSock->Close();
-				return( 0 );
+				int iSock = pcSock->GetSock();
+
+				if ( iSock < 0 )
+				{
+					CS_DEBUG( "Failed to attain a valid file descriptor" );
+					pcSock->Close();
+					return( false );
+				}
+				struct sockaddr_in mLocalAddr;
+				socklen_t mLocalLen = sizeof( mLocalAddr );
+				getsockname( iSock, (struct sockaddr *) &mLocalAddr, &mLocalLen );
+				*piRandPort = ntohs( mLocalAddr.sin_port );
 			}
-
-			struct sockaddr_in mLocalAddr;
-			socklen_t mLocalLen = sizeof(struct sockaddr);
-			getsockname( iSock, (struct sockaddr *) &mLocalAddr, &mLocalLen );
-
-			iPort = ntohs( mLocalAddr.sin_port );
+			return( true );
 		}
 
-		return( iPort );
-	}
-	virtual u_short ListenAllRand( const CS_STRING & sSockName, int isSSL = false, int iMaxConns = SOMAXCONN, T *pcSock = NULL, u_int iTimeout = 0, bool bIsIPv6 = false )
-	{
-		return( ListenRand( sSockName, "", isSSL, iMaxConns, pcSock, iTimeout, bIsIPv6 ) );
+		CS_Delete( pcSock );
+		return( false );
 	}
 
 	/*
