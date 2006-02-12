@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.146 $
+* $Revision: 1.147 $
 */
 
 // note to compile with win32 need to link to winsock2, using gcc its -lws2_32
@@ -112,11 +112,6 @@ namespace Csocket
 {
 #endif /* _NO_CSOCKET_NS */
 
-#ifdef HAVE_IPV6
-int GetHostByName6( const CS_STRING & sHostName, in6_addr * paddr, u_int iNumRetries = 20 );
-#endif /* HAVE_IPV6 */
-int GetHostByName( const CS_STRING & sHostName, in_addr * paddr, u_int iNumRetries = 20 );
-
 class CSSockAddr
 {
 public:
@@ -165,6 +160,7 @@ public:
 		}
 #endif /* HAVE_IPV6 */
 		m_bIsIPv6 = b; 
+		SinFamily();
 	}
 	bool GetIPv6() const { return( m_bIsIPv6 ); }
 
@@ -187,6 +183,9 @@ private:
 #endif /* HAVE_IPV6 */
 
 };
+
+class Csock;
+int GetAddrInfo( const Cstring & sHostname, Csock *pSock, CSSockAddr & csSockAddr );
 
 #if defined( _REENTRANT ) && defined( _USE_THREADED_DNS )
 #define ___DO_THREADS
@@ -242,18 +241,12 @@ private:
 class CDNSResolver : public CSThread
 {
 public:
-	CDNSResolver() : CSThread() { m_bSuccess = false; m_bIsIPv6 = false; }
+	CDNSResolver() : CSThread() { m_bSuccess = false; }
 	virtual ~CDNSResolver() {}
 	//! returns imediatly, from here out check if IsCompleted() returns true before looking at ANY of the data
-	void Lookup( const CS_STRING & sHostname, bool bIsIPv6 = false );
+	void Lookup( const CS_STRING & sHostname );
 
 	virtual void run();
-
-	//! returns the underlying in_addr structure containing the resolved hostname
-	const struct in_addr * GetAddr() const { return( &m_inAddr ); }
-#ifdef HAVE_IPV6
-	const struct in6_addr * GetAddr6() const { return( &m_inAddr6 ); }
-#endif /* HAVE_IPV6 */
 
 	//! true if dns entry was successfuly found
 	bool Suceeded() const { return( m_bSuccess ); }
@@ -261,17 +254,12 @@ public:
 	//! true if task is finished, this function is thread safe
 	bool IsCompleted();
 
-	//! note!! inet_ntoa uses an internally static buffer, its not thread safe
-	static CS_STRING CreateIP( const struct in_addr *pAddr );
+	CSSockAddr * GetSockAddr() { return( &m_cSockAddr ); }
 
 private:
-	bool		m_bSuccess, m_bIsIPv6;
+	bool		m_bSuccess;
 	CS_STRING	m_sHostname;
-	struct in_addr	m_inAddr;
-#ifdef HAVE_IPV6
-	struct in6_addr m_inAddr6;
-#endif /* HAVE_IPV6 */
-
+	CSSockAddr	m_cSockAddr;
 };
 
 
@@ -877,6 +865,9 @@ public:
 	//! grabs fd's for the sockets
 	bool CreateSocksFD()
 	{
+		if( m_iReadSock != -1 )
+			return( true );
+			
 		m_iReadSock = m_iWriteSock = SOCKET();
 		if ( m_iReadSock == -1 )
 			return( false );
@@ -1038,27 +1029,6 @@ public:
 	}
 };
 
-#ifdef HAVE_IPV6
-class CSIPv6Conn : public CSConnection
-{
-public:
-	CSIPv6Conn( const CS_STRING & sHostname, u_short iPort, int iTimeout = 60 ) :
-		CSConnection( sHostname, iPort, iTimeout )
-	{
-		SetIsIPv6( true );
-	}
-};
-
-class CSIPv6SSLConn : public CSIPv6Conn
-{
-public:
-	CSIPv6SSLConn( const CS_STRING & sHostname, u_short iPort, int iTimeout = 60 ) :
-		CSIPv6Conn( sHostname, iPort, iTimeout )
-	{
-		SetIsSSL( true );
-	}
-};
-#endif /* HAVE_IPV6 */
 
 /**
  * @class CSListener
@@ -1149,29 +1119,6 @@ public:
 	}
 };
 #endif /* HAVE_LIBSSL */
-
-#ifdef HAVE_IPV6
-class CSIPv6Listener : public CSListener
-{
-public:
-	CSIPv6Listener( u_short iPort, const CS_STRING & sBindHost = "" ) :
-		CSListener( iPort, sBindHost )
-	{
-		SetIsIPv6( true );
-	}
-};
-
-class CSSSLIPv6Listener : public CSIPv6Listener
-{
-public:
-	CSSSLIPv6Listener( u_short iPort, const CS_STRING & sBindHost = "" ) :
-		CSIPv6Listener( iPort, sBindHost )
-	{
-		SetIsSSL( true );
-	}
-};
-
-#endif /* HAVE_IPV6 */
 
 /**
 * @class TSocketManager
@@ -1282,12 +1229,6 @@ public:
 		}
 #endif /* HAVE_LIBSSL */
 
-		if ( !pcSock->CreateSocksFD() )
-		{
-			CS_Delete( pcSock );
-			return( false );
-		}
-
 		pcSock->SetType( T::OUTBOUND );
 
 		pcSock->SetConState( T::CST_START );
@@ -1387,7 +1328,6 @@ public:
 
 			if ( pcSock->GetConState() == T::CST_CONNECT )
 			{
-		
 				if ( !pcSock->Connect( pcSock->GetBindHost(), true ) )
 				{
 					if ( GetSockError() == ECONNREFUSED )
