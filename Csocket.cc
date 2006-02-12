@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.32 $
+* $Revision: 1.33 $
 */
 
 #include "Csocket.h"
@@ -64,7 +64,7 @@ int GetAddrInfo( const Cstring & sHostname, Csock *pSock, CSSockAddr & csSockAdd
 					pSock->SetIPv6( false );
 				csSockAddr.SetIPv6( false );
 				struct sockaddr_in *pTmp = (struct sockaddr_in *)pRes->ai_addr;
-				memcpy( csSockAddr.GetAddr(), &(pTmp->sin_addr), sizeof( *(csSockAddr.GetAddr()) ) );
+				memcpy( csSockAddr.GetAddr(), &(pTmp->sin_addr), sizeof( struct sockaddr ) );
 			}
 #ifdef HAVE_IPV6
 			else if( pRes->ai_family == AF_INET6 )
@@ -73,7 +73,7 @@ int GetAddrInfo( const Cstring & sHostname, Csock *pSock, CSSockAddr & csSockAdd
 					pSock->SetIPv6( true );
 				csSockAddr.SetIPv6( true );
 				struct sockaddr_in6 *pTmp = (struct sockaddr_in6 *)pRes->ai_addr;
-				memcpy( csSockAddr.GetAddr6(), &(pTmp->sin6_addr), sizeof( *(csSockAddr.GetAddr6()) ) );
+				memcpy( csSockAddr.GetAddr6(), &(pTmp->sin6_addr), sizeof( struct sockaddr ) );
 			}
 #endif /* HAVE_IPV6 */
 			else
@@ -1753,13 +1753,13 @@ int Csock::DNSLookup( EDNSLType eDNSLType )
 				if( !m_cResolver.GetSockAddr()->GetIPv6() )
 				{
 					SetIPv6( false );
-					memcpy( m_bindhost.GetAddr(), m_cResolver.GetSockAddr()->GetAddr(), sizeof( *(m_bindhost.GetAddr()) ) );
+					memcpy( m_bindhost.GetAddr(), m_cResolver.GetSockAddr()->GetAddr(), sizeof( struct sockaddr ) );
 				}
 #ifdef HAVE_IPV6
 				else
 				{
 					SetIPv6( true );
-					memcpy( m_bindhost.GetAddr6(), m_cResolver.GetSockAddr()->GetAddr6(), sizeof( *(m_bindhost.GetAddr6()) ) );
+					memcpy( m_bindhost.GetAddr6(), m_cResolver.GetSockAddr()->GetAddr6(), sizeof( struct sockaddr ) );
 				}
 #endif /* HAVE_IPV6 */
 			}
@@ -1768,13 +1768,13 @@ int Csock::DNSLookup( EDNSLType eDNSLType )
 				if( m_cResolver.GetSockAddr()->GetIPv6() )
 				{
 					SetIPv6( false );
-					memcpy( m_address.GetAddr(), m_cResolver.GetSockAddr()->GetAddr(), sizeof( *(m_address.GetAddr()) ) );
+					memcpy( m_address.GetAddr(), m_cResolver.GetSockAddr()->GetAddr(), sizeof( struct sockaddr ) );
 				}
 #ifdef HAVE_IPV6
 				else
 				{
 					SetIPv6( true );
-					memcpy( m_address.GetAddr6(), m_cResolver.GetSockAddr()->GetAddr6(), sizeof( *(m_address.GetAddr6()) ) );
+					memcpy( m_address.GetAddr6(), m_cResolver.GetSockAddr()->GetAddr6(), sizeof( struct sockaddr ) );
 				}
 #endif /* HAVE_IPV6 */
 			}
