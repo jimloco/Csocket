@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.34 $
+* $Revision: 1.35 $
 */
 
 #include "Csocket.h"
@@ -40,7 +40,7 @@ namespace Csocket
 {
 #endif /* _NO_CSOCKET_NS */
 
-int GetAddrInfo( const Cstring & sHostname, Csock *pSock, CSSockAddr & csSockAddr )
+int GetAddrInfo( const CS_STRING & sHostname, Csock *pSock, CSSockAddr & csSockAddr )
 {
 	struct addrinfo *res = NULL;
 	struct addrinfo hints;

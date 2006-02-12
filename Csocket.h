@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.147 $
+* $Revision: 1.148 $
 */
 
 // note to compile with win32 need to link to winsock2, using gcc its -lws2_32
@@ -185,7 +185,7 @@ private:
 };
 
 class Csock;
-int GetAddrInfo( const Cstring & sHostname, Csock *pSock, CSSockAddr & csSockAddr );
+int GetAddrInfo( const CS_STRING & sHostname, Csock *pSock, CSSockAddr & csSockAddr );
 
 #if defined( _REENTRANT ) && defined( _USE_THREADED_DNS )
 #define ___DO_THREADS
