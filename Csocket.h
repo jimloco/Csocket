@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.149 $
+* $Revision: 1.150 $
 */
 
 // note to compile with win32 need to link to winsock2, using gcc its -lws2_32
@@ -122,9 +122,19 @@ public:
 #ifdef HAVE_IPV6
 		memset( (struct sockaddr_in6 *)&m_saddr6, '\0', sizeof( m_saddr6 ) );
 #endif /* HAVE_IPV6 */
+		m_iAFRequire = RAF_ANY;
 	}
 	virtual ~CSSockAddr() {}
 
+
+	enum EAFRequire
+	{
+		RAF_ANY		= PF_UNSPEC,
+		RAF_INET	= AF_INET,
+#ifdef HAVE_IPV6
+		RAF_INET6	= AF_INET6
+#endif /* HAVE_IPV6 */
+	};
 
 	void SinFamily()
 	{
@@ -165,7 +175,6 @@ public:
 	bool GetIPv6() const { return( m_bIsIPv6 ); }
 
 
-
 	socklen_t GetSockAddrLen() { return( sizeof( m_saddr ) ); }
 	sockaddr_in * GetSockAddr() { return( &m_saddr ); }
 	in_addr * GetAddr() { return( &(m_saddr.sin_addr) ); }
@@ -175,13 +184,16 @@ public:
 	in6_addr * GetAddr6() { return( &(m_saddr6.sin6_addr) ); }
 #endif /* HAVE_IPV6 */
 
+	void SetAFRequire( EAFRequire iWhich ) { m_iAFRequire = iWhich; }
+	EAFRequire GetAFRequire() const { return( m_iAFRequire ); }
+
 private:
 	bool			m_bIsIPv6;
 	sockaddr_in		m_saddr;
 #ifdef HAVE_IPV6
 	sockaddr_in6	m_saddr6;
 #endif /* HAVE_IPV6 */
-
+	EAFRequire		m_iAFRequire;
 };
 
 class Csock;
@@ -905,6 +917,12 @@ public:
 		m_bindhost.SetIPv6( b );
 	}
 
+	void SetAFRequire( CSSockAddr::EAFRequire iAFRequire )
+	{
+		m_address.SetAFRequire( iAFRequire );
+		m_bindhost.SetAFRequire( iAFRequire );
+	}
+
 private:
 	u_short		m_iport, m_iRemotePort, m_iLocalPort;
 	int			m_iReadSock, m_iWriteSock, m_itimeout, m_iConnType, m_iTcount, m_iMethod;
@@ -969,6 +987,7 @@ public:
 #ifdef HAVE_LIBSSL
 		m_sCipher = "HIGH";
 #endif /* HAVE_LIBSSL */
+		m_iAFrequire = CSSockAddr::RAF_ANY;
 	}
 	virtual ~CSConnection() {}
 
@@ -978,6 +997,8 @@ public:
 	u_short GetPort() const { return( m_iPort ); }
 	int GetTimeout() const { return( m_iTimeout ); }
 	bool GetIsSSL() const { return( m_bIsSSL ); }
+	CSSockAddr::EAFRequire GetAFRequire() const { return( m_iAFrequire ); }
+
 #ifdef HAVE_LIBSSL
 	const CS_STRING & GetCipher() const { return( m_sCipher ); }
 	const CS_STRING & GetPemLocation() const { return( m_sPemLocation ); }
@@ -996,6 +1017,9 @@ public:
 	void SetTimeout( int i ) { m_iTimeout = i; }
 	//! set to true to enable SSL
 	void SetIsSSL( bool b ) { m_bIsSSL = b; }
+	//! sets the AF family type required
+	void SetAFRequire( CSSockAddr::EAFRequire iAFRequire ) { m_iAFrequire = iAFRequire; }
+
 #ifdef HAVE_LIBSSL
 	//! set the cipher strength to use, default is HIGH
 	void SetCipher( const CS_STRING & s ) { m_sCipher = s; }
@@ -1010,6 +1034,7 @@ protected:
 	u_short		m_iPort;
 	int			m_iTimeout;
 	bool		m_bIsSSL;
+	CSSockAddr::EAFRequire	m_iAFrequire;
 #ifdef HAVE_LIBSSL
 	CS_STRING	m_sPemLocation, m_sPemPass, m_sCipher;
 #endif /* HAVE_LIBSSL */
@@ -1042,9 +1067,9 @@ public:
 		m_iPort = iPort;
 		m_sBindHost = sBindHost;
 		m_bIsSSL = false;
-		m_bIsIPv6 = false;
 		m_iMaxConns = SOMAXCONN;
 		m_iTimeout = 0;
+		m_iAFrequire = CSSockAddr::RAF_ANY;
 #ifdef HAVE_LIBSSL
 		m_sCipher = "HIGH";
 		m_bRequiresClientCert = false;
@@ -1059,6 +1084,7 @@ public:
 	bool GetIsIPv6() const { return( m_bIsIPv6 ); }
 	int GetMaxConns() const { return( m_iMaxConns ); }
 	u_int GetTimeout() const { return( m_iTimeout ); }
+	CSSockAddr::EAFRequire GetAFRequire() const { return( m_iAFrequire ); }
 #ifdef HAVE_LIBSSL
 	const CS_STRING & GetCipher() const { return( m_sCipher ); }
 	const CS_STRING & GetPemLocation() const { return( m_sPemLocation ); }
@@ -1075,11 +1101,11 @@ public:
 	//! set to true to enable SSL
 	void SetIsSSL( bool b ) { m_bIsSSL = b; }
 	//! set to true to enable ipv6
-	void SetIsIPv6( bool b ) { m_bIsIPv6 = b; }
-	//! set max connections as called by accept()
 	void SetMaxConns( int i ) { m_iMaxConns = i; }
 	//! sets the listen timeout. The listener class will close after timeout has been reached if not 0
 	void SetTimeout( u_int i ) { m_iTimeout = i; }
+	//! sets the AF family type required
+	void SetAFRequire( CSSockAddr::EAFRequire iAFRequire ) { m_iAFrequire = iAFRequire; }
 
 #ifdef HAVE_LIBSSL
 	//! set the cipher strength to use, default is HIGH
@@ -1097,6 +1123,7 @@ private:
 	bool		m_bIsSSL, m_bIsIPv6;
 	int			m_iMaxConns;
 	u_int		m_iTimeout;
+	CSSockAddr::EAFRequire	m_iAFrequire;
 
 #ifdef HAVE_LIBSSL
 	CS_STRING	m_sPemLocation, m_sPemPass, m_sCipher;
@@ -1204,6 +1231,9 @@ public:
 			pcSock->SetTimeout( cCon.GetTimeout() );
 		}
 
+		if( cCon.GetAFRequire() != CSSockAddr::RAF_ANY )
+			pcSock->SetAFRequire( cCon.GetAFRequire() );
+
 		// make it NON-Blocking IO
 		pcSock->BlockIO( false );
 
@@ -1237,7 +1267,14 @@ public:
 			pcSock = new T();
 
 		pcSock->BlockIO( false );
-		pcSock->SetIPv6( cListen.GetIsIPv6() );
+		if( cListen.GetAFRequire() != CSSockAddr::RAF_ANY )
+		{
+			pcSock->SetAFRequire( cListen.GetAFRequire() );
+#ifdef HAVE_IPV6
+			if( cListen.GetAFRequire() == CSSockAddr::RAF_INET6 )
+				pcSock->SetIPv6( true );
+#endif /* HAVE_IPV6 */
+		}
 #ifdef HAVE_LIBSSL
 		pcSock->SetSSL( cListen.GetIsSSL() );
 		if( ( cListen.GetIsSSL() ) && ( !cListen.GetPemLocation().empty() ) )
