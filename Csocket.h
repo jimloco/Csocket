@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.148 $
+* $Revision: 1.149 $
 */
 
 // note to compile with win32 need to link to winsock2, using gcc its -lws2_32
@@ -966,7 +966,6 @@ public:
 		m_iPort = iPort;
 		m_iTimeout = iTimeout;
 		m_bIsSSL = false;
-		m_bIsIPv6 = false;
 #ifdef HAVE_LIBSSL
 		m_sCipher = "HIGH";
 #endif /* HAVE_LIBSSL */
@@ -979,7 +978,6 @@ public:
 	u_short GetPort() const { return( m_iPort ); }
 	int GetTimeout() const { return( m_iTimeout ); }
 	bool GetIsSSL() const { return( m_bIsSSL ); }
-	bool GetIsIPv6() const { return( m_bIsIPv6 ); }
 #ifdef HAVE_LIBSSL
 	const CS_STRING & GetCipher() const { return( m_sCipher ); }
 	const CS_STRING & GetPemLocation() const { return( m_sPemLocation ); }
@@ -998,10 +996,8 @@ public:
 	void SetTimeout( int i ) { m_iTimeout = i; }
 	//! set to true to enable SSL
 	void SetIsSSL( bool b ) { m_bIsSSL = b; }
-	//! set to true to enable ipv6
-	void SetIsIPv6( bool b ) { m_bIsIPv6 = b; }
-	//! set the cipher strength to use, default is HIGH
 #ifdef HAVE_LIBSSL
+	//! set the cipher strength to use, default is HIGH
 	void SetCipher( const CS_STRING & s ) { m_sCipher = s; }
 	//! set the location of the pemfile
 	void SetPemLocation( const CS_STRING & s ) { m_sPemLocation = s; }
@@ -1013,7 +1009,7 @@ protected:
 	CS_STRING	m_sHostname, m_sSockName, m_sBindHost;
 	u_short		m_iPort;
 	int			m_iTimeout;
-	bool		m_bIsSSL, m_bIsIPv6;
+	bool		m_bIsSSL;
 #ifdef HAVE_LIBSSL
 	CS_STRING	m_sPemLocation, m_sPemPass, m_sCipher;
 #endif /* HAVE_LIBSSL */
@@ -1207,7 +1203,6 @@ public:
 			pcSock->SetPort( cCon.GetPort() );
 			pcSock->SetTimeout( cCon.GetTimeout() );
 		}
-		pcSock->SetIPv6( cCon.GetIsIPv6() );
 
 		// make it NON-Blocking IO
 		pcSock->BlockIO( false );
