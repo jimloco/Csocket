@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.150 $
+* $Revision: 1.151 $
 */
 
 // note to compile with win32 need to link to winsock2, using gcc its -lws2_32
@@ -1184,10 +1184,8 @@ public:
 
 	void clear()
 	{
-		for( unsigned int i = 0; i < this->size(); i++ )
-			CS_Delete( (*this)[i] );
-
-		std::vector<T *>::clear();
+		while ( this->size() )
+			DelSock( 0 );
 	}
 
 	virtual void Cleanup()
@@ -1664,11 +1662,43 @@ public:
 			CS_DEBUG( "Invalid Sock Position Requested! [" << iPos << "]" );
 			return;
 		}
-		if ( (*this)[iPos]->IsConnected() )
-			(*this)[iPos]->Disconnected(); // only call disconnected event if connected event was called (IE IsConnected was set)
 
-		CS_Delete( (*this)[iPos] );
+		Csock * pSock = (*this)[iPos];
+
+		if ( pSock->IsConnected() )
+			pSock->Disconnected(); // only call disconnected event if connected event was called (IE IsConnected was set)
+
+		m_iBytesRead += pSock->GetBytesRead();
+		m_iBytesWritten += pSock->GetBytesWritten();
+
+		CS_Delete( pSock );
 		this->erase( this->begin() + iPos );
+	}
+
+	//! Get the bytes read from all sockets current and past
+	unsigned long long GetBytesRead() const
+	{
+		// Start with the total bytes read from destroyed sockets
+		unsigned long long iRet = m_iBytesRead;
+
+		// Add in the outstanding bytes read from active sockets
+		for( u_int a = 0; a < this->size(); a++ )
+			iRet += (*this)[a]->GetBytesRead();
+
+		return( iRet );
+	}
+
+	//! Get the bytes written to all sockets current and past
+	unsigned long long GetBytesWritten() const
+	{
+		// Start with the total bytes written to destroyed sockets
+		unsigned long long iRet = m_iBytesWritten;
+
+		// Add in the outstanding bytes written to active sockets
+		for( u_int a = 0; a < this->size(); a++ )
+			iRet += (*this)[a]->GetBytesWritten();
+
+		return( iRet );
 	}
 
 private:
@@ -1969,6 +1999,8 @@ private:
 	EMessages				m_errno;
 	std::vector<CCron *>	m_vcCrons;
 	unsigned long long		m_iCallTimeouts;
+	unsigned long long		m_iBytesRead;
+	unsigned long long		m_iBytesWritten;
 	u_int					m_iSelectWait;
 };
 
