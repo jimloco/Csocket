@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.37 $
+* $Revision: 1.38 $
 */
 
 #include "Csocket.h"
@@ -1285,6 +1285,7 @@ void Csock::UnPauseRead()
 {
 	m_bPauseRead = false;
 	ResetTimer();
+	PushBuff( "", 0 );
 }
 
 void Csock::SetTimeout( int iTimeout, u_int iTimeoutType )
