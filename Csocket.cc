@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.36 $
+* $Revision: 1.37 $
 */
 
 #include "Csocket.h"
@@ -1326,8 +1326,9 @@ void Csock::PushBuff( const char *data, int len )
 	if ( data )
 		m_sbuffer.append( data, len );
 
-	while( true )
+	while( !m_bPauseRead )
 	{
+
 		CS_STRING::size_type iFind = m_sbuffer.find( "\n", iStartPos );
 
 		if ( iFind != CS_STRING::npos )
@@ -1343,7 +1344,6 @@ void Csock::PushBuff( const char *data, int len )
 
 	if ( ( m_iMaxStoredBufferLength > 0 ) && ( m_sbuffer.length() > m_iMaxStoredBufferLength ) )
 		ReachedMaxBuffer(); // call the max read buffer event
-
 }
 
 CS_STRING & Csock::GetInternalBuffer() { return( m_sbuffer ); }
