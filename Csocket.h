@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.151 $
+* $Revision: 1.152 $
 */
 
 // note to compile with win32 need to link to winsock2, using gcc its -lws2_32
@@ -864,6 +864,9 @@ public:
 	 */
 	virtual void ReadPaused() {}
 
+	//! return how long it has been (in seconds) since the last write
+	int GetTimeSinceLastWrite() { return m_iTcount; }
+
 	//! return the data imediatly ready for read
 	virtual int GetPending();
 
@@ -1081,7 +1084,6 @@ public:
 	const CS_STRING & GetSockName() const { return( m_sSockName ); }
 	const CS_STRING & GetBindHost() const { return( m_sBindHost ); }
 	bool GetIsSSL() const { return( m_bIsSSL ); }
-	bool GetIsIPv6() const { return( m_bIsIPv6 ); }
 	int GetMaxConns() const { return( m_iMaxConns ); }
 	u_int GetTimeout() const { return( m_iTimeout ); }
 	CSSockAddr::EAFRequire GetAFRequire() const { return( m_iAFrequire ); }
@@ -1100,7 +1102,7 @@ public:
 	void SetBindHost( const CS_STRING & sBindHost ) { m_sBindHost = sBindHost; }
 	//! set to true to enable SSL
 	void SetIsSSL( bool b ) { m_bIsSSL = b; }
-	//! set to true to enable ipv6
+	//! set max connections as called by accept()
 	void SetMaxConns( int i ) { m_iMaxConns = i; }
 	//! sets the listen timeout. The listener class will close after timeout has been reached if not 0
 	void SetTimeout( u_int i ) { m_iTimeout = i; }
@@ -1120,7 +1122,7 @@ public:
 private:
 	u_short		m_iPort;
 	CS_STRING	m_sSockName, m_sBindHost;
-	bool		m_bIsSSL, m_bIsIPv6;
+	bool		m_bIsSSL;
 	int			m_iMaxConns;
 	u_int		m_iTimeout;
 	CSSockAddr::EAFRequire	m_iAFrequire;
