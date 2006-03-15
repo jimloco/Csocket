@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.152 $
+* $Revision: 1.153 $
 */
 
 // note to compile with win32 need to link to winsock2, using gcc its -lws2_32
@@ -630,7 +630,7 @@ public:
 	* pushes data up on the buffer, if a line is ready
 	* it calls the ReadLine event
 	*/
-	virtual void PushBuff( const char *data, int len );
+	virtual void PushBuff( const char *data, int len, bool bStartAtZero = false );
 
 	//! This gives access to the internal buffer, if your
 	//! not going to use GetLine(), then you may want to clear this out
@@ -863,6 +863,7 @@ public:
 	 * This gets called every iteration of Select() if the socket is ReadPaused
 	 */
 	virtual void ReadPaused() {}
+
 
 	//! return how long it has been (in seconds) since the last write
 	int GetTimeSinceLastWrite() { return m_iTcount; }
