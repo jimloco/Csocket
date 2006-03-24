@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.39 $
+* $Revision: 1.40 $
 */
 
 #include "Csocket.h"
@@ -57,7 +57,11 @@ int GetAddrInfo( const CS_STRING & sHostname, Csock *pSock, CSSockAddr & csSockA
 		bool bFoundEntry = false;
 		for( struct addrinfo *pRes = res; pRes; pRes = pRes->ai_next )
 		{
+#ifdef __sun
+			if( ( pRes->ai_socktype != SOCK_STREAM ) || ( pRes->ai_protocol != IPPROTO_TCP && pRes->ai_protocol != IPPROTO_IP ) )
+#else
 			if( ( pRes->ai_socktype != SOCK_STREAM ) || ( pRes->ai_protocol != IPPROTO_TCP ) )
+#endif /* __sun work around broken impl of getaddrinfo */
 				continue;
 
 			if( ( csSockAddr.GetAFRequire() != CSSockAddr::RAF_ANY ) && ( pRes->ai_family != csSockAddr.GetAFRequire() ) )
