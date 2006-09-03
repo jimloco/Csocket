@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.153 $
+* $Revision: 1.154 $
 */
 
 // note to compile with win32 need to link to winsock2, using gcc its -lws2_32
@@ -408,6 +408,8 @@ private:
 	u_int		m_iMaxCycles, m_iCycles;
 	CS_STRING	m_sName;
 };
+
+typedef int (*FPCertVerifyCB)( int, X509_STORE_CTX * );
 
 /**
 * @class Csock
@@ -927,6 +929,8 @@ public:
 		m_bindhost.SetAFRequire( iAFRequire );
 	}
 
+	void SetCertVerifyCB( FPCertVerifyCB pFP ) { m_pCerVerifyCB = pFP; }
+
 private:
 	u_short		m_iport, m_iRemotePort, m_iLocalPort;
 	int			m_iReadSock, m_iWriteSock, m_itimeout, m_iConnType, m_iTcount, m_iMethod;
@@ -946,6 +950,8 @@ private:
 	SSL 				*m_ssl;
 	SSL_CTX				*m_ssl_ctx;
 	SSL_METHOD			*m_ssl_method;
+
+	FPCertVerifyCB		m_pCerVerifyCB;
 
 	virtual void FREE_SSL();
 	virtual void FREE_CTX();

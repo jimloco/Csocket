@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.40 $
+* $Revision: 1.41 $
 */
 
 #include "Csocket.h"
@@ -369,11 +369,13 @@ void CCron::RunJob() { CS_DEBUG( "This should be overriden" ); }
 
 Csock::Csock( int itimeout )
 {
+	m_pCerVerifyCB = NULL;
 	Init( "", 0, itimeout );
 }
 
 Csock::Csock( const CS_STRING & sHostname, u_short iport, int itimeout )
 {
+	m_pCerVerifyCB = NULL;
 	Init( sHostname, iport, itimeout );
 }
 
@@ -834,7 +836,7 @@ bool Csock::SSLClientSetup()
 
 	SSL_set_rfd( m_ssl, m_iReadSock );
 	SSL_set_wfd( m_ssl, m_iWriteSock );
-	SSL_set_verify( m_ssl, SSL_VERIFY_PEER, CertVerifyCB );
+	SSL_set_verify( m_ssl, SSL_VERIFY_PEER, ( m_pCerVerifyCB ? m_pCerVerifyCB : CertVerifyCB ) );
 
 	return( true );
 #else
@@ -930,7 +932,7 @@ bool Csock::SSLServerSetup()
 	SSL_set_accept_state( m_ssl );
 
 	if ( m_bRequireClientCert )
-		SSL_set_verify( m_ssl, SSL_VERIFY_FAIL_IF_NO_PEER_CERT|SSL_VERIFY_PEER, CertVerifyCB );
+		SSL_set_verify( m_ssl, SSL_VERIFY_FAIL_IF_NO_PEER_CERT|SSL_VERIFY_PEER, ( m_pCerVerifyCB ? m_pCerVerifyCB : CertVerifyCB ) );
 
 	return( true );
 #else
