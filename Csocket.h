@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.154 $
+* $Revision: 1.155 $
 */
 
 // note to compile with win32 need to link to winsock2, using gcc its -lws2_32
@@ -721,6 +721,8 @@ public:
 	void SetCTXObject( SSL_CTX *sslCtx );
 	void SetFullSSLAccept();
 	SSL_SESSION * GetSSLSession();
+
+	void SetCertVerifyCB( FPCertVerifyCB pFP ) { m_pCerVerifyCB = pFP; }
 #endif /* HAVE_LIBSSL */
 
 	//! Get the send buffer
@@ -866,6 +868,14 @@ public:
 	 */
 	virtual void ReadPaused() {}
 
+#ifdef HAVE_LIBSSL
+	/**
+	 * Gets called immediatly after the m_ssl member is setup and initialized, useful if you need to assign anything
+	 * to this ssl session via SSL_set_ex_data
+	 */
+	virtual void SSLFinishSetup() {}
+#endif /* HAVE_LIBSSL */
+
 
 	//! return how long it has been (in seconds) since the last write
 	int GetTimeSinceLastWrite() { return m_iTcount; }
@@ -929,7 +939,6 @@ public:
 		m_bindhost.SetAFRequire( iAFRequire );
 	}
 
-	void SetCertVerifyCB( FPCertVerifyCB pFP ) { m_pCerVerifyCB = pFP; }
 
 private:
 	u_short		m_iport, m_iRemotePort, m_iLocalPort;
