@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.155 $
+* $Revision: 1.156 $
 */
 
 // note to compile with win32 need to link to winsock2, using gcc its -lws2_32
@@ -873,7 +873,7 @@ public:
 	 * Gets called immediatly after the m_ssl member is setup and initialized, useful if you need to assign anything
 	 * to this ssl session via SSL_set_ex_data
 	 */
-	virtual void SSLFinishSetup() {}
+	virtual void SSLFinishSetup( SSL *pSSL ) {}
 #endif /* HAVE_LIBSSL */
 
 

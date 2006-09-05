@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.42 $
+* $Revision: 1.43 $
 */
 
 #include "Csocket.h"
@@ -842,7 +842,7 @@ bool Csock::SSLClientSetup()
 	SSL_set_wfd( m_ssl, m_iWriteSock );
 	SSL_set_verify( m_ssl, SSL_VERIFY_PEER, ( m_pCerVerifyCB ? m_pCerVerifyCB : CertVerifyCB ) );
 
-	SSLFinishSetup();
+	SSLFinishSetup( m_ssl );
 	return( true );
 #else
 	return( false );
@@ -938,7 +938,7 @@ bool Csock::SSLServerSetup()
 	if ( m_bRequireClientCert )
 		SSL_set_verify( m_ssl, SSL_VERIFY_FAIL_IF_NO_PEER_CERT|SSL_VERIFY_PEER, ( m_pCerVerifyCB ? m_pCerVerifyCB : CertVerifyCB ) );
 
-	SSLFinishSetup();
+	SSLFinishSetup( m_ssl );
 	return( true );
 #else
 	return( false );
