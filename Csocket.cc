@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.44 $
+* $Revision: 1.45 $
 */
 
 #include "Csocket.h"
@@ -1203,7 +1203,8 @@ int Csock::Read( char *data, int len )
 #endif /* HAVE_LIBSSL */
 	}
 
-	m_iBytesRead += (unsigned long long)bytes;
+	if( bytes > 0 ) // becareful not to add negative bytes :P
+		m_iBytesRead += (unsigned long long)bytes;
 
 	return( bytes );
 }
@@ -1901,7 +1902,13 @@ void Csock::FREE_CTX()
 //! Create the socket
 int Csock::SOCKET( bool bListen )
 {
+#ifdef HAVE_IPV6
 	int iRet = socket( ( GetIPv6() ? PF_INET6 : PF_INET ), SOCK_STREAM, IPPROTO_TCP );
+#else
+	// missing wrapper around ipv6 for systems missing ipv6, Uli Schlachter <psycho@foex-gaming.com>
+	int iRet = socket( PF_INET, SOCK_STREAM, IPPROTO_TCP );
+#endif /* HAVE_IPV6 */
+
 
 	if ( ( iRet > -1 ) && ( bListen ) )
 	{
