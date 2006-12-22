@@ -1,4 +1,4 @@
-/**
+/** @file
 *
 *    Copyright (c) 1999-2006 Jim Hull <imaginos@imaginos.net>
 *    All rights reserved
@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.45 $
+* $Revision: 1.46 $
 */
 
 #include "Csocket.h"
@@ -303,7 +303,6 @@ CCron::CCron()
 	m_bPause = false;
 }
 
-//! This is used by the Job Manager, and not you directly
 void CCron::run()
 {
 	if ( m_bPause )
@@ -320,10 +319,6 @@ void CCron::run()
 	}
 }
 
-/**
- * @TimeSequence	how often to run in seconds
- * @iMaxCycles		how many times to run, 0 makes it run forever
- */
 void CCron::StartMaxCycles( int TimeSequence, u_int iMaxCycles )
 {
 	m_iTimeSequence = TimeSequence;
@@ -331,7 +326,6 @@ void CCron::StartMaxCycles( int TimeSequence, u_int iMaxCycles )
 	m_iMaxCycles = iMaxCycles;
 }
 
-//! starts and runs infinity amount of times
 void CCron::Start( int TimeSequence )
 {
 	m_iTimeSequence = TimeSequence;
@@ -339,19 +333,16 @@ void CCron::Start( int TimeSequence )
 	m_iMaxCycles = 0;
 }
 
-//! call this to turn off your cron, it will be removed
 void CCron::Stop()
 {
 	m_bActive = false;
 }
 
-//! pauses excution of your code in RunJob
 void CCron::Pause()
 {
 	m_bPause = true;
 }
 
-//! removes the pause on RunJon
 void CCron::UnPause()
 {
 	m_bPause = false;
@@ -361,7 +352,6 @@ int CCron::GetInterval() const { return( m_iTimeSequence ); }
 u_int CCron::GetMaxCycles() const { return( m_iMaxCycles ); }
 u_int CCron::GetCyclesLeft() const { return( ( m_iMaxCycles > m_iCycles ? ( m_iMaxCycles - m_iCycles ) : 0 ) ); }
 
-//! returns true if cron is active
 bool CCron::isValid() { return( m_bActive ); }
 const CS_STRING & CCron::GetName() const { return( m_sName ); }
 void CCron::SetName( const CS_STRING & sName ) { m_sName = sName; }
@@ -770,7 +760,6 @@ bool Csock::AcceptSSL()
 	return( false );
 }
 
-//! This sets up the SSL Client, this is used internally
 bool Csock::SSLClientSetup()
 {
 #ifdef HAVE_LIBSSL
@@ -1310,7 +1299,6 @@ void Csock::SetTimeoutType( u_int iTimeoutType ) { m_iTimeoutType = iTimeoutType
 int Csock::GetTimeout() const { return m_itimeout; }
 u_int Csock::GetTimeoutType() const { return( m_iTimeoutType ); }
 
-//! returns true if the socket has timed out
 bool Csock::CheckTimeout()
 {
 	if ( IsReadPaused() )
@@ -1487,7 +1475,6 @@ void Csock::NonBlockingIO()
 	BlockIO( false );
 }
 
-//! if this connection type is ssl or not
 bool Csock::GetSSL() { return( m_bssl ); }
 void Csock::SetSSL( bool b ) { m_bssl = b; }
 
@@ -1515,7 +1502,6 @@ int Csock::CertVerifyCB( int preverify_ok, X509_STORE_CTX *x509_ctx )
 	return( 1 );
 }
 
-//! Set the SSL method type
 void Csock::SetSSLMethod( int iMethod ) { m_iMethod = iMethod; }
 int Csock::GetSSLMethod() { return( m_iMethod ); }
 void Csock::SetSSLObject( SSL *ssl ) { m_ssl = ssl; }
@@ -1672,13 +1658,11 @@ void Csock::Cron()
 	}
 }
 
-//! insert a newly created cron
 void Csock::AddCron( CCron * pcCron )
 {
 	m_vcCrons.push_back( pcCron );
 }
 
-//! delete cron(s) by name
 void Csock::DelCron( const CS_STRING & sName, bool bDeleteAll, bool bCaseSensitive )
 {
 	for( u_int a = 0; a < m_vcCrons.size(); a++ )
@@ -1693,7 +1677,6 @@ void Csock::DelCron( const CS_STRING & sName, bool bDeleteAll, bool bCaseSensiti
 	}
 }
 
-//! delete cron by idx
 void Csock::DelCron( u_int iPos )
 {
 	if ( iPos < m_vcCrons.size() )
@@ -1703,7 +1686,7 @@ void Csock::DelCron( u_int iPos )
 		m_vcCrons.erase( m_vcCrons.begin() + iPos );
 	}
 }
-//! delete cron by address
+
 void Csock::DelCronByAddr( CCron *pcCron )
 {
 	for( u_int a = 0; a < m_vcCrons.size(); a++ )
@@ -1899,7 +1882,6 @@ void Csock::FREE_CTX()
 
 #endif /* HAVE_LIBSSL */
 
-//! Create the socket
 int Csock::SOCKET( bool bListen )
 {
 #ifdef HAVE_IPV6
