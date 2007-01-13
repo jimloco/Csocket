@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.158 $
+* $Revision: 1.159 $
 */
 
 // note to compile with win32 need to link to winsock2, using gcc its -lws2_32
@@ -130,10 +130,10 @@ public:
 	enum EAFRequire
 	{
 		RAF_ANY		= PF_UNSPEC,
-		RAF_INET	= AF_INET,
 #ifdef HAVE_IPV6
-		RAF_INET6	= AF_INET6
+		RAF_INET6	= AF_INET6,
 #endif /* HAVE_IPV6 */
+		RAF_INET	= AF_INET
 	};
 
 	void SinFamily()
