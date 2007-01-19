@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.46 $
+* $Revision: 1.47 $
 */
 
 #include "Csocket.h"
@@ -986,6 +986,18 @@ bool Csock::ConnectSSL( const CS_STRING & sBindhost )
 #else
 	return( false );
 #endif /* HAVE_LIBSSL */
+}
+
+bool Csock::AllowWrite( unsigned long long iNOW ) const
+{
+	if ( ( m_iMaxBytes > 0 ) && ( m_iMaxMilliSeconds > 0 ) )
+	{
+		if( m_iLastSend <  m_iMaxBytes )
+			return( true ); // allow sending if our out buffer was less than what we can send
+		if ( ( iNOW - m_iLastSendTime ) < m_iMaxMilliSeconds )
+			return( false );
+	}
+	return( true );
 }
 
 bool Csock::Write( const char *data, int len )

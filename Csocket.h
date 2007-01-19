@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.159 $
+* $Revision: 1.160 $
 */
 
 // note to compile with win32 need to link to winsock2, using gcc its -lws2_32
@@ -939,6 +939,8 @@ public:
 		m_bindhost.SetAFRequire( iAFRequire );
 	}
 
+	//! returns true if this socket can write its data, primarily used with rate shaping
+	bool AllowWrite( unsigned long long iNOW ) const;
 
 private:
 	u_short		m_iport, m_iRemotePort, m_iLocalPort;
@@ -1748,6 +1750,7 @@ private:
 
 		bool bHasWriteable = false;
 		bool bHasAvailSocks = false;
+		unsigned long long iNOW = millitime();
 
 		for( unsigned int i = 0; i < this->size(); i++ )
 		{
@@ -1801,8 +1804,11 @@ private:
 					if ( !bIsReadPaused )
 						TFD_SET( iRSock, &rfds );
 
-					TFD_SET( iWSock, &wfds );
-					bHasWriteable = true;
+					if( pcSock->AllowWrite( iNOW ) )
+					{
+						TFD_SET( iWSock, &wfds );
+						bHasWriteable = true;
+					}
 				}
 
 			} else
