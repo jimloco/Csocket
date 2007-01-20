@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.162 $
+* $Revision: 1.163 $
 */
 
 // note to compile with win32 need to link to winsock2, using gcc its -lws2_32
@@ -409,7 +409,9 @@ private:
 	CS_STRING	m_sName;
 };
 
+#ifdef HAVE_LIBSSL
 typedef int (*FPCertVerifyCB)( int, X509_STORE_CTX * );
+#endif /* HAVE_LIBSSL */
 
 /**
 * @class Csock
