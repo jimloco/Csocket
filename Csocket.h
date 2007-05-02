@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.163 $
+* $Revision: 1.164 $
 */
 
 // note to compile with win32 need to link to winsock2, using gcc its -lws2_32
@@ -395,6 +395,9 @@ public:
 
 	const CS_STRING & GetName() const;
 	void SetName( const CS_STRING & sName );
+
+	//! returns the timestamp of the next estimated run time. Note that it may not run at this EXACT time, but it will run at least at this time or after
+	time_t GetNextRun() const { return( m_iTime ); }
 
 public:
 
