@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.49 $
+* $Revision: 1.50 $
 */
 
 #include "Csocket.h"
@@ -400,9 +400,11 @@ Csock::~Csock()
 
 	if ( m_iReadSock != m_iWriteSock )
 	{
-		CS_CLOSE( m_iReadSock );
-		CS_CLOSE( m_iWriteSock );
-	} else
+		if( m_iReadSock >= 0 )
+			CS_CLOSE( m_iReadSock );
+		if( m_iWriteSock >= 0 )
+			CS_CLOSE( m_iWriteSock );
+	} else if( m_iReadSock >= 0 )
 		CS_CLOSE( m_iReadSock );
 
 	m_iReadSock = -1;
