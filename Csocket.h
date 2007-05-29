@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.165 $
+* $Revision: 1.166 $
 */
 
 // note to compile with win32 need to link to winsock2, using gcc its -lws2_32
@@ -1724,7 +1724,7 @@ public:
 		}
 
 		Csock *pSock = (*this)[iOrginalSockIdx];
-		pNewSock->Copy( pSock );
+		pNewSock->Copy( *pSock );
 		pSock->Dereference();
 		CS_Delete( pSock );
 		(*this)[iOrginalSockIdx] = (T *)pNewSock;
