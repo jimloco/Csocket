@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.53 $
+* $Revision: 1.54 $
 */
 
 #include "Csocket.h"
@@ -41,13 +41,28 @@ namespace Csocket
 {
 #endif /* _NO_CSOCKET_NS */
 
+static int g_iCsockSSLIdx = 0; //!< this get setup once in InitSSL
+int GetCsockClassIdx()
+{
+	return( g_iCsockSSLIdx );
+}
+
+Csock *GetCsockFromCTX( X509_STORE_CTX *pCTX )
+{
+	Csock *pSock = NULL;
+	SSL *pSSL = (SSL *)X509_STORE_CTX_get_ex_data( pCTX, SSL_get_ex_data_X509_STORE_CTX_idx() );
+	if( pSSL )
+		pSock = (Csock *)SSL_get_ex_data( pSSL, GetCsockClassIdx() );
+	return( pSock );
+}
+
 #ifndef HAVE_IPV6
 
 // this issue here is getaddrinfo has a significant behavior difference when dealing with round robin dns on an
 // ipv4 network. This is not desirable IMHO. so when this is compiled without ipv6 support backwards compatibility
 // is maintained.
 
-int GetHostByName( const CS_STRING & sHostName, struct in_addr *paddr, u_int iNumRetries )
+static int __GetHostByName( const CS_STRING & sHostName, struct in_addr *paddr, u_int iNumRetries )
 {
 	int iReturn = HOST_NOT_FOUND;
 	struct hostent *hent = NULL;
@@ -93,7 +108,7 @@ int GetAddrInfo( const CS_STRING & sHostname, Csock *pSock, CSSockAddr & csSockA
 	if( pSock )
 		pSock->SetIPv6( false );
 	csSockAddr.SetIPv6( false );
-	if( GetHostByName( sHostname, csSockAddr.GetAddr(), 3 ) == 0 )
+	if( __GetHostByName( sHostname, csSockAddr.GetAddr(), 3 ) == 0 )
 		return( 0 );
 	
 #else /* HAVE_IPV6 */
@@ -332,6 +347,9 @@ bool InitSSL( ECompType eCompressionType )
 		if ( cm )
 			SSL_COMP_add_compression_method( CT_RLE, cm );
 	}
+
+	// setting this up once in the begining
+	g_iCsockSSLIdx = SSL_get_ex_new_index( 0, (void *)"CsockGlobalIndex", NULL, NULL, NULL);
 
 	return( true );
 }
@@ -1032,6 +1050,7 @@ bool Csock::SSLClientSetup()
 	SSL_set_rfd( m_ssl, m_iReadSock );
 	SSL_set_wfd( m_ssl, m_iWriteSock );
 	SSL_set_verify( m_ssl, SSL_VERIFY_PEER, ( m_pCerVerifyCB ? m_pCerVerifyCB : CertVerifyCB ) );
+	SSL_set_ex_data( m_ssl, GetCsockClassIdx(), this );
 
 	SSLFinishSetup( m_ssl );
 	return( true );
@@ -1127,7 +1146,10 @@ bool Csock::SSLServerSetup()
 	SSL_set_wfd( m_ssl, m_iWriteSock );
 	SSL_set_accept_state( m_ssl );
 	if ( m_bRequireClientCert )
+	{
 		SSL_set_verify( m_ssl, SSL_VERIFY_FAIL_IF_NO_PEER_CERT|SSL_VERIFY_PEER, ( m_pCerVerifyCB ? m_pCerVerifyCB : CertVerifyCB ) );
+		SSL_set_ex_data( m_ssl, GetCsockClassIdx(), this );
+	}
 
 	SSLFinishSetup( m_ssl );
 	return( true );
@@ -1715,6 +1737,13 @@ int Csock::PemPassCB( char *buf, int size, int rwflag, void *pcSocket )
 
 int Csock::CertVerifyCB( int preverify_ok, X509_STORE_CTX *x509_ctx )
 {
+	/*
+	 * A small quick example on how to get ahold of the Csock in the data portion of x509_ctx
+	Csock *pSock = GetCsockFromCTX( x509_ctx );
+	assert( pSock );
+	cerr << pSock->GetRemoteIP() << endl;
+	 */
+
 	/* return 1 always for now, probably want to add some code for cert verification */
 	return( 1 );
 }
