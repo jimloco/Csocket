@@ -28,10 +28,11 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.52 $
+* $Revision: 1.53 $
 */
 
 #include "Csocket.h"
+#define CS_SRANDBUFFER 128
 
 using namespace std;
 
@@ -40,8 +41,62 @@ namespace Csocket
 {
 #endif /* _NO_CSOCKET_NS */
 
+#ifndef HAVE_IPV6
+
+// this issue here is getaddrinfo has a significant behavior difference when dealing with round robin dns on an
+// ipv4 network. This is not desirable IMHO. so when this is compiled without ipv6 support backwards compatibility
+// is maintained.
+
+int GetHostByName( const CS_STRING & sHostName, struct in_addr *paddr, u_int iNumRetries )
+{
+	int iReturn = HOST_NOT_FOUND;
+	struct hostent *hent = NULL;
+#ifdef __linux__
+	char hbuff[2048];
+	struct hostent hentbuff;
+
+	int err;
+	for( u_int a = 0; a < iNumRetries; a++ )
+	{
+		memset( (char *)hbuff, '\0', 2048 );
+		iReturn = gethostbyname_r( sHostName.c_str(), &hentbuff, hbuff, 2048, &hent, &err );
+
+		if ( iReturn == 0 )
+			break;
+
+		if ( iReturn != TRY_AGAIN )
+			break;
+
+		PERROR( "gethostbyname_r" );
+	}
+	if ( ( !hent ) && ( iReturn == 0 ) )
+		iReturn = HOST_NOT_FOUND;
+#else
+	hent = gethostbyname( sHostName.c_str() );
+	PERROR( "gethostbyname" );
+
+	if ( hent )
+		iReturn = 0;
+
+#endif /* __linux__ */
+
+	if ( iReturn == 0 )
+		memcpy( &paddr->s_addr, hent->h_addr_list[0], sizeof( paddr->s_addr ) );
+
+	return( iReturn );
+}
+#endif /* !HAVE_IPV6 */
+
 int GetAddrInfo( const CS_STRING & sHostname, Csock *pSock, CSSockAddr & csSockAddr )
 {
+#ifndef HAVE_IPV6
+	if( pSock )
+		pSock->SetIPv6( false );
+	csSockAddr.SetIPv6( false );
+	if( GetHostByName( sHostname, csSockAddr.GetAddr(), 3 ) == 0 )
+		return( 0 );
+	
+#else /* HAVE_IPV6 */
 	struct addrinfo *res = NULL;
 	struct addrinfo hints;
 	memset( (struct addrinfo *)&hints, '\0', sizeof( hints ) );
@@ -54,7 +109,10 @@ int GetAddrInfo( const CS_STRING & sHostname, Csock *pSock, CSSockAddr & csSockA
 		return( EAGAIN );
 	else if( ( iRet == 0 ) && ( res ) )
 	{
-		bool bFoundEntry = false;
+		struct addrinfo *pUseAddr = NULL;
+#ifdef __RANDOMIZE_SOURCE_ADDRESSES
+		std::vector< struct addrinfo *> vHostCanidates;
+#endif /* __RANDOMIZE_SOURCE_ADDRESSES */
 		for( struct addrinfo *pRes = res; pRes; pRes = pRes->ai_next )
 		{
 #ifdef __sun
@@ -69,31 +127,67 @@ int GetAddrInfo( const CS_STRING & sHostname, Csock *pSock, CSSockAddr & csSockA
 
 			if( pRes->ai_family == AF_INET )
 			{
-				if( pSock )
-					pSock->SetIPv6( false );
-				csSockAddr.SetIPv6( false );
-				struct sockaddr_in *pTmp = (struct sockaddr_in *)pRes->ai_addr;
-				memcpy( csSockAddr.GetAddr(), &(pTmp->sin_addr), sizeof( *(csSockAddr.GetAddr()) ) );
+#ifdef __RANDOMIZE_SOURCE_ADDRESSES
+				vHostCanidates.push_back( pRes );
+#else
+				pUseAddr = pRes;
+#endif /* __RANDOMIZE_SOURCE_ADDRESSES */
 			}
-#ifdef HAVE_IPV6
 			else if( pRes->ai_family == AF_INET6 )
 			{
-				if( pSock )
-					pSock->SetIPv6( true );
-				csSockAddr.SetIPv6( true );
-				struct sockaddr_in6 *pTmp = (struct sockaddr_in6 *)pRes->ai_addr;
-				memcpy( csSockAddr.GetAddr6(), &(pTmp->sin6_addr), sizeof( *(csSockAddr.GetAddr6()) ) );
+#ifdef __RANDOMIZE_SOURCE_ADDRESSES
+				vHostCanidates.push_back( pRes );
+#else
+				pUseAddr = pRes;
+#endif /* __RANDOMIZE_SOURCE_ADDRESSES */
 			}
-#endif /* HAVE_IPV6 */
+		}
+#ifdef __RANDOMIZE_SOURCE_ADDRESSES
+		if( vHostCanidates.size() > 1 )
+		{
+			// this is basically where getaddrinfo() sorts the list of results. basically to help out what round robin dns does,
+			// pick a random canidate to make this work
+			struct random_data cRandData;
+			char chState[CS_SRANDBUFFER];
+			int32_t iNumber = 0; 
+			if( initstate_r( (u_int)millitime(), chState, CS_SRANDBUFFER, &cRandData ) == 0 && random_r( &cRandData, &iNumber ) == 0 )
+			{
+		   		iNumber %= (int)vHostCanidates.size();
+		   		pUseAddr = vHostCanidates[iNumber];
+			}
 			else
-				continue;
-			bFoundEntry = true;
-			break;
+			{
+				CS_DEBUG( "initstate_r/random_r failed" );
+				pUseAddr = vHostCanidates[0];
+			}
+		}
+		else if( vHostCanidates.size() )
+		{
+			pUseAddr = vHostCanidates[0];
+		}
+#endif /* __RANDOMIZE_SOURCE_ADDRESSES */
+
+		if( pUseAddr && pUseAddr->ai_family == AF_INET )
+		{
+			if( pSock )
+				pSock->SetIPv6( false );
+			csSockAddr.SetIPv6( false );
+			struct sockaddr_in *pTmp = (struct sockaddr_in *)pUseAddr->ai_addr;
+			memcpy( csSockAddr.GetAddr(), &(pTmp->sin_addr), sizeof( *(csSockAddr.GetAddr()) ) );
+		}
+		else if( pUseAddr )
+		{
+			if( pSock )
+				pSock->SetIPv6( true );
+			csSockAddr.SetIPv6( true );
+			struct sockaddr_in6 *pTmp = (struct sockaddr_in6 *)pUseAddr->ai_addr;
+			memcpy( csSockAddr.GetAddr6(), &(pTmp->sin6_addr), sizeof( *(csSockAddr.GetAddr6()) ) );
 		}
 		freeaddrinfo( res );
-		if( bFoundEntry )
+		if( pUseAddr ) // the data pointed to here is invalid now, but the pointer itself is a good test
 			return( 0 );
 	}
+#endif /* ! HAVE_IPV6 */
 	return( ETIMEDOUT );
 }
 
