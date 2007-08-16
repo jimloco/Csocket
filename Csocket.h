@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.168 $
+* $Revision: 1.169 $
 */
 
 // note to compile with win32 need to link to winsock2, using gcc its -lws2_32
@@ -1572,13 +1572,16 @@ public:
 	void DynamicSelectLoop( u_long iLowerBounds, u_long iUpperBounds, time_t iMaxResolution = 3600 )
 	{
 		SetSelectTimeout( iLowerBounds );	
-		time_t iNow = time( NULL );
-		u_long iSelectTimeout = GetDynamicSleepTime( iNow, iMaxResolution );
-		iSelectTimeout *= 1000000;
-		iSelectTimeout = std::max( iLowerBounds, iSelectTimeout );
-		iSelectTimeout = std::min( iSelectTimeout, iUpperBounds );
-		if( iLowerBounds != iSelectTimeout )
-			SetSelectTimeout( iSelectTimeout );
+		if( m_errno == SELECT_TIMEOUT )
+		{ // only do this if the previous call to select was a timeout
+			time_t iNow = time( NULL );
+			u_long iSelectTimeout = GetDynamicSleepTime( iNow, iMaxResolution );
+			iSelectTimeout *= 1000000;
+			iSelectTimeout = std::max( iLowerBounds, iSelectTimeout );
+			iSelectTimeout = std::min( iSelectTimeout, iUpperBounds );
+			if( iLowerBounds != iSelectTimeout )
+				SetSelectTimeout( iSelectTimeout );
+		}
 		Loop();
 	}
 
