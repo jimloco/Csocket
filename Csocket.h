@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.169 $
+* $Revision: 1.170 $
 */
 
 // note to compile with win32 need to link to winsock2, using gcc its -lws2_32
@@ -1562,7 +1562,8 @@ public:
 	 *	- are trying to spare yourself some of those idle loops where nothing is done. If you try to use this code where you have lots of
 	 *	- connections and/or lots of traffic you might end up causing more CPU usage than just a plain Loop() with a static sleep of 500ms
 	 *	- its a trade off at some point, and you'll probably find out that the vast majority of the time and in most cases Loop() works fine
-	 *	- by itself. Caveat Emptor.
+	 *	- by itself. I've tried to mitigate that as much as possible by not having it change the select if the previous call to select
+	 *	- was not a timeout. Anyways .... Caveat Emptor.
 	 *	- Sample useage is cFoo.DynamicSelectLoop( 500000, 5000000 ); which basically says min of 500ms and max of 5s
 	 * 
 	 * @param iLowerBounds the lower bounds to use in MICROSECONDS
