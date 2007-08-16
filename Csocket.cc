@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.54 $
+* $Revision: 1.55 $
 */
 
 #include "Csocket.h"
@@ -559,13 +559,15 @@ void Csock::Dereference()
 
 void Csock::Copy( const Csock & cCopy )
 {
+	m_iTcount		= cCopy.m_iTcount;
+	m_iLastCheckTimeoutTime	=	cCopy.m_iLastCheckTimeoutTime;
 	m_iport 		= cCopy.m_iport;
    	m_iRemotePort	= cCopy.m_iRemotePort;
 	m_iLocalPort	= cCopy.m_iLocalPort;
 	m_iReadSock		= cCopy.m_iReadSock;
 	m_iWriteSock	= cCopy.m_iWriteSock;
    	m_itimeout		= cCopy.m_iWriteSock;
-   	m_iConnType		= cCopy.m_iTcount;
+   	m_iConnType		= cCopy.m_iConnType;
 	m_iMethod		= cCopy.m_iMethod;
 	m_bssl			= cCopy.m_bssl;
 	m_bIsConnected	= cCopy.m_bIsConnected;
@@ -1006,7 +1008,14 @@ bool Csock::SSLClientSetup()
 				return( false );
 			}
 			break;
-
+		case TLS1:
+			m_ssl_method = TLSv1_client_method();
+			if ( !m_ssl_method )
+			{
+				CS_DEBUG( "WARNING: MakeConnection .... TLSv1_client_method failed!" );
+				return( false );
+			}
+			break;
 		case SSL23:
 		default:
 			m_ssl_method = SSLv23_client_method();
@@ -1083,6 +1092,15 @@ bool Csock::SSLServerSetup()
 			if ( !m_ssl_method )
 			{
 				CS_DEBUG( "WARNING: MakeConnection .... SSLv3_server_method failed!" );
+				return( false );
+			}
+			break;
+
+		case TLS1:
+			m_ssl_method = TLSv1_server_method();
+			if ( !m_ssl_method )
+			{
+				CS_DEBUG( "WARNING: MakeConnection .... TLSv1_server_method failed!" );
 				return( false );
 			}
 			break;
@@ -1517,7 +1535,7 @@ int & Csock::GetWSock() { return( m_iWriteSock ); }
 void Csock::SetWSock( int iSock ) { m_iWriteSock = iSock; }
 void Csock::SetSock( int iSock ) { m_iWriteSock = iSock; m_iReadSock = iSock; }
 int & Csock::GetSock() { return( m_iReadSock ); }
-void Csock::ResetTimer() { m_iTcount = 0; }
+void Csock::ResetTimer() { m_iLastCheckTimeoutTime = 0; m_iTcount = 0; }
 void Csock::PauseRead() { m_bPauseRead = true; }
 bool Csock::IsReadPaused() { return( m_bPauseRead ); }
 
@@ -1538,20 +1556,41 @@ void Csock::SetTimeoutType( u_int iTimeoutType ) { m_iTimeoutType = iTimeoutType
 int Csock::GetTimeout() const { return m_itimeout; }
 u_int Csock::GetTimeoutType() const { return( m_iTimeoutType ); }
 
-bool Csock::CheckTimeout()
+bool Csock::CheckTimeout( time_t iNow )
 {
+	if( m_iLastCheckTimeoutTime == 0 )
+	{
+		m_iLastCheckTimeoutTime = iNow;
+		return( false );
+	}
+
 	if ( IsReadPaused() )
 		return( false );
 
+	time_t iDiff = 0;
+	if( iNow > m_iLastCheckTimeoutTime )
+		iDiff = iNow - m_iLastCheckTimeoutTime;
+	else
+		m_iLastCheckTimeoutTime = iNow; // this is weird, but its possible if someone changes a clock and it went back in time, this essentially has to reset the last check
+
 	if ( m_itimeout > 0 )
 	{
-		if ( m_iTcount >= m_itimeout )
+		// this is basically to help stop a clock adjust on the box by a big bump
+		time_t iRealTimeout = m_itimeout;
+		if( iRealTimeout <= 1 )
+			m_iTcount++;
+		else if( m_iTcount == 0 )
+			iRealTimeout /= 2;
+		if( iDiff >= iRealTimeout )
 		{
-			Timeout();
-			return( true );
+			if( m_iTcount == 0 )
+				m_iLastCheckTimeoutTime = iNow - iRealTimeout;
+			if( m_iTcount++ >= 1 )
+			{
+				Timeout();
+				return( true );
+			}
 		}
-
-		m_iTcount++;
 	}
 	return( false );
 }
@@ -2162,6 +2201,7 @@ void Csock::Init( const CS_STRING & sHostname, u_short iport, int itimeout )
 	m_ssl = NULL;
 	m_ssl_ctx = NULL;
 #endif /* HAVE_LIBSSL */
+	m_iTcount = 0;
 	m_iReadSock = -1;
 	m_iWriteSock = -1;
 	m_itimeout = itimeout;
@@ -2169,7 +2209,6 @@ void Csock::Init( const CS_STRING & sHostname, u_short iport, int itimeout )
 	m_bIsConnected = false;
 	m_iport = iport;
 	m_shostname = sHostname;
-	m_iTcount = 0;
 	m_sbuffer.clear();
 	m_eCloseType = CLT_DONT;
 	m_bBLOCK = true;
@@ -2196,5 +2235,6 @@ void Csock::Init( const CS_STRING & sHostname, u_short iport, int itimeout )
 	m_iDNSTryCount = 0;
 	m_iCurBindCount = 0;
 	m_bIsIPv6 = false;
+	m_iLastCheckTimeoutTime = 0;
 }
 
