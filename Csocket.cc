@@ -28,10 +28,14 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.56 $
+* $Revision: 1.57 $
 */
 
 #include "Csocket.h"
+#ifdef __NetBSD__
+#include <sys/param.h>
+#endif /* __NetBSD__ */
+
 #define CS_SRANDBUFFER 128
 
 using namespace std;
@@ -371,7 +375,7 @@ void SSLErrors( const char *filename, u_int iLineNum )
 
 void __Perror( const CS_STRING & s )
 {
-#if defined(__sun) || defined(_WIN32) || __NetBSD_VERSION__ < 4
+#if defined(__sun) || defined(_WIN32) || __NetBSD_Version__ < 4000000000
 	CS_DEBUG( s << ": " << strerror( GetSockError() ) );
 #else
 	char buff[512];
