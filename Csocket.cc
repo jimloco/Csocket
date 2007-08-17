@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.55 $
+* $Revision: 1.56 $
 */
 
 #include "Csocket.h"
@@ -371,7 +371,7 @@ void SSLErrors( const char *filename, u_int iLineNum )
 
 void __Perror( const CS_STRING & s )
 {
-#if defined(__sun) || defined(_WIN32)
+#if defined(__sun) || defined(_WIN32) || __NetBSD_VERSION__ < 4
 	CS_DEBUG( s << ": " << strerror( GetSockError() ) );
 #else
 	char buff[512];
