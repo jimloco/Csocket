@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.57 $
+* $Revision: 1.58 $
 */
 
 #include "Csocket.h"
@@ -1964,6 +1964,8 @@ void Csock::DelCron( const CS_STRING & sName, bool bDeleteAll, bool bCaseSensiti
 			m_vcCrons[a]->Stop();
 			CS_Delete( m_vcCrons[a] );
 			m_vcCrons.erase( m_vcCrons.begin() + a-- );
+			if( !bDeleteAll )
+				break;
 		}
 	}
 }

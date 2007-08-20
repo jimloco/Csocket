@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.170 $
+* $Revision: 1.171 $
 */
 
 // note to compile with win32 need to link to winsock2, using gcc its -lws2_32
@@ -1135,7 +1135,7 @@ public:
 	}
 	virtual ~CSListener() {}
 
-	const u_short GetPort() const { return( m_iPort ); }
+	u_short GetPort() const { return( m_iPort ); }
 	const CS_STRING & GetSockName() const { return( m_sSockName ); }
 	const CS_STRING & GetBindHost() const { return( m_sBindHost ); }
 	bool GetIsSSL() const { return( m_bIsSSL ); }
@@ -1681,6 +1681,8 @@ public:
 				m_vcCrons[a]->Stop();
 				CS_Delete( m_vcCrons[a] );
 				m_vcCrons.erase( m_vcCrons.begin() + a-- );
+				if( !bDeleteAll )
+					break;
 			}
 		}
 	}
@@ -2105,7 +2107,7 @@ private:
 				else
 					iTimeoutInSeconds -= iDiff;
 			}
-			iMinTimeout = min( iMinTimeout, iTimeoutInSeconds );
+			iMinTimeout = std::min( iMinTimeout, iTimeoutInSeconds );
 
 			const std::vector<CCron *> & vCrons = (*this)[a]->GetCrons();
 			for( u_long b = 0; b < vCrons.size(); b++ )
