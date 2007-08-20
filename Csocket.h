@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.171 $
+* $Revision: 1.172 $
 */
 
 // note to compile with win32 need to link to winsock2, using gcc its -lws2_32
@@ -795,7 +795,12 @@ public:
 
 	//! insert a newly created cron
 	virtual void AddCron( CCron * pcCron );
-	//! delete cron(s) by name
+	/**
+	 * @brief deletes a cron by name
+	 * @param sName the name of the cron
+	 * @param bDeleteAll delete all crons that match sName
+	 * @param bCaseSensitive use strcmp or strcasecmp
+	 */
 	virtual void DelCron( const CS_STRING & sName, bool bDeleteAll = true, bool bCaseSensitive = true );
 	//! delete cron by idx
 	virtual void DelCron( u_int iPos );
@@ -1670,7 +1675,12 @@ public:
 		m_vcCrons.push_back( pcCron );
 	}
 
-	//! delete cron(s) by name
+	/**
+	 * @brief deletes a cron by name
+	 * @param sName the name of the cron
+	 * @param bDeleteAll delete all crons that match sName
+	 * @param bCaseSensitive use strcmp or strcasecmp
+	 */
 	virtual void DelCron( const CS_STRING & sName, bool bDeleteAll = true, bool bCaseSensitive = true )
 	{
 		for( u_int a = 0; a < m_vcCrons.size(); a++ )
