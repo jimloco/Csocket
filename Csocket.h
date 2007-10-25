@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.172 $
+* $Revision: 1.173 $
 */
 
 // note to compile with win32 need to link to winsock2, using gcc its -lws2_32
@@ -1461,22 +1461,17 @@ public:
 					{
 						// read in data
 						// if this is a
-						char *buff;
 						int iLen = 0;
 
 						if ( pcSock->GetSSL() )
 							iLen = pcSock->GetPending();
 
-						if ( iLen > 0 )
-						{
-							buff = (char *)malloc( iLen );
-						} else
-						{
+						if ( iLen <= 0 )
 							iLen = CS_BLOCKSIZE;
-							buff = (char *)malloc( CS_BLOCKSIZE );
-						}
+						
+						std::vector<char> vBuff( iLen );
 
-						int bytes = pcSock->Read( buff, iLen );
+						int bytes = pcSock->Read( &vBuff[0], iLen );
 
 						if ( ( bytes != T::READ_TIMEDOUT ) && ( bytes != T::READ_CONNREFUSED )
 							&& ( !pcSock->IsConnected() ) )
@@ -1518,14 +1513,12 @@ public:
 								if ( T::TMO_READ & pcSock->GetTimeoutType() )
 									pcSock->ResetTimer();	// reset the timeout timer
 
-								pcSock->ReadData( buff, bytes );	// Call ReadData() before PushBuff() so that it is called before the ReadLine() event - LD  07/18/05
-								pcSock->PushBuff( buff, bytes );
+								pcSock->ReadData( &vBuff[0], bytes );	// Call ReadData() before PushBuff() so that it is called before the ReadLine() event - LD  07/18/05
+								pcSock->PushBuff( &vBuff[0], bytes );
 								break;
 							}
 						}
 
-						// free up the buff
-						free( buff );
 					} else if ( iErrno == SELECT_ERROR )
 					{
 						// a socket came back with an error
