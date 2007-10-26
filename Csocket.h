@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.173 $
+* $Revision: 1.174 $
 */
 
 // note to compile with win32 need to link to winsock2, using gcc its -lws2_32
@@ -111,6 +111,27 @@
 namespace Csocket
 {
 #endif /* _NO_CSOCKET_NS */
+
+/**
+ * @class CSCharBuffer
+ * @brief ease of use self deleting char * class
+ */
+class CSCharBuffer
+{
+public:
+	CSCharBuffer( size_t iSize )
+	{
+		m_pBuffer = (char *)malloc( iSize );
+	}
+	~CSCharBuffer()
+	{
+		free( m_pBuffer );
+	}
+	char * operator()() { return( m_pBuffer ); }
+
+private:
+	char *	m_pBuffer;
+};
 
 class CSSockAddr
 {
@@ -1469,9 +1490,9 @@ public:
 						if ( iLen <= 0 )
 							iLen = CS_BLOCKSIZE;
 						
-						std::vector<char> vBuff( iLen );
+						CSCharBuffer cBuff( iLen );
 
-						int bytes = pcSock->Read( &vBuff[0], iLen );
+						int bytes = pcSock->Read( cBuff(), iLen );
 
 						if ( ( bytes != T::READ_TIMEDOUT ) && ( bytes != T::READ_CONNREFUSED )
 							&& ( !pcSock->IsConnected() ) )
@@ -1513,8 +1534,8 @@ public:
 								if ( T::TMO_READ & pcSock->GetTimeoutType() )
 									pcSock->ResetTimer();	// reset the timeout timer
 
-								pcSock->ReadData( &vBuff[0], bytes );	// Call ReadData() before PushBuff() so that it is called before the ReadLine() event - LD  07/18/05
-								pcSock->PushBuff( &vBuff[0], bytes );
+								pcSock->ReadData( cBuff(), bytes );	// Call ReadData() before PushBuff() so that it is called before the ReadLine() event - LD  07/18/05
+								pcSock->PushBuff( cBuff(), bytes );
 								break;
 							}
 						}
