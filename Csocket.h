@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.180 $
+* $Revision: 1.181 $
 */
 
 // note to compile with win32 need to link to winsock2, using gcc its -lws2_32
@@ -112,51 +112,6 @@ namespace Csocket
 {
 #endif /* _NO_CSOCKET_NS */
 
-#ifdef _WIN32
-static inline void set_non_blocking(int fd)
-{
-	u_long iOpts = 1;
-	ioctlsocket( fd, FIONBIO, &iOpts );
-}
-
-static inline void set_blocking(int fd)
-{
-	u_long iOpts = 0;
-	ioctlsocket( fd, FIONBIO, &iOpts );
-}
-
-static inline void set_close_on_exec(int fd)
-{
-	// TODO add this for windows
-	// see http://gcc.gnu.org/ml/java-patches/2002-q1/msg00696.html
-	// for infos on how to do this
-}
-#else
-static inline void set_non_blocking(int fd)
-{
-	int fdflags = fcntl(fd, F_GETFL, 0);
-	if ( fdflags < 0 )
-		return; // Ignore errors
-	fcntl( fd, F_SETFL, fdflags|O_NONBLOCK );
-}
-
-static inline void set_blocking(int fd)
-{
-	int fdflags = fcntl(fd, F_GETFL, 0);
-	if ( fdflags < 0 )
-		return; // Ignore errors
-	fdflags &= ~O_NONBLOCK;
-	fcntl( fd, F_SETFL, fdflags );
-}
-
-static inline void set_close_on_exec(int fd)
-{
-	int fdflags = fcntl(fd, F_GETFD, 0);
-	if ( fdflags < 0 )
-		return; // Ignore errors
-	fcntl( fd, F_SETFD, fdflags|FD_CLOEXEC);
-}
-#endif /* _WIN32 */
 
 /**
  * @class CSCharBuffer
