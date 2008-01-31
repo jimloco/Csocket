@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.63 $
+* $Revision: 1.64 $
 */
 
 #include "Csocket.h"
@@ -762,13 +762,7 @@ bool Csock::Connect( const CS_STRING & sBindHost, bool bSkipSetup )
 	}
 
 	// set it none blocking
-#ifdef _WIN32
-	u_long iOpts = 1;
-	ioctlsocket( m_iReadSock, FIONBIO, &iOpts );
-#else
-	int fdflags = fcntl (m_iReadSock, F_GETFL, 0);
-	fcntl( m_iReadSock, F_SETFL, fdflags|O_NONBLOCK );
-#endif /* _WIN32 */
+	set_non_blocking( m_iReadSock );
 
 	m_iConnType = OUTBOUND;
 
@@ -792,15 +786,7 @@ bool Csock::Connect( const CS_STRING & sBindHost, bool bSkipSetup )
 
 	if ( m_bBLOCK )
 	{
-#ifdef _WIN32
-		u_long iOpts = 0;
-		ioctlsocket( m_iReadSock, FIONBIO, &iOpts );
-#else
-		// unset the flags afterwords, rather than have connect block
-		int fdflags = fcntl (m_iReadSock, F_GETFL, 0);
-		fdflags &= ~O_NONBLOCK;
-		fcntl( m_iReadSock, F_SETFL, fdflags );
-#endif /* _WIN32 */
+		set_blocking( m_iReadSock );
 	}
 
 	if ( m_eConState != CST_OK )
@@ -908,13 +894,7 @@ bool Csock::Listen( u_short iPort, int iMaxConns, const CS_STRING & sBindHost, u
 	if ( !m_bBLOCK )
 	{
 		// set it none blocking
-#ifdef _WIN32
-		u_long iOpts = 1;
-		ioctlsocket( m_iReadSock, FIONBIO, &iOpts );
-#else
-		int fdflags = fcntl ( m_iReadSock, F_GETFL, 0);
-		fcntl( m_iReadSock, F_SETFL, fdflags|O_NONBLOCK );
-#endif /* _WIN32 */
+		set_non_blocking( m_iReadSock );
 	}
 
 	return( true );
@@ -951,16 +931,13 @@ int Csock::Accept( CS_STRING & sHost, u_short & iRPort )
 	
 	if ( iSock != -1 )
 	{
+		// Make it close-on-exec
+		set_close_on_exec( iSock );
+
 		if ( !m_bBLOCK )
 		{
 			// make it none blocking
-#ifdef _WIN32
-			u_long iOpts = 1;
-			ioctlsocket( m_iReadSock, FIONBIO, &iOpts );
-#else
-			int fdflags = fcntl (iSock, F_GETFL, 0);
-			fcntl( iSock, F_SETFL, fdflags|O_NONBLOCK );
-#endif /* _WIN32 */
+			set_non_blocking( m_iReadSock );
 		}
 
 		if ( !ConnectionFrom( sHost, iRPort ) )
@@ -1212,13 +1189,7 @@ bool Csock::ConnectSSL( const CS_STRING & sBindhost )
 
 	if ( m_bBLOCK )
 	{
-#ifdef _WIN32
-		u_long iOpts = 1;
-		ioctlsocket( m_iReadSock, FIONBIO, &iOpts );
-#else
-		int fdflags = fcntl ( m_iReadSock, F_GETFL, 0);
-		fcntl( m_iReadSock, F_SETFL, fdflags|O_NONBLOCK );
-#endif /* _WIN32 */
+		set_non_blocking( m_iReadSock );
 	}
 
 	int iErr = SSL_connect( m_ssl );
@@ -1234,15 +1205,7 @@ bool Csock::ConnectSSL( const CS_STRING & sBindhost )
 	if ( m_bBLOCK )
 	{
 		// unset the flags afterwords, rather then have connect block
-#ifdef _WIN32
-		u_long iOpts = 0;
-		ioctlsocket( m_iReadSock, FIONBIO, &iOpts );
-#else
-		int fdflags = fcntl (m_iReadSock, F_GETFL, 0);
-		fdflags &= ~O_NONBLOCK;
-		fcntl( m_iReadSock, F_SETFL, fdflags );
-#endif /* _WIN32 */
-
+		set_blocking( m_iReadSock );
 	}
 
 	return( bPass );
@@ -1631,7 +1594,7 @@ void Csock::PushBuff( const char *data, int len, bool bStartAtZero )
 	if ( data )
 		m_sbuffer.append( data, len );
 
-	while( !m_bPauseRead )
+	while( !m_bPauseRead && GetCloseType() == CLT_DONT  )
 	{
 		CS_STRING::size_type iFind = m_sbuffer.find( "\n", iStartPos );
 
@@ -1757,23 +1720,11 @@ void Csock::BlockIO( bool bBLOCK ) { m_bBLOCK = bBLOCK; }
 
 void Csock::NonBlockingIO()
 {
-#ifdef _WIN32
-	u_long iOpts = 1;
-	ioctlsocket( m_iReadSock, FIONBIO, &iOpts );
-#else
-	int fdflags = fcntl ( m_iReadSock, F_GETFL, 0);
-	fcntl( m_iReadSock, F_SETFL, fdflags|O_NONBLOCK );
-#endif /* _WIN32 */
+	set_non_blocking( m_iReadSock );
 
 	if ( m_iReadSock != m_iWriteSock )
 	{
-#ifdef _WIN32
-		iOpts = 1;
-		ioctlsocket( m_iReadSock, FIONBIO, &iOpts );
-#else
-		fdflags = fcntl ( m_iWriteSock, F_GETFL, 0);
-		fcntl( m_iWriteSock, F_SETFL, fdflags|O_NONBLOCK );
-#endif /* _WIN32 */
+		set_non_blocking( m_iWriteSock );
 	}
 
 	BlockIO( false );
@@ -2215,19 +2166,20 @@ int Csock::SOCKET( bool bListen )
 #ifdef HAVE_IPV6
 	int iRet = socket( ( GetIPv6() ? PF_INET6 : PF_INET ), SOCK_STREAM, IPPROTO_TCP );
 #else
-	// missing wrapper around ipv6 for systems missing ipv6, Uli Schlachter <psycho@foex-gaming.com>
 	int iRet = socket( PF_INET, SOCK_STREAM, IPPROTO_TCP );
 #endif /* HAVE_IPV6 */
 
+	if ( iRet >= 0 ) {
+		set_close_on_exec( iRet );
 
-	if ( ( iRet > -1 ) && ( bListen ) )
-	{
-		const int on = 1;
+		if ( bListen ) {
+			const int on = 1;
 
-		if ( setsockopt( iRet, SOL_SOCKET, SO_REUSEADDR, (char *)&on, sizeof( on ) ) != 0 )
-			PERROR( "setsockopt" );
-
-	} else if ( iRet == -1 )
+			if ( setsockopt( iRet, SOL_SOCKET, SO_REUSEADDR,
+						(char *)&on, sizeof( on ) ) != 0 )
+				PERROR( "setsockopt" );
+		}
+	} else
 		PERROR( "socket" );
 
 	return( iRet );
