@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.68 $
+* $Revision: 1.69 $
 */
 
 #include "Csocket.h"
@@ -651,7 +651,6 @@ void Csock::Copy( const Csock & cCopy )
 	m_sCipherType	= cCopy.m_sCipherType;
 	m_sParentName	= cCopy.m_sParentName;
 	m_sSend			= cCopy.m_sSend;
-	m_sSSLBuffer	= cCopy.m_sSSLBuffer;
 	m_sPemPass		= cCopy.m_sPemPass;
 	m_sLocalIP		= cCopy.m_sLocalIP;
 	m_sRemoteIP		= cCopy.m_sRemoteIP;
@@ -672,6 +671,8 @@ void Csock::Copy( const Csock & cCopy )
 	m_bIsIPv6			= cCopy.m_bIsIPv6;
 
 #ifdef HAVE_LIBSSL
+	m_sSSLBuffer	= cCopy.m_sSSLBuffer;
+
 	FREE_SSL();
 	FREE_CTX(); // be sure to remove anything that was already here
 	m_ssl				= cCopy.m_ssl;

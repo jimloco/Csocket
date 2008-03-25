@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.182 $
+* $Revision: 1.183 $
 */
 
 // note to compile with win32 need to link to winsock2, using gcc its -lws2_32
@@ -1012,7 +1012,7 @@ private:
 	bool		m_bssl, m_bIsConnected, m_bBLOCK, m_bFullsslAccept;
 	bool		m_bsslEstablished, m_bEnableReadLine, m_bRequireClientCert, m_bPauseRead;
 	CS_STRING	m_shostname, m_sbuffer, m_sSockName, m_sPemFile, m_sCipherType, m_sParentName;
-	CS_STRING	m_sSend, m_sSSLBuffer, m_sPemPass, m_sLocalIP, m_sRemoteIP;
+	CS_STRING	m_sSend, m_sPemPass, m_sLocalIP, m_sRemoteIP;
 	ECloseType	m_eCloseType;
 
 	unsigned long long	m_iMaxMilliSeconds, m_iLastSendTime, m_iBytesRead, m_iBytesWritten, m_iStartTime;
@@ -1023,6 +1023,7 @@ private:
 	time_t			m_iLastCheckTimeoutTime;
 
 #ifdef HAVE_LIBSSL
+	CS_STRING			m_sSSLBuffer;
 	SSL 				*m_ssl;
 	SSL_CTX				*m_ssl_ctx;
 	SSL_METHOD			*m_ssl_method;
