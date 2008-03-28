@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.69 $
+* $Revision: 1.70 $
 */
 
 #include "Csocket.h"
@@ -186,6 +186,7 @@ int GetAddrInfo( const CS_STRING & sHostname, Csock *pSock, CSSockAddr & csSockA
 
 	hints.ai_socktype = SOCK_STREAM;
 	hints.ai_protocol = IPPROTO_TCP;
+
 	int iRet = getaddrinfo( sHostname.c_str(), NULL, &hints, &res );
 	if( iRet == EAI_AGAIN )
 		return( EAGAIN );
@@ -203,9 +204,24 @@ int GetAddrInfo( const CS_STRING & sHostname, Csock *pSock, CSSockAddr & csSockA
 			if( ( pRes->ai_socktype != SOCK_STREAM ) || ( pRes->ai_protocol != IPPROTO_TCP ) )
 #endif /* __sun work around broken impl of getaddrinfo */
 				continue;
-
+			
 			if( ( csSockAddr.GetAFRequire() != CSSockAddr::RAF_ANY ) && ( pRes->ai_family != csSockAddr.GetAFRequire() ) )
 				continue; // they requested a special type, so be certain we woop past anything unwanted
+			if( csSockAddr.GetAFRequire() == CSSockAddr::RAF_ANY )
+			{ 
+				// this is a quick check to see if we can connect to this type of outside port (ipv6 or ipv4)
+				// this doesn't do an actual connection (man connect), but its a great way to validate a possible connection canidate
+				bool bContinue = false;
+				int iTestFD = socket( pRes->ai_family, SOCK_DGRAM, IPPROTO_IP );
+				if( iTestFD >= 0 )
+				{
+					if( connect( iTestFD, pRes->ai_addr, pRes->ai_addrlen ) != 0 )
+						bContinue = true; // skip this one, we can't use it
+				}
+				close( iTestFD );
+				if( bContinue )
+					continue;
+			}
 
 			if( pRes->ai_family == AF_INET )
 			{
@@ -267,7 +283,9 @@ int GetAddrInfo( const CS_STRING & sHostname, Csock *pSock, CSSockAddr & csSockA
 		}
 		freeaddrinfo( res );
 		if( pUseAddr ) // the data pointed to here is invalid now, but the pointer itself is a good test
+		{
 			return( 0 );
+		}
 	}
 #endif /* ! HAVE_IPV6 */
 	return( ETIMEDOUT );
@@ -773,18 +791,6 @@ bool Csock::Connect( const CS_STRING & sBindHost, bool bSkipSetup )
 	m_sBindHost = sBindHost;
 	if ( !bSkipSetup )
 	{
-		int iDNSRet = ETIMEDOUT;
-		while( true )
-		{
-			iDNSRet = DNSLookup( DNS_VHOST );
-			if ( iDNSRet == EAGAIN )
-				continue;
-
-			break;
-		}
-		if ( iDNSRet != 0 )
-			return( false );
-
 		if ( !sBindHost.empty() )
 		{
 			// try to bind 3 times, otherwise exit failure
@@ -806,6 +812,19 @@ bool Csock::Connect( const CS_STRING & sBindHost, bool bSkipSetup )
 				return( false );
 			}
 		}
+
+		int iDNSRet = ETIMEDOUT;
+		while( true )
+		{
+			iDNSRet = DNSLookup( DNS_VHOST );
+			if ( iDNSRet == EAGAIN )
+				continue;
+
+			break;
+		}
+		if ( iDNSRet != 0 )
+			return( false );
+
 	}
 
 	// set it none blocking
@@ -2041,7 +2060,7 @@ int Csock::DNSLookup( EDNSLType eDNSLType )
 		if ( m_sBindHost.empty() )
 		{
 			if ( m_eConState != CST_OK )
-				m_eConState = CST_BINDVHOST;
+				m_eConState = CST_VHOSTDNS;
 			return( 0 );
 		}
 
@@ -2096,7 +2115,7 @@ int Csock::DNSLookup( EDNSLType eDNSLType )
 			}
 
 			if ( m_eConState != CST_OK )
-				m_eConState = ( ( eDNSLType == DNS_VHOST ) ? CST_BINDVHOST : CST_VHOSTDNS );
+				m_eConState = ( ( eDNSLType == DNS_VHOST ) ? CST_VHOSTDNS : CST_CONNECT );
 
 			if( !CreateSocksFD() )
 				return( ETIMEDOUT );
@@ -2135,7 +2154,7 @@ int Csock::DNSLookup( EDNSLType eDNSLType )
 	if ( iRet == 0 )
 	{
 		if ( m_eConState != CST_OK )
-			m_eConState = ( ( eDNSLType == DNS_VHOST ) ? CST_BINDVHOST : CST_VHOSTDNS );
+			m_eConState = ( ( eDNSLType == DNS_VHOST ) ? CST_VHOSTDNS : CST_CONNECT );
 		m_iDNSTryCount = 0;
 		return( 0 );
 	}
