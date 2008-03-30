@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.71 $
+* $Revision: 1.72 $
 */
 
 #include "Csocket.h"
@@ -2175,7 +2175,6 @@ int Csock::DNSLookup( EDNSLType eDNSLType )
 
 bool Csock::SetupVHost()
 {
-cerr << "SETUP VHOST!" << endl;
 	if ( m_sBindHost.empty() )
 	{
 		if ( m_eConState != CST_OK )
