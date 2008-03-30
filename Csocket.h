@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.185 $
+* $Revision: 1.186 $
 */
 
 // note to compile with win32 need to link to winsock2, using gcc its -lws2_32
@@ -1418,16 +1418,6 @@ public:
 				}
 			}
 
-			if ( pcSock->GetConState() == T::CST_VHOSTDNS )
-			{
-				if ( pcSock->DNSLookup( T::DNS_DEST ) == ETIMEDOUT )
-				{
-					pcSock->SockError( EADDRNOTAVAIL );
-					DelSock( a-- );
-					continue;
-				}
-			}
-
 			if ( pcSock->GetConState() == T::CST_BINDVHOST )
 			{
 				if ( !pcSock->SetupVHost() )
@@ -1438,7 +1428,15 @@ public:
 				}
 			}
 
-
+			if ( pcSock->GetConState() == T::CST_VHOSTDNS )
+			{
+				if ( pcSock->DNSLookup( T::DNS_DEST ) == ETIMEDOUT )
+				{
+					pcSock->SockError( EADDRNOTAVAIL );
+					DelSock( a-- );
+					continue;
+				}
+			}
 
 			if ( pcSock->GetConState() == T::CST_CONNECT )
 			{
