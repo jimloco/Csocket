@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.77 $
+* $Revision: 1.78 $
 */
 
 #include "Csocket.h"
@@ -217,10 +217,8 @@ int GetAddrInfo( const CS_STRING & sHostname, Csock *pSock, CSSockAddr & csSockA
 			
 			if( ( csSockAddr.GetAFRequire() != CSSockAddr::RAF_ANY ) && ( pRes->ai_family != csSockAddr.GetAFRequire() ) )
 				continue; // they requested a special type, so be certain we woop past anything unwanted
-
 			lpTryAddrs.push_back( pRes );
 		}
-
 		for( std::list<struct addrinfo *>::iterator it = lpTryAddrs.begin(); it != lpTryAddrs.end();  )
 		{ // cycle through these, leaving the last iterator for the outside caller to call, so if there is an error it can call the events
 			struct addrinfo * pRes = *it;
@@ -270,6 +268,10 @@ int GetAddrInfo( const CS_STRING & sHostname, Csock *pSock, CSSockAddr & csSockA
 					bFound = true;
 					break;
 				}
+			}
+			else if( bTryConnect )
+			{
+				bFound = true;
 			}
 		}
 
@@ -654,7 +656,6 @@ bool Csock::Connect( const CS_STRING & sBindHost, bool bSkipSetup )
 	{ // this was already called, so skipping now. this is to allow easy pass through
 		return( true );
 	}
-
 	// bind to a hostname if requested
 	m_sBindHost = sBindHost;
 	if ( !bSkipSetup )
