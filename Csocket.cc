@@ -28,13 +28,15 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.76 $
+* $Revision: 1.77 $
 */
 
 #include "Csocket.h"
 #ifdef __NetBSD__
 #include <sys/param.h>
 #endif /* __NetBSD__ */
+
+#include <list>
 
 #define CS_SRANDBUFFER 128
 
@@ -172,6 +174,7 @@ static int __GetHostByName( const CS_STRING & sHostName, struct in_addr *paddr, 
 int GetAddrInfo( const CS_STRING & sHostname, Csock *pSock, CSSockAddr & csSockAddr )
 {
 #ifndef HAVE_IPV6
+	// if ipv6 is not enabled, then simply use gethostbyname, nothing special outside of this is done
 	if( pSock )
 		pSock->SetIPv6( false );
 	csSockAddr.SetIPv6( false );
@@ -187,25 +190,24 @@ int GetAddrInfo( const CS_STRING & sHostname, Csock *pSock, CSSockAddr & csSockA
 	hints.ai_socktype = SOCK_STREAM;
 	hints.ai_protocol = IPPROTO_TCP;
 #ifdef AI_ADDRCONFIG
+	// this is suppose to eliminate host from appearing that this system can not support
 	hints.ai_flags = AI_ADDRCONFIG;
 #endif /* AI_ADDRCONFIG */
 
-	if( pSock )
-	{
-		if( pSock->GetType() == Csock::LISTENER || pSock->GetConState() == Csock::CST_BINDVHOST )
-		{
-			hints.ai_flags |= AI_PASSIVE;
-		}
+	if( pSock && pSock->GetType() == Csock::LISTENER || pSock->GetConState() == Csock::CST_BINDVHOST )
+	{ // when doing a dns for bind only, set the AI_PASSIVE flag as suggested by the man page
+		hints.ai_flags |= AI_PASSIVE;
 	}
 
 	int iRet = getaddrinfo( sHostname.c_str(), NULL, &hints, &res );
 	if( iRet == EAI_AGAIN )
-		return( EAGAIN );
+		return( EAGAIN ); // need to return telling the user to try again
 	else if( ( iRet == 0 ) && ( res ) )
-	{
+	{ 
+		std::list<struct addrinfo *> lpTryAddrs;
 		bool bFound = false;
 		for( struct addrinfo *pRes = res; pRes; pRes = pRes->ai_next )
-		{
+		{ // pass through the list building out a lean list of candidates to try. AI_CONFIGADDR doesn't always seem to work
 #ifdef __sun
 			if( ( pRes->ai_socktype != SOCK_STREAM ) || ( pRes->ai_protocol != IPPROTO_TCP && pRes->ai_protocol != IPPROTO_IP ) )
 #else
@@ -216,6 +218,12 @@ int GetAddrInfo( const CS_STRING & sHostname, Csock *pSock, CSSockAddr & csSockA
 			if( ( csSockAddr.GetAFRequire() != CSSockAddr::RAF_ANY ) && ( pRes->ai_family != csSockAddr.GetAFRequire() ) )
 				continue; // they requested a special type, so be certain we woop past anything unwanted
 
+			lpTryAddrs.push_back( pRes );
+		}
+
+		for( std::list<struct addrinfo *>::iterator it = lpTryAddrs.begin(); it != lpTryAddrs.end();  )
+		{ // cycle through these, leaving the last iterator for the outside caller to call, so if there is an error it can call the events
+			struct addrinfo * pRes = *it;
 			bool bTryConnect = false;
 			if( pRes->ai_family == AF_INET )
 			{
@@ -224,7 +232,7 @@ int GetAddrInfo( const CS_STRING & sHostname, Csock *pSock, CSSockAddr & csSockA
 				csSockAddr.SetIPv6( false );
 				struct sockaddr_in *pTmp = (struct sockaddr_in *)pRes->ai_addr;
 				memcpy( csSockAddr.GetAddr(), &(pTmp->sin_addr), sizeof( *(csSockAddr.GetAddr()) ) );
-				if( pSock && pSock->GetConState() == Csock::CST_VHOSTDNS && pSock->GetType() == Csock::OUTBOUND )
+				if( pSock && pSock->GetConState() == Csock::CST_DESTDNS && pSock->GetType() == Csock::OUTBOUND )
 				{
 					bTryConnect = true;
 				}
@@ -241,7 +249,7 @@ int GetAddrInfo( const CS_STRING & sHostname, Csock *pSock, CSSockAddr & csSockA
 				csSockAddr.SetIPv6( true );
 				struct sockaddr_in6 *pTmp = (struct sockaddr_in6 *)pRes->ai_addr;
 				memcpy( csSockAddr.GetAddr6(), &(pTmp->sin6_addr), sizeof( *(csSockAddr.GetAddr6()) ) );
-				if( pSock && pSock->GetConState() == Csock::CST_VHOSTDNS && pSock->GetType() == Csock::OUTBOUND )
+				if( pSock && pSock->GetConState() == Csock::CST_DESTDNS && pSock->GetType() == Csock::OUTBOUND )
 				{
 					bTryConnect = true;
 				}
@@ -251,11 +259,14 @@ int GetAddrInfo( const CS_STRING & sHostname, Csock *pSock, CSSockAddr & csSockA
 					break;
 				}
 			}
-			if( bTryConnect && pRes->ai_next )
+
+			it++; // increment the iterator her so we know if its the last element or not
+
+			if( bTryConnect && it != lpTryAddrs.end() )
 			{ // save the last attempt for the outer loop, the issue then becomes that the error is thrown on the last failure
 				if( pSock->CreateSocksFD() && pSock->Connect( pSock->GetBindHost(), true ) )
 				{
-					pSock->SetSkipConnect( true );
+					pSock->SetSkipConnect( true ); // this tells the socket that the connection state has been started
 					bFound = true;
 					break;
 				}
@@ -1917,7 +1928,7 @@ int Csock::DNSLookup( EDNSLType eDNSLType )
 		if ( m_sBindHost.empty() )
 		{
 			if ( m_eConState != CST_OK )
-				m_eConState = CST_VHOSTDNS; // skip binding, there is no vhost
+				m_eConState = CST_DESTDNS; // skip binding, there is no vhost
 			return( 0 );
 		}
 
@@ -1974,7 +1985,7 @@ bool Csock::SetupVHost()
 	if ( m_sBindHost.empty() )
 	{
 		if ( m_eConState != CST_OK )
-			m_eConState = CST_VHOSTDNS;
+			m_eConState = CST_DESTDNS;
 		return( true );
 	}
 	int iRet = -1;
@@ -1988,7 +1999,7 @@ bool Csock::SetupVHost()
 	if ( iRet == 0 )
 	{
 		if ( m_eConState != CST_OK )
-			m_eConState = CST_VHOSTDNS;
+			m_eConState = CST_DESTDNS;
 		return( true );
 	}
 	m_iCurBindCount++;

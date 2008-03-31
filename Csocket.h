@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.188 $
+* $Revision: 1.189 $
 */
 
 // note to compile with win32 need to link to winsock2, using gcc its -lws2_32
@@ -228,7 +228,8 @@ class Csock;
  * - if pSock is a listener, or if the connect state is in a bind vhost state (to be used with bind) AI_PASSIVE is sent to getaddrinfo
  * - if pSock is an outbound connection, AI_ADDRCONFIG and the connection is started from within this function.
  * getaddrinfo might return multiple (possibly invalid depending on system configuration) ip addresses, so connect needs to try them all.
- * A classic example of this is a hostname that resolves to both ipv4 and ipv6 ip's.
+ * A classic example of this is a hostname that resolves to both ipv4 and ipv6 ip's. You still need to call Connect (and ConnectSSL) to finish
+ * up the connection state
  * - NOTE ... Once threading is reimplemented, this function will spin off a thread to resolve and return EAGAIN until its done.
  *
  * @param sHostname the host to resolve
@@ -461,7 +462,7 @@ public:
 		CST_START		= 0,
 		CST_DNS			= CST_START,
 		CST_BINDVHOST	= 1,
-		CST_VHOSTDNS	= 2,
+		CST_DESTDNS		= 2,
 		CST_CONNECT		= 3,
 		CST_OK			= 4
 	};
@@ -1366,7 +1367,7 @@ public:
 				}
 			}
 
-			if ( pcSock->GetConState() == T::CST_VHOSTDNS )
+			if ( pcSock->GetConState() == T::CST_DESTDNS )
 			{
 				if ( pcSock->DNSLookup( T::DNS_DEST ) == ETIMEDOUT )
 				{
