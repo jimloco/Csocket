@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.186 $
+* $Revision: 1.187 $
 */
 
 // note to compile with win32 need to link to winsock2, using gcc its -lws2_32
@@ -229,83 +229,6 @@ int GetCsockClassIdx();
 Csock *GetCsockFromCTX( X509_STORE_CTX *pCTX );
 #endif /* HAVE_LIBSSL */
 
-
-#if defined( _REENTRANT ) && defined( _USE_THREADED_DNS )
-#define ___DO_THREADS
-#include <pthread.h>
-
-#ifndef PTHREAD_MUTEX_FAST_NP
-#define PTHREAD_MUTEX_FAST_NP PTHREAD_MUTEX_NORMAL
-#endif /* PTHREAD_MUTEX_FAST_NP */
-
-class CSMutex
-{
-public:
-	CSMutex ();
-	virtual ~CSMutex();
-	int lock() { return( pthread_mutex_lock( &m_mutex ) ); }
-	int unlock() { return( pthread_mutex_unlock( &m_mutex ) ); }
-	int trylock() { return( pthread_mutex_trylock( &m_mutex ) ); }
-private:
-	pthread_mutex_t			m_mutex;
-	pthread_mutexattr_t		m_mattrib;
-};
-
-class CSThread
-{
-public:
-	CSThread() { m_eStatus = WAITING; }
-	virtual ~CSThread() {}
-
-	enum EStatus
-	{
-		WAITING = 1,
-		RUNNING = 2,
-		FINISHED = 3
-	};
-
-	bool start();
-	void wait();
-	virtual void run() = 0;
-	static void *start_thread( void *args );
-	EStatus Status() { return( m_eStatus ); }
-	void SetStatus( EStatus e ) { m_eStatus = e; }
-	int lock() { return( m_mutex.lock() ); }
-	int unlock() { return( m_mutex.unlock() ); }
-	int cancel() { return( pthread_cancel( m_ppth ) ); }
-
-private:
-	pthread_t	m_ppth;
-	EStatus m_eStatus;
-	CSMutex  m_mutex;
-};
-
-class CDNSResolver : public CSThread
-{
-public:
-	CDNSResolver() : CSThread() { m_bSuccess = false; }
-	virtual ~CDNSResolver() {}
-	//! returns imediatly, from here out check if IsCompleted() returns true before looking at ANY of the data
-	void Lookup( const CS_STRING & sHostname );
-
-	virtual void run();
-
-	//! true if dns entry was successfuly found
-	bool Suceeded() const { return( m_bSuccess ); }
-
-	//! true if task is finished, this function is thread safe
-	bool IsCompleted();
-
-	CSSockAddr * GetSockAddr() { return( &m_cSockAddr ); }
-
-private:
-	bool		m_bSuccess;
-	CS_STRING	m_sHostname;
-	CSSockAddr	m_cSockAddr;
-};
-
-
-#endif /* ___DO_THREADS */
 
 const u_int CS_BLOCKSIZE = 4096;
 template <class T> inline void CS_Delete( T * & p ) { if( p ) { delete p; p = NULL; } }
@@ -1002,6 +925,8 @@ public:
 	//! returns a const reference to the crons associated to this socket
 	const std::vector<CCron *> & GetCrons() const { return( m_vcCrons ); }
 
+	void SetSkipConnect( bool b ) { m_bSkipConnect = b; }
+
 private:
 	//! making private for safety
 	Csock( const Csock & cCopy ) {}
@@ -1019,7 +944,7 @@ private:
 	unsigned int		m_iMaxBytes, m_iLastSend, m_iMaxStoredBufferLength, m_iTimeoutType;
 
 	CSSockAddr 		m_address, m_bindhost;
-	bool			m_bIsIPv6;
+	bool			m_bIsIPv6, m_bSkipConnect;
 	time_t			m_iLastCheckTimeoutTime;
 
 #ifdef HAVE_LIBSSL
@@ -1046,10 +971,6 @@ private:
 	ECONState		m_eConState;
 	CS_STRING		m_sBindHost;
 	u_int			m_iCurBindCount, m_iDNSTryCount;
-
-#ifdef ___DO_THREADS
-	CDNSResolver	m_pResolver;
-#endif /* ___DO_THREADS */
 
 };
 
@@ -1450,7 +1371,6 @@ public:
 					DelSock( a-- );
 					continue;
 				}
-
 #ifdef HAVE_LIBSSL
 				if ( pcSock->GetSSL() )
 				{
