@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.187 $
+* $Revision: 1.188 $
 */
 
 // note to compile with win32 need to link to winsock2, using gcc its -lws2_32
@@ -219,6 +219,23 @@ private:
 };
 
 class Csock;
+
+/**
+ * @brief this function is a wrapper around gethostbyname and getaddrinfo (for ipv6)
+ *
+ * in the event this code is using ipv6, it calls getaddrinfo, and it tries to start the connection on each iteration
+ * in the linked list returned by getaddrinfo. if pSock is not NULL the following behavior happens.
+ * - if pSock is a listener, or if the connect state is in a bind vhost state (to be used with bind) AI_PASSIVE is sent to getaddrinfo
+ * - if pSock is an outbound connection, AI_ADDRCONFIG and the connection is started from within this function.
+ * getaddrinfo might return multiple (possibly invalid depending on system configuration) ip addresses, so connect needs to try them all.
+ * A classic example of this is a hostname that resolves to both ipv4 and ipv6 ip's.
+ * - NOTE ... Once threading is reimplemented, this function will spin off a thread to resolve and return EAGAIN until its done.
+ *
+ * @param sHostname the host to resolve
+ * @param pSock the sock being setup, this option can be NULL, if it is null csSockAddr is only setup
+ * @param csSockAddr the struct that sockaddr data is being copied to
+ * @return 0 on success, otherwise an error. EAGAIN if this needs to be called again at a later time, ETIMEDOUT if no host is found
+ */
 int GetAddrInfo( const CS_STRING & sHostname, Csock *pSock, CSSockAddr & csSockAddr );
 
 //! used to retrieve the context position of the socket to its associated ssl connection. Setup once in InitSSL() via SSL_get_ex_new_index
