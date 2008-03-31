@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.74 $
+* $Revision: 1.75 $
 */
 
 #include "Csocket.h"
@@ -186,6 +186,9 @@ int GetAddrInfo( const CS_STRING & sHostname, Csock *pSock, CSSockAddr & csSockA
 
 	hints.ai_socktype = SOCK_STREAM;
 	hints.ai_protocol = IPPROTO_TCP;
+#ifdef AI_ADDRCONFIG
+	hints.ai_flags = AI_ADDRCONFIG;
+#endif /* AI_ADDRCONFIG */
 
 	int iRet = getaddrinfo( sHostname.c_str(), NULL, &hints, &res );
 	if( iRet == EAI_AGAIN )
@@ -207,23 +210,6 @@ int GetAddrInfo( const CS_STRING & sHostname, Csock *pSock, CSSockAddr & csSockA
 			
 			if( ( csSockAddr.GetAFRequire() != CSSockAddr::RAF_ANY ) && ( pRes->ai_family != csSockAddr.GetAFRequire() ) )
 				continue; // they requested a special type, so be certain we woop past anything unwanted
-
-			if( csSockAddr.GetAFRequire() == CSSockAddr::RAF_ANY )
-			{ 
-				// this is a quick check to see if we can connect to this type of outside port (ipv6 or ipv4)
-				// this doesn't do an actual connection (man connect), but its a great way to validate a possible connection canidate
-				bool bContinue = false;
-				int iTestFD = socket( pRes->ai_family, SOCK_DGRAM, pRes->ai_protocol );
-				if( iTestFD >= 0 )
-				{
-					if( connect( iTestFD, pRes->ai_addr, pRes->ai_addrlen ) != 0 )
-						bContinue = true; // skip this one, we can't use it
-					perror( "connect" );
-				}
-				close( iTestFD );
-				if( bContinue )
-					continue;
-			}
 
 			if( pRes->ai_family == AF_INET )
 			{
