@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.191 $
+* $Revision: 1.192 $
 */
 
 // note to compile with win32 need to link to winsock2, using gcc its -lws2_32
@@ -1589,9 +1589,11 @@ public:
 	//! returns a pointer to the FIRST sock found by name or NULL on no match
 	virtual T * FindSockByName( const CS_STRING & sName )
 	{
-		for( unsigned int i = 0; i < this->size(); i++ )
-			if ( (*this)[i]->GetSockName() == sName )
-				return( (*this)[i] );
+		typename std::vector<T *>::iterator it;
+		typename std::vector<T *>::iterator it_end = this->end();
+		for( it = this->begin(); it != it_end; it++ )
+			if ( (*it)->GetSockName() == sName )
+				return( *it );
 
 		return( NULL );
 	}
