@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.192 $
+* $Revision: 1.193 $
 */
 
 // note to compile with win32 need to link to winsock2, using gcc its -lws2_32
@@ -2073,15 +2073,21 @@ private:
 	{
 		time_t iNextRunTime = iNow + iMaxResolution;
 		time_t iMinTimeout = iMaxResolution;
-		for( u_long a = 0; a < this->size() && iMinTimeout; a++ )
+		typename std::vector<T *>::const_iterator it;
+		// This is safe, because we don't modify the vector.
+		typename std::vector<T *>::const_iterator it_end = this->end();
+
+		for (it = this->begin(); it != it_end; it++)
 		{
-			if( (*this)[a]->GetConState() != T::CST_OK )
+			T* pSock = *it;
+
+			if( pSock->GetConState() != T::CST_OK )
 				iMinTimeout = 0; // this is in a nebulous state, need to let it proceed like normal
 
-			time_t iTimeoutInSeconds = (*this)[a]->GetTimeout();
+			time_t iTimeoutInSeconds = pSock->GetTimeout();
 			if( iTimeoutInSeconds > 0 )
 			{
-				time_t iLastTimeData = (*this)[a]->GetLastCheckTimeout();
+				time_t iLastTimeData = pSock->GetLastCheckTimeout();
 				time_t iDiff = iNow - iLastTimeData;
 				if( iDiff > iTimeoutInSeconds )
 					iTimeoutInSeconds = 0;
@@ -2091,12 +2097,16 @@ private:
 				iMinTimeout = std::min( iMinTimeout, iTimeoutInSeconds );
 			}
 
-			const std::vector<CCron *> & vCrons = (*this)[a]->GetCrons();
-			for( u_long b = 0; b < vCrons.size(); b++ )
-				iNextRunTime = std::min( iNextRunTime, vCrons[b]->GetNextRun() );
+			const std::vector<CCron *> & vCrons = pSock->GetCrons();
+			std::vector<CCron *>::const_iterator cit;
+			std::vector<CCron *>::const_iterator cit_end = vCrons.end();
+			for (cit = vCrons.begin(); cit != cit_end; it++)
+				iNextRunTime = std::min( iNextRunTime, (*cit)->GetNextRun() );
 		}
-		for( u_long a = 0; a < m_vcCrons.size(); a++ )
-			iNextRunTime = std::min( iNextRunTime, m_vcCrons[a]->GetNextRun() );
+		std::vector<CCron *>::const_iterator cit;
+		std::vector<CCron *>::const_iterator cit_end = m_vcCrons.end();
+		for (cit = m_vcCrons.begin(); cit != cit_end; cit++)
+			iNextRunTime = std::min( iNextRunTime, (*cit)->GetNextRun() );
 
 		if( iNextRunTime < iNow )
 			return( 0 ); // smallest unit possible
