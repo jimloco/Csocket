@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.193 $
+* $Revision: 1.194 $
 */
 
 // note to compile with win32 need to link to winsock2, using gcc its -lws2_32
@@ -374,6 +374,9 @@ public:
 
 	//! this is the method you should override
 	virtual void RunJob();
+
+protected:
+	bool		m_bRunOnNextCall; //!< if set to true, RunJob() gets called on next invocation of run() despite the timeout
 
 private:
 	time_t		m_iTime;
