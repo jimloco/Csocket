@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.194 $
+* $Revision: 1.195 $
 */
 
 // note to compile with win32 need to link to winsock2, using gcc its -lws2_32
@@ -2066,6 +2066,14 @@ private:
 								AddSock( NewpcSock, NewpcSock->GetSockName() );
 						} else
 							CS_Delete( NewpcSock );
+					}
+#ifdef _WIN32
+					else if( GetSockError() != WSAEWOULDBLOCK )
+#else /* _WIN32 */
+					else if( GetSockError() != EAGAIN )
+#endif /* _WIN32 */
+					{
+						pcSock->SockError( GetSockError() );
 					}
 				}
 			}
