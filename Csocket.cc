@@ -28,13 +28,14 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.83 $
+* $Revision: 1.84 $
 */
 
 #include "Csocket.h"
 #ifdef __NetBSD__
 #include <sys/param.h>
 #endif /* __NetBSD__ */
+
 
 #include <list>
 
@@ -54,6 +55,29 @@ int GetCsockClassIdx()
 }
 
 #ifdef _WIN32
+static const char *inet_ntop(int af, const void *src, char *dst, socklen_t cnt)
+{
+	if( af == AF_INET )
+	{
+		struct sockaddr_in in;
+		memset(&in, 0, sizeof(in));
+		in.sin_family = AF_INET;
+		memcpy( &in.sin_addr, src, sizeof(struct in_addr) );
+		getnameinfo( (struct sockaddr *)&in, sizeof(struct sockaddr_in), dst, cnt, NULL, 0, NI_NUMERICHOST );
+		return dst;
+	}
+	else if( af == AF_INET6 )
+	{
+		struct sockaddr_in6 in;
+		memset( &in, 0, sizeof(in) );
+		in.sin6_family = AF_INET6;
+		memcpy( &in.sin6_addr, src, sizeof(struct in_addr6) );
+		getnameinfo( (struct sockaddr *)&in, sizeof(struct sockaddr_in6), dst, cnt, NULL, 0, NI_NUMERICHOST );
+		return dst;
+	}
+	return( NULL );
+}
+
 static inline void set_non_blocking(int fd)
 {
 	u_long iOpts = 1;
@@ -157,7 +181,9 @@ static int __GetHostByName( const CS_STRING & sHostName, struct in_addr *paddr, 
 
 		if( h_errno != TRY_AGAIN )
 		{
+#ifndef _WIN32
 			CS_DEBUG( "gethostyname: " << hstrerror( h_errno ) );
+#endif /* _WIN32 */
 			break;
 		}
 	}
