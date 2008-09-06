@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.196 $
+* $Revision: 1.197 $
 */
 
 // note to compile with win32 need to link to winsock2, using gcc its -lws2_32
@@ -293,6 +293,11 @@ inline void ShutdownWin32()
 {
 	WSACleanup();
 }
+#define InitCsocket InitWin32
+#define ShutdownCsocket ShutdownWin32
+#else
+#define InitCsocket (void)0
+#define ShutdownCsocket (void)0
 #endif /* _WIN32 */
 
 //! wrappers for FD_SET and such to work in templates.
