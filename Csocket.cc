@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.86 $
+* $Revision: 1.87 $
 */
 
 #include "Csocket.h"
@@ -1173,8 +1173,9 @@ bool Csock::ConnectSSL( const CS_STRING & sBindhost )
 		if( sslErr == SSL_ERROR_WANT_READ || sslErr == SSL_ERROR_WANT_WRITE )
 			bPass = true;
 #ifdef _WIN32
-		else if( sslErr == SSL_ERROR_SYSCALL && iErr < 0 )
-		{
+		else if( sslErr == SSL_ERROR_SYSCALL && iErr < 0 && GetLastError() == WSAENOTCONN )
+		{ 
+			// this seems to be an issue with win32 only. I've seen it happen on slow connections
 			bPass = true;
 		}
 #endif /* _WIN32 */
