@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.85 $
+* $Revision: 1.86 $
 */
 
 #include "Csocket.h"
@@ -1169,9 +1169,15 @@ bool Csock::ConnectSSL( const CS_STRING & sBindhost )
 	if ( iErr != 1 )
 	{
 		int sslErr = SSL_get_error( m_ssl, iErr );
-
-		if ( ( sslErr != SSL_ERROR_WANT_READ ) && ( sslErr != SSL_ERROR_WANT_WRITE ) )
-			bPass = false;
+		bPass = false;
+		if( sslErr == SSL_ERROR_WANT_READ || sslErr == SSL_ERROR_WANT_WRITE )
+			bPass = true;
+#ifdef _WIN32
+		else if( sslErr == SSL_ERROR_SYSCALL && iErr < 0 )
+		{
+			bPass = true;
+		}
+#endif /* _WIN32 */
 	} else
 		bPass = true;
 
