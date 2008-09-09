@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.87 $
+* $Revision: 1.88 $
 */
 
 #include "Csocket.h"
@@ -1176,6 +1176,9 @@ bool Csock::ConnectSSL( const CS_STRING & sBindhost )
 		else if( sslErr == SSL_ERROR_SYSCALL && iErr < 0 && GetLastError() == WSAENOTCONN )
 		{ 
 			// this seems to be an issue with win32 only. I've seen it happen on slow connections
+			// the issue is calling this before select(), which isn't a problem on unix. Allowing this
+			// to pass in this case is fine because subsequent ssl transactions will occur and the handshake
+			// will finish. At this point, its just instantiating the handshake.
 			bPass = true;
 		}
 #endif /* _WIN32 */
