@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.88 $
+* $Revision: 1.89 $
 */
 
 #include "Csocket.h"
@@ -1602,12 +1602,12 @@ void Csock::PushBuff( const char *data, int len, bool bStartAtZero )
 CS_STRING & Csock::GetInternalReadBuffer() { return( m_sbuffer ); }
 CS_STRING & Csock::GetInternalWriteBuffer() { return( m_sSend ); }
 void Csock::SetMaxBufferThreshold( u_int iThreshold ) { m_iMaxStoredBufferLength = iThreshold; }
-u_int Csock::GetMaxBufferThreshold() { return( m_iMaxStoredBufferLength ); }
-int Csock::GetType() { return( m_iConnType ); }
+u_int Csock::GetMaxBufferThreshold() const { return( m_iMaxStoredBufferLength ); }
+int Csock::GetType() const { return( m_iConnType ); }
 void Csock::SetType( int iType ) { m_iConnType = iType; }
-const CS_STRING & Csock::GetSockName() { return( m_sSockName ); }
+const CS_STRING & Csock::GetSockName() const { return( m_sSockName ); }
 void Csock::SetSockName( const CS_STRING & sName ) { m_sSockName = sName; }
-const CS_STRING & Csock::GetHostName() { return( m_shostname ); }
+const CS_STRING & Csock::GetHostName() const { return( m_shostname ); }
 void Csock::SetHostName( const CS_STRING & sHostname ) { m_shostname = sHostname; }
 unsigned long long Csock::GetStartTime() const { return( m_iStartTime ); }
 void Csock::ResetStartTime() { m_iStartTime = 0; }
