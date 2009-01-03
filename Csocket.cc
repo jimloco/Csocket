@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.90 $
+* $Revision: 1.91 $
 */
 
 #include "Csocket.h"
@@ -562,6 +562,7 @@ void Csock::Dereference()
 #endif /* HAVE_LIBSSL */
 
 	m_vcCrons.clear();
+	Close( CLT_DEREFERENCE );
 }
 
 void Csock::Copy( const Csock & cCopy )
