@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.201 $
+* $Revision: 1.202 $
 */
 
 // note to compile with win32 need to link to winsock2, using gcc its -lws2_32
@@ -1830,7 +1830,7 @@ private:
 		for( unsigned int i = 0; i < this->size(); i++ )
 		{
 			Csock::ECloseType eCloseType = (*this)[i]->GetCloseType();
-			if( eCloseType == T::CLT_NOW || eCloseType == T::CLT_DEREFERENCE || ( (*this)[i]->GetCloseType() == T::CLT_AFTERWRITE && (*this)[i]->GetWriteBuffer().empty() ) )
+			if( eCloseType == T::CLT_NOW || eCloseType == T::CLT_DEREFERENCE || ( eCloseType == T::CLT_AFTERWRITE && (*this)[i]->GetWriteBuffer().empty() ) )
 				DelSock( i-- ); // close any socks that have requested it
 			else
 				(*this)[i]->Cron(); // call the Cron handler here

@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.91 $
+* $Revision: 1.92 $
 */
 
 #include "Csocket.h"
@@ -1030,6 +1030,8 @@ bool Csock::SSLClientSetup()
 	if ( !m_ssl_ctx )
 		return( false );
 
+	SSL_CTX_set_default_verify_paths( m_ssl_ctx );
+
 	if ( !m_sPemFile.empty() )
 	{	// are we sending a client cerificate ?
 		SSL_CTX_set_default_passwd_cb( m_ssl_ctx, PemPassCB );
@@ -1118,6 +1120,7 @@ bool Csock::SSLServerSetup()
 	m_ssl_ctx = SSL_CTX_new ( m_ssl_method );
 	if ( !m_ssl_ctx )
 		return( false );
+	SSL_CTX_set_default_verify_paths( m_ssl_ctx );
 
 	// set the pemfile password
 	SSL_CTX_set_default_passwd_cb( m_ssl_ctx, PemPassCB );
