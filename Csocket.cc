@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.92 $
+* $Revision: 1.93 $
 */
 
 #include "Csocket.h"
@@ -942,7 +942,7 @@ int Csock::Accept( CS_STRING & sHost, u_short & iRPort )
 
 		if ( !ConnectionFrom( sHost, iRPort ) )
 		{
-			close( iSock );
+			CS_CLOSE( iSock );
 			iSock = -1;
 		}
 
