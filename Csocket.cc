@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.94 $
+* $Revision: 1.95 $
 */
 
 #include "Csocket.h"
@@ -1262,12 +1262,16 @@ bool Csock::Write( const char *data, int len )
 	// rate shaping
 	u_int iBytesToSend = 0;
 
-	if( m_sSSLBuffer.empty() && !m_bsslEstablished )
+#ifdef HAVE_LIBSSL
+	if( m_bssl && m_sSSLBuffer.empty() && !m_bsslEstablished )
 	{
 		// to keep openssl from spinning, just initiate the connection with 1 byte so the connection establishes faster
 		iBytesToSend = 1;
 	}
 	else if ( ( m_iMaxBytes > 0 ) && ( m_iMaxMilliSeconds > 0 ) )
+#else
+	if ( ( m_iMaxBytes > 0 ) && ( m_iMaxMilliSeconds > 0 ) )
+#endif /* HAVE_LIBSSL */
 	{
 		unsigned long long iNOW = millitime();
 		// figure out the shaping here
