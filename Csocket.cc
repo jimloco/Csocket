@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.96 $
+* $Revision: 1.97 $
 */
 
 #include "Csocket.h"
@@ -397,7 +397,7 @@ void SSLErrors( const char *filename, u_int iLineNum )
 
 void __Perror( const CS_STRING & s, const char *pszFile, unsigned int iLineNo )
 {
-#if defined(__sun) || defined(_WIN32) || __NetBSD_Version__ < 4000000000
+#if defined(__sun) || defined(_WIN32) || (defined(__NetBSD_Version__) && __NetBSD_Version__ < 4000000000)
 	std::cerr << s << "(" << pszFile << ":" << iLineNo << "): " << strerror( GetSockError() ) << endl;
 #else
 	char buff[512];

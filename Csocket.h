@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.204 $
+* $Revision: 1.205 $
 */
 
 // note to compile with win32 need to link to winsock2, using gcc its -lws2_32
@@ -2120,7 +2120,7 @@ private:
 			const std::vector<CCron *> & vCrons = pSock->GetCrons();
 			std::vector<CCron *>::const_iterator cit;
 			std::vector<CCron *>::const_iterator cit_end = vCrons.end();
-			for (cit = vCrons.begin(); cit != cit_end; it++)
+			for (cit = vCrons.begin(); cit != cit_end; cit++)
 				iNextRunTime = std::min( iNextRunTime, (*cit)->GetNextRun() );
 		}
 		std::vector<CCron *>::const_iterator cit;
