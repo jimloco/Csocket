@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.99 $
+* $Revision: 1.100 $
 */
 
 #include "Csocket.h"
@@ -2051,11 +2051,13 @@ int Csock::DNSLookup( EDNSLType eDNSLType )
 		iRet = GetAddrInfo( m_shostname, m_address );
 	}
 
-	if( !CreateSocksFD() )
-		iRet = ETIMEDOUT;
-
 	if ( iRet == 0 )
 	{
+		if( !CreateSocksFD() )
+		{
+			m_iDNSTryCount = 0;
+			return( ETIMEDOUT );
+		}
 		if ( m_eConState != CST_OK )
 			m_eConState = ( ( eDNSLType == DNS_VHOST ) ? CST_BINDVHOST : CST_CONNECT );
 		m_iDNSTryCount = 0;
