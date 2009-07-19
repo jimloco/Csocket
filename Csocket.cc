@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.100 $
+* $Revision: 1.101 $
 */
 
 #include "Csocket.h"
@@ -1134,7 +1134,7 @@ bool Csock::SSLServerSetup()
 
 	//
 	// set up the CTX
-	if ( SSL_CTX_use_certificate_file( m_ssl_ctx, m_sPemFile.c_str() , SSL_FILETYPE_PEM ) <= 0 )
+	if ( SSL_CTX_use_certificate_chain_file( m_ssl_ctx, m_sPemFile.c_str() ) <= 0 )
 	{
 		CS_DEBUG( "Error with PEM file [" << m_sPemFile << "]" );
 		SSLErrors( __FILE__, __LINE__ );
