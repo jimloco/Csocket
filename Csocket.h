@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.209 $
+* $Revision: 1.210 $
 */
 
 // note to compile with win32 need to link to winsock2, using gcc its -lws2_32
@@ -590,8 +590,8 @@ public:
 	void SetSock( int iSock );
 	int & GetSock();
 
-	//! resets the time counter
-	void ResetTimer();
+	//! resets the time counter, this is virtual in the event you need an event on the timer being Reset
+	virtual void ResetTimer();
 
 	//! will pause/unpause reading on this socket
 	void PauseRead();
