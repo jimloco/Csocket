@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.210 $
+* $Revision: 1.211 $
 */
 
 // note to compile with win32 need to link to winsock2, using gcc its -lws2_32
@@ -988,7 +988,6 @@ private:
 	CS_STRING			m_sSSLBuffer;
 	SSL 				*m_ssl;
 	SSL_CTX				*m_ssl_ctx;
-	SSL_METHOD			*m_ssl_method;
 	unsigned int		m_iRequireClientCertFlags;
 
 	FPCertVerifyCB		m_pCerVerifyCB;

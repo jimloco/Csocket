@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.102 $
+* $Revision: 1.103 $
 */
 
 #include "Csocket.h"
@@ -619,7 +619,6 @@ void Csock::Copy( const Csock & cCopy )
 	FREE_CTX(); // be sure to remove anything that was already here
 	m_ssl				= cCopy.m_ssl;
 	m_ssl_ctx			= cCopy.m_ssl_ctx;
-	m_ssl_method		= cCopy.m_ssl_method;
 
 	m_pCerVerifyCB		= cCopy.m_pCerVerifyCB;
 
@@ -990,8 +989,8 @@ bool Csock::SSLClientSetup()
 	switch( m_iMethod )
 	{
 		case SSL2:
-			m_ssl_method = SSLv2_client_method();
-			if ( !m_ssl_method )
+			m_ssl_ctx = SSL_CTX_new ( SSLv2_client_method() );
+			if ( !m_ssl_ctx )
 			{
 				CS_DEBUG( "WARNING: MakeConnection .... SSLv2_client_method failed!" );
 				return( false );
@@ -999,16 +998,16 @@ bool Csock::SSLClientSetup()
 			break;
 
 		case SSL3:
-			m_ssl_method = SSLv3_client_method();
-			if ( !m_ssl_method )
+			m_ssl_ctx = SSL_CTX_new ( SSLv3_client_method() );
+			if ( !m_ssl_ctx )
 			{
 				CS_DEBUG( "WARNING: MakeConnection .... SSLv3_client_method failed!" );
 				return( false );
 			}
 			break;
 		case TLS1:
-			m_ssl_method = TLSv1_client_method();
-			if ( !m_ssl_method )
+			m_ssl_ctx = SSL_CTX_new ( TLSv1_client_method() );
+			if ( !m_ssl_ctx )
 			{
 				CS_DEBUG( "WARNING: MakeConnection .... TLSv1_client_method failed!" );
 				return( false );
@@ -1016,8 +1015,8 @@ bool Csock::SSLClientSetup()
 			break;
 		case SSL23:
 		default:
-			m_ssl_method = SSLv23_client_method();
-			if ( !m_ssl_method )
+			m_ssl_ctx = SSL_CTX_new ( SSLv23_client_method() );
+			if ( !m_ssl_ctx )
 			{
 				CS_DEBUG( "WARNING: MakeConnection .... SSLv23_client_method failed!" );
 				return( false );
@@ -1026,7 +1025,6 @@ bool Csock::SSLClientSetup()
 	}
 
 	// wrap some warnings in here
-	m_ssl_ctx = SSL_CTX_new ( m_ssl_method );
 	if ( !m_ssl_ctx )
 		return( false );
 
@@ -1079,8 +1077,8 @@ bool Csock::SSLServerSetup()
 	switch( m_iMethod )
 	{
 		case SSL2:
-			m_ssl_method = SSLv2_server_method();
-			if ( !m_ssl_method )
+			m_ssl_ctx = SSL_CTX_new ( SSLv2_server_method() );
+			if ( !m_ssl_ctx )
 			{
 				CS_DEBUG( "WARNING: MakeConnection .... SSLv2_server_method failed!" );
 				return( false );
@@ -1088,8 +1086,8 @@ bool Csock::SSLServerSetup()
 			break;
 
 		case SSL3:
-			m_ssl_method = SSLv3_server_method();
-			if ( !m_ssl_method )
+			m_ssl_ctx = SSL_CTX_new ( SSLv3_server_method() );
+			if ( !m_ssl_ctx )
 			{
 				CS_DEBUG( "WARNING: MakeConnection .... SSLv3_server_method failed!" );
 				return( false );
@@ -1097,8 +1095,8 @@ bool Csock::SSLServerSetup()
 			break;
 
 		case TLS1:
-			m_ssl_method = TLSv1_server_method();
-			if ( !m_ssl_method )
+			m_ssl_ctx = SSL_CTX_new ( TLSv1_server_method() );
+			if ( !m_ssl_ctx )
 			{
 				CS_DEBUG( "WARNING: MakeConnection .... TLSv1_server_method failed!" );
 				return( false );
@@ -1107,8 +1105,8 @@ bool Csock::SSLServerSetup()
 
 		case SSL23:
 		default:
-			m_ssl_method = SSLv23_server_method();
-			if ( !m_ssl_method )
+			m_ssl_ctx = SSL_CTX_new ( SSLv23_server_method() );
+			if ( !m_ssl_ctx )
 			{
 				CS_DEBUG( "WARNING: MakeConnection .... SSLv23_server_method failed!" );
 				return( false );
@@ -1117,7 +1115,6 @@ bool Csock::SSLServerSetup()
 	}
 
 	// wrap some warnings in here
-	m_ssl_ctx = SSL_CTX_new ( m_ssl_method );
 	if ( !m_ssl_ctx )
 		return( false );
 	SSL_CTX_set_default_verify_paths( m_ssl_ctx );
