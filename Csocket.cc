@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.103 $
+* $Revision: 1.104 $
 */
 
 #include "Csocket.h"
@@ -1024,9 +1024,6 @@ bool Csock::SSLClientSetup()
 			break;
 	}
 
-	// wrap some warnings in here
-	if ( !m_ssl_ctx )
-		return( false );
 
 	SSL_CTX_set_default_verify_paths( m_ssl_ctx );
 
@@ -1114,9 +1111,6 @@ bool Csock::SSLServerSetup()
 			break;
 	}
 
-	// wrap some warnings in here
-	if ( !m_ssl_ctx )
-		return( false );
 	SSL_CTX_set_default_verify_paths( m_ssl_ctx );
 
 	// set the pemfile password
