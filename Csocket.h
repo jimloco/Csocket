@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.211 $
+* $Revision: 1.212 $
 */
 
 // note to compile with win32 need to link to winsock2, using gcc its -lws2_32
@@ -1845,16 +1845,6 @@ private:
 		TFD_ZERO( &rfds );
 		TFD_ZERO( &wfds );
 
-		// before we go any further, Process work needing to be done on the job
-		for( unsigned int i = 0; i < this->size(); i++ )
-		{
-			Csock::ECloseType eCloseType = (*this)[i]->GetCloseType();
-			if( eCloseType == T::CLT_NOW || eCloseType == T::CLT_DEREFERENCE || ( eCloseType == T::CLT_AFTERWRITE && (*this)[i]->GetWriteBuffer().empty() ) )
-				DelSock( i-- ); // close any socks that have requested it
-			else
-				(*this)[i]->Cron(); // call the Cron handler here
-		}
-
 		bool bHasWriteable = false;
 		bool bHasAvailSocks = false;
 		unsigned long long iNOW = 0;
@@ -1862,6 +1852,16 @@ private:
 		for( unsigned int i = 0; i < this->size(); i++ )
 		{
 			T *pcSock = (*this)[i];
+
+			Csock::ECloseType eCloseType = pcSock->GetCloseType();
+
+			if( eCloseType == T::CLT_NOW || eCloseType == T::CLT_DEREFERENCE || ( eCloseType == T::CLT_AFTERWRITE && pcSock->GetWriteBuffer().empty() ) )
+			{
+				DelSock( i-- ); // close any socks that have requested it
+				continue;
+			}
+			else
+				pcSock->Cron(); // call the Cron handler here
 
 			if ( pcSock->GetConState() != T::CST_OK )
 				continue;
@@ -1927,18 +1927,8 @@ private:
 
 			} else
 				TFD_SET( iRSock, &rfds );
-		}
-
-		// first check to see if any ssl sockets are ready for immediate read
-		// a mini select() type deal for ssl
-		for( unsigned int i = 0; i < this->size(); i++ )
-		{
-			T *pcSock = (*this)[i];
-
-			if ( pcSock->GetConState() != T::CST_OK )
-				continue;
-
-			if ( ( pcSock->GetSSL() ) && ( pcSock->GetType() != Csock::LISTENER ) )
+			
+			if( pcSock->GetSSL() && pcSock->GetType() != Csock::LISTENER )
 			{
 				if ( ( pcSock->GetPending() > 0 ) && ( !pcSock->IsReadPaused() ) )
 					SelectSock( mpeSocks, SUCCESS, pcSock );
