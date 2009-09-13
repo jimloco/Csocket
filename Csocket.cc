@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.106 $
+* $Revision: 1.107 $
 */
 
 #include "Csocket.h"
@@ -658,6 +658,11 @@ void Csock::Copy( const Csock & cCopy )
 	m_bindhost			= cCopy.m_bindhost;
 	m_bIsIPv6			= cCopy.m_bIsIPv6;
 	m_bSkipConnect		= cCopy.m_bSkipConnect;
+#ifdef HAVE_C_ARES
+	FreeAres(); // Not copying this state, but making sure its nulled out
+	m_iARESStatus = -1; // set it to unitialized
+	m_pCurrAddr = NULL;
+#endif /* HAVE_C_ARES */
 
 #ifdef HAVE_LIBSSL
 	m_iRequireClientCertFlags = cCopy.m_iRequireClientCertFlags;
