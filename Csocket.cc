@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.107 $
+* $Revision: 1.108 $
 */
 
 #include "Csocket.h"
@@ -617,7 +617,7 @@ void Csock::Copy( const Csock & cCopy )
 {
 	m_iTcount		= cCopy.m_iTcount;
 	m_iLastCheckTimeoutTime	=	cCopy.m_iLastCheckTimeoutTime;
-	m_iport 		= cCopy.m_iport;
+	m_uPort 		= cCopy.m_uPort;
 	m_iRemotePort	= cCopy.m_iRemotePort;
 	m_iLocalPort	= cCopy.m_iLocalPort;
 	m_iReadSock		= cCopy.m_iReadSock;
@@ -910,7 +910,9 @@ bool Csock::Listen( u_short iPort, int iMaxConns, const CS_STRING & sBindHost, u
 	m_sBindHost = sBindHost;
 	if ( !sBindHost.empty() )
 	{
-		if( GetAddrInfo( sBindHost, m_address ) != 0 )
+		// forcing this to block regardless of resolver overloading, because listen is not currently setup to
+		// to handle nonblocking operations. This is used to resolve local ip's for binding anyways and should be instant
+		if( ::GetAddrInfo( sBindHost, this, m_address ) != 0 )
 			return( false );
 	}
 
@@ -1777,8 +1779,8 @@ u_short Csock::GetLocalPort()
 	return( m_iLocalPort );
 }
 
-u_short Csock::GetPort() { return( m_iport ); }
-void Csock::SetPort( u_short iPort ) { m_iport = iPort; }
+u_short Csock::GetPort() { return( m_uPort ); }
+void Csock::SetPort( u_short iPort ) { m_uPort = iPort; }
 void Csock::Close( ECloseType eCloseType )
 {
 	m_eCloseType = eCloseType;
@@ -2240,7 +2242,7 @@ int Csock::SOCKET( bool bListen )
 	return( iRet );
 }
 
-void Csock::Init( const CS_STRING & sHostname, u_short iport, int itimeout )
+void Csock::Init( const CS_STRING & sHostname, u_short uPort, int itimeout )
 {
 #ifdef HAVE_LIBSSL
 	m_ssl = NULL;
@@ -2253,7 +2255,7 @@ void Csock::Init( const CS_STRING & sHostname, u_short iport, int itimeout )
 	m_itimeout = itimeout;
 	m_bssl = false;
 	m_bIsConnected = false;
-	m_iport = iport;
+	m_uPort = uPort;
 	m_shostname = sHostname;
 	m_sbuffer.clear();
 	m_eCloseType = CLT_DONT;
