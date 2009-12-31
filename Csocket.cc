@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.108 $
+* $Revision: 1.109 $
 */
 
 #include "Csocket.h"
@@ -41,6 +41,15 @@
 #define CS_SRANDBUFFER 128
 
 using namespace std;
+
+#ifdef _WIN32
+// win32 uses size_t for SOCKET, thus this "fixes" 64bit windows by upcasting the 32 bit int to 64 bit
+// the downside of this is if the integer is greater than 32bit it will result in a integer overflow, which basically
+// means it will wrap. is win32 really going to have this large of an fd ?
+#define CS_SOCKET( sock ) (SOCKET)sock
+#else
+#define CS_SOCKET( sock ) sock
+#endif /* _WIN32 */
 
 #ifndef _NO_CSOCKET_NS // some people may not want to use a namespace
 namespace Csocket
@@ -813,10 +822,10 @@ bool Csock::Connect( const CS_STRING & sBindHost, bool bSkipSetup )
 
 	int ret = -1;
 	if( !GetIPv6() )
-		ret = connect( m_iReadSock, (struct sockaddr *)m_address.GetSockAddr(), m_address.GetSockAddrLen() );
+		ret = connect( CS_SOCKET( m_iReadSock ), (struct sockaddr *)m_address.GetSockAddr(), m_address.GetSockAddrLen() );
 #ifdef HAVE_IPV6
 	else
-		ret = connect( m_iReadSock, (struct sockaddr *)m_address.GetSockAddr6(), m_address.GetSockAddrLen6() );
+		ret = connect( CS_SOCKET( m_iReadSock ), (struct sockaddr *)m_address.GetSockAddr6(), m_address.GetSockAddrLen6() );
 #endif /* HAVE_IPV6 */
 #ifndef _WIN32
 	if ( ( ret == -1 ) && ( GetSockError() != EINPROGRESS ) )
@@ -916,7 +925,7 @@ bool Csock::Listen( u_short iPort, int iMaxConns, const CS_STRING & sBindHost, u
 			return( false );
 	}
 
-	m_iReadSock = m_iWriteSock = SOCKET( true );
+	m_iReadSock = m_iWriteSock = CreateSocket( true );
 
 	if ( m_iReadSock == -1 )
 		return( false );
@@ -926,18 +935,18 @@ bool Csock::Listen( u_short iPort, int iMaxConns, const CS_STRING & sBindHost, u
 
 	if( !GetIPv6() )
 	{
-		if ( bind( m_iReadSock, (struct sockaddr *) m_address.GetSockAddr(), m_address.GetSockAddrLen() ) == -1 )
+		if ( bind( CS_SOCKET( m_iReadSock ), (struct sockaddr *) m_address.GetSockAddr(), m_address.GetSockAddrLen() ) == -1 )
 			return( false );
 	}
 #ifdef HAVE_IPV6
 	else
 	{
-		if ( bind( m_iReadSock, (struct sockaddr *) m_address.GetSockAddr6(), m_address.GetSockAddrLen6() ) == -1 )
+		if ( bind( CS_SOCKET( m_iReadSock ), (struct sockaddr *) m_address.GetSockAddr6(), m_address.GetSockAddrLen6() ) == -1 )
 			return( false );
 	}
 #endif /* HAVE_IPV6 */
 
-	if ( listen( m_iReadSock, iMaxConns ) == -1 )
+	if ( listen( CS_SOCKET( m_iReadSock ), iMaxConns ) == -1 )
 		return( false );
 
 	if ( !m_bBLOCK )
@@ -2175,10 +2184,10 @@ bool Csock::SetupVHost()
 	}
 	int iRet = -1;
 	if( !GetIPv6() )
-		iRet = bind( m_iReadSock, (struct sockaddr *) m_bindhost.GetSockAddr(), m_bindhost.GetSockAddrLen() );
+		iRet = bind( CS_SOCKET( m_iReadSock ), (struct sockaddr *) m_bindhost.GetSockAddr(), m_bindhost.GetSockAddrLen() );
 #ifdef HAVE_IPV6
 	else
-		iRet = bind( m_iReadSock, (struct sockaddr *) m_bindhost.GetSockAddr6(), m_bindhost.GetSockAddrLen6() );
+		iRet = bind( CS_SOCKET( m_iReadSock ), (struct sockaddr *) m_bindhost.GetSockAddr6(), m_bindhost.GetSockAddrLen6() );
 #endif /* HAVE_IPV6 */
 
 	if ( iRet == 0 )
@@ -2218,7 +2227,7 @@ void Csock::FREE_CTX()
 
 #endif /* HAVE_LIBSSL */
 
-int Csock::SOCKET( bool bListen )
+int Csock::CreateSocket( bool bListen )
 {
 #ifdef HAVE_IPV6
 	int iRet = socket( ( GetIPv6() ? PF_INET6 : PF_INET ), SOCK_STREAM, IPPROTO_TCP );
