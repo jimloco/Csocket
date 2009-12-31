@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.109 $
+* $Revision: 1.110 $
 */
 
 #include "Csocket.h"
@@ -42,14 +42,6 @@
 
 using namespace std;
 
-#ifdef _WIN32
-// win32 uses size_t for SOCKET, thus this "fixes" 64bit windows by upcasting the 32 bit int to 64 bit
-// the downside of this is if the integer is greater than 32bit it will result in a integer overflow, which basically
-// means it will wrap. is win32 really going to have this large of an fd ?
-#define CS_SOCKET( sock ) (SOCKET)sock
-#else
-#define CS_SOCKET( sock ) sock
-#endif /* _WIN32 */
 
 #ifndef _NO_CSOCKET_NS // some people may not want to use a namespace
 namespace Csocket
@@ -86,26 +78,26 @@ static const char *inet_ntop(int af, const void *src, char *dst, socklen_t cnt)
 	return( NULL );
 }
 
-static inline void set_non_blocking(int fd)
+static inline void set_non_blocking(cs_sock_t fd)
 {
 	u_long iOpts = 1;
 	ioctlsocket( fd, FIONBIO, &iOpts );
 }
 
-static inline void set_blocking(int fd)
+static inline void set_blocking(cs_sock_t fd)
 {
 	u_long iOpts = 0;
 	ioctlsocket( fd, FIONBIO, &iOpts );
 }
 
-static inline void set_close_on_exec(int fd)
+static inline void set_close_on_exec(cs_sock_t fd)
 {
 	// TODO add this for windows
 	// see http://gcc.gnu.org/ml/java-patches/2002-q1/msg00696.html
 	// for infos on how to do this
 }
 #else
-static inline void set_non_blocking(int fd)
+static inline void set_non_blocking(cs_sock_t fd)
 {
 	int fdflags = fcntl(fd, F_GETFL, 0);
 	if ( fdflags < 0 )
@@ -113,7 +105,7 @@ static inline void set_non_blocking(int fd)
 	fcntl( fd, F_SETFL, fdflags|O_NONBLOCK );
 }
 
-static inline void set_blocking(int fd)
+static inline void set_blocking(cs_sock_t fd)
 {
 	int fdflags = fcntl(fd, F_GETFL, 0);
 	if ( fdflags < 0 )
@@ -122,7 +114,7 @@ static inline void set_blocking(int fd)
 	fcntl( fd, F_SETFL, fdflags );
 }
 
-static inline void set_close_on_exec(int fd)
+static inline void set_close_on_exec(cs_sock_t fd)
 {
 	int fdflags = fcntl(fd, F_GETFD, 0);
 	if ( fdflags < 0 )
@@ -822,10 +814,10 @@ bool Csock::Connect( const CS_STRING & sBindHost, bool bSkipSetup )
 
 	int ret = -1;
 	if( !GetIPv6() )
-		ret = connect( CS_SOCKET( m_iReadSock ), (struct sockaddr *)m_address.GetSockAddr(), m_address.GetSockAddrLen() );
+		ret = connect( m_iReadSock, (struct sockaddr *)m_address.GetSockAddr(), m_address.GetSockAddrLen() );
 #ifdef HAVE_IPV6
 	else
-		ret = connect( CS_SOCKET( m_iReadSock ), (struct sockaddr *)m_address.GetSockAddr6(), m_address.GetSockAddrLen6() );
+		ret = connect( m_iReadSock, (struct sockaddr *)m_address.GetSockAddr6(), m_address.GetSockAddrLen6() );
 #endif /* HAVE_IPV6 */
 #ifndef _WIN32
 	if ( ( ret == -1 ) && ( GetSockError() != EINPROGRESS ) )
@@ -935,18 +927,18 @@ bool Csock::Listen( u_short iPort, int iMaxConns, const CS_STRING & sBindHost, u
 
 	if( !GetIPv6() )
 	{
-		if ( bind( CS_SOCKET( m_iReadSock ), (struct sockaddr *) m_address.GetSockAddr(), m_address.GetSockAddrLen() ) == -1 )
+		if ( bind( m_iReadSock, (struct sockaddr *) m_address.GetSockAddr(), m_address.GetSockAddrLen() ) == -1 )
 			return( false );
 	}
 #ifdef HAVE_IPV6
 	else
 	{
-		if ( bind( CS_SOCKET( m_iReadSock ), (struct sockaddr *) m_address.GetSockAddr6(), m_address.GetSockAddrLen6() ) == -1 )
+		if ( bind( m_iReadSock, (struct sockaddr *) m_address.GetSockAddr6(), m_address.GetSockAddrLen6() ) == -1 )
 			return( false );
 	}
 #endif /* HAVE_IPV6 */
 
-	if ( listen( CS_SOCKET( m_iReadSock ), iMaxConns ) == -1 )
+	if ( listen( m_iReadSock, iMaxConns ) == -1 )
 		return( false );
 
 	if ( !m_bBLOCK )
@@ -1050,6 +1042,15 @@ bool Csock::SSLClientSetup()
 	FREE_SSL();
 	FREE_CTX();
 
+#ifdef _WIN64
+	if( m_iReadSock != (int)m_iReadSock || m_iWriteSock != (int)m_iWriteSock )
+	{
+		// sanity check the FD to be sure its compatible with openssl
+		CS_DEBUG( "ERROR: sockfd larger than OpenSSL can handle" );
+		return( false );
+	}
+#endif /* _WIN32 */
+
 	switch( m_iMethod )
 	{
 		case SSL2:
@@ -1115,8 +1116,8 @@ bool Csock::SSLClientSetup()
 	if ( !m_ssl )
 		return( false );
 
-	SSL_set_rfd( m_ssl, m_iReadSock );
-	SSL_set_wfd( m_ssl, m_iWriteSock );
+	SSL_set_rfd( m_ssl, (int)m_iReadSock );
+	SSL_set_wfd( m_ssl, (int)m_iWriteSock );
 	SSL_set_verify( m_ssl, SSL_VERIFY_PEER, ( m_pCerVerifyCB ? m_pCerVerifyCB : CertVerifyCB ) );
 	SSL_set_ex_data( m_ssl, GetCsockClassIdx(), this );
 
@@ -1134,6 +1135,16 @@ bool Csock::SSLServerSetup()
 	m_bssl = true;
 	FREE_SSL();
 	FREE_CTX();
+
+#ifdef _WIN64
+	if( m_iReadSock != (int)m_iReadSock || m_iWriteSock != (int)m_iWriteSock )
+	{
+		// sanity check the FD to be sure its compatible with openssl
+		CS_DEBUG( "ERROR: sockfd larger than OpenSSL can handle" );
+		return( false );
+	}
+#endif /* _WIN32 */
+
 
 	switch( m_iMethod )
 	{
@@ -1216,8 +1227,8 @@ bool Csock::SSLServerSetup()
 		return( false );
 
 	// Call for client Verification
-	SSL_set_rfd( m_ssl, m_iReadSock );
-	SSL_set_wfd( m_ssl, m_iWriteSock );
+	SSL_set_rfd( m_ssl, (int)m_iReadSock );
+	SSL_set_wfd( m_ssl, (int)m_iWriteSock );
 	SSL_set_accept_state( m_ssl );
 	if ( m_iRequireClientCertFlags )
 	{
@@ -1589,12 +1600,12 @@ CS_STRING Csock::GetRemoteIP()
 bool Csock::IsConnected() { return( m_bIsConnected ); }
 void Csock::SetIsConnected( bool b ) { m_bIsConnected = b; }
 
-int & Csock::GetRSock() { return( m_iReadSock ); }
-void Csock::SetRSock( int iSock ) { m_iReadSock = iSock; }
-int & Csock::GetWSock() { return( m_iWriteSock ); }
-void Csock::SetWSock( int iSock ) { m_iWriteSock = iSock; }
-void Csock::SetSock( int iSock ) { m_iWriteSock = iSock; m_iReadSock = iSock; }
-int & Csock::GetSock() { return( m_iReadSock ); }
+cs_sock_t & Csock::GetRSock() { return( m_iReadSock ); }
+void Csock::SetRSock( cs_sock_t iSock ) { m_iReadSock = iSock; }
+cs_sock_t & Csock::GetWSock() { return( m_iWriteSock ); }
+void Csock::SetWSock( cs_sock_t iSock ) { m_iWriteSock = iSock; }
+void Csock::SetSock( cs_sock_t iSock ) { m_iWriteSock = iSock; m_iReadSock = iSock; }
+cs_sock_t & Csock::GetSock() { return( m_iReadSock ); }
 void Csock::ResetTimer() { m_iLastCheckTimeoutTime = 0; m_iTcount = 0; }
 void Csock::PauseRead() { m_bPauseRead = true; }
 bool Csock::IsReadPaused() { return( m_bPauseRead ); }
@@ -2184,10 +2195,10 @@ bool Csock::SetupVHost()
 	}
 	int iRet = -1;
 	if( !GetIPv6() )
-		iRet = bind( CS_SOCKET( m_iReadSock ), (struct sockaddr *) m_bindhost.GetSockAddr(), m_bindhost.GetSockAddrLen() );
+		iRet = bind( m_iReadSock, (struct sockaddr *) m_bindhost.GetSockAddr(), m_bindhost.GetSockAddrLen() );
 #ifdef HAVE_IPV6
 	else
-		iRet = bind( CS_SOCKET( m_iReadSock ), (struct sockaddr *) m_bindhost.GetSockAddr6(), m_bindhost.GetSockAddrLen6() );
+		iRet = bind( m_iReadSock, (struct sockaddr *) m_bindhost.GetSockAddr6(), m_bindhost.GetSockAddrLen6() );
 #endif /* HAVE_IPV6 */
 
 	if ( iRet == 0 )
@@ -2227,12 +2238,12 @@ void Csock::FREE_CTX()
 
 #endif /* HAVE_LIBSSL */
 
-int Csock::CreateSocket( bool bListen )
+cs_sock_t Csock::CreateSocket( bool bListen )
 {
 #ifdef HAVE_IPV6
-	int iRet = socket( ( GetIPv6() ? PF_INET6 : PF_INET ), SOCK_STREAM, IPPROTO_TCP );
+	cs_sock_t iRet = socket( ( GetIPv6() ? PF_INET6 : PF_INET ), SOCK_STREAM, IPPROTO_TCP );
 #else
-	int iRet = socket( PF_INET, SOCK_STREAM, IPPROTO_TCP );
+	cs_sock_t iRet = socket( PF_INET, SOCK_STREAM, IPPROTO_TCP );
 #endif /* HAVE_IPV6 */
 
 	if ( iRet >= 0 ) {

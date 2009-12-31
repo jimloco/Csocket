@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.213 $
+* $Revision: 1.214 $
 */
 
 // note to compile with win32 need to link to winsock2, using gcc its -lws2_32
@@ -112,6 +112,12 @@
 #else
 #	define PERROR( f )	(void)0
 #endif /* __DEBUG__ */
+
+#ifdef _WIN32
+typedef SOCKET cs_sock_t;
+#else
+typedef int cs_sock_t;
+#endif /* _WIN32 */
 
 #ifndef _NO_CSOCKET_NS // some people may not want to use a namespace
 namespace Csocket
@@ -410,10 +416,10 @@ public:
 	* Advanced constructor, for creating a simple connection
 	*
 	* @param sHostname the hostname your are connecting to
-	* @param iport the port you are connectint to
+	* @param uPort the port you are connectint to
 	* @param itimeout how long to wait before ditching the connection, default is 60 seconds
 	*/
-	Csock( const CS_STRING & sHostname, u_short iport, int itimeout = 60 );
+	Csock( const CS_STRING & sHostname, u_short uPort, int itimeout = 60 );
 
 	//! override this for accept sockets
 	virtual Csock *GetSockObj( const CS_STRING & sHostname, u_short iPort );
@@ -586,13 +592,13 @@ public:
 	virtual void SetIsConnected( bool b );
 
 	//! returns a reference to the sock
-	int & GetRSock();
-	void SetRSock( int iSock );
-	int & GetWSock();
-	void SetWSock( int iSock );
+	cs_sock_t & GetRSock();
+	void SetRSock( cs_sock_t iSock );
+	cs_sock_t & GetWSock();
+	void SetWSock( cs_sock_t iSock );
 
-	void SetSock( int iSock );
-	int & GetSock();
+	void SetSock( cs_sock_t iSock );
+	cs_sock_t & GetSock();
 
 	//! resets the time counter, this is virtual in the event you need an event on the timer being Reset
 	virtual void ResetTimer();
@@ -910,12 +916,12 @@ public:
 		if( m_iReadSock != -1 )
 			return( true );
 
-		m_iReadSock = m_iWriteSock = SOCKET();
+		m_iReadSock = m_iWriteSock = CreateSocket();
 		if ( m_iReadSock == -1 )
 			return( false );
 
 		m_address.SinFamily();
-		m_address.SinPort( m_iport );
+		m_address.SinPort( m_uPort );
 
 		return( true );
 	}
@@ -979,8 +985,9 @@ private:
 	Csock( const Csock & cCopy ) {}
 
 	// NOTE! if you add any new members, be sure to add them to Copy()
-	u_short		m_iport, m_iRemotePort, m_iLocalPort;
-	int			m_iReadSock, m_iWriteSock, m_itimeout, m_iConnType, m_iMethod, m_iTcount;
+	u_short		m_uPort, m_iRemotePort, m_iLocalPort;
+	cs_sock_t	m_iReadSock, m_iWriteSock;
+	int m_itimeout, m_iConnType, m_iMethod, m_iTcount;
 	bool		m_bssl, m_bIsConnected, m_bBLOCK, m_bFullsslAccept;
 	bool		m_bsslEstablished, m_bEnableReadLine, m_bPauseRead;
 	CS_STRING	m_shostname, m_sbuffer, m_sSockName, m_sPemFile, m_sCipherType, m_sParentName;
@@ -1010,8 +1017,8 @@ private:
 	std::vector<CCron *>		m_vcCrons;
 
 	//! Create the socket
-	int SOCKET( bool bListen = false );
-	void Init( const CS_STRING & sHostname, u_short iport, int itimeout = 60 );
+	cs_sock_t CreateSocket( bool bListen = false );
+	void Init( const CS_STRING & sHostname, u_short uPort, int itimeout = 60 );
 
 
 	// Connection State Info
