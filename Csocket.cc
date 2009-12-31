@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.110 $
+* $Revision: 1.111 $
 */
 
 #include "Csocket.h"
@@ -593,8 +593,8 @@ Csock::~Csock()
 	} else if( m_iReadSock >= 0 )
 		CS_CLOSE( m_iReadSock );
 
-	m_iReadSock = -1;
-	m_iWriteSock = -1;
+	m_iReadSock = CS_INVALID_SOCK;
+	m_iWriteSock = CS_INVALID_SOCK;
 
 	// delete any left over crons
 	for( vector<CCron *>::size_type i = 0; i < m_vcCrons.size(); i++ )
@@ -603,7 +603,7 @@ Csock::~Csock()
 
 void Csock::Dereference()
 {
-	m_iWriteSock = m_iReadSock = -1;
+	m_iWriteSock = m_iReadSock = CS_INVALID_SOCK;
 
 #ifdef HAVE_LIBSSL
 	m_ssl = NULL;
@@ -919,7 +919,7 @@ bool Csock::Listen( u_short iPort, int iMaxConns, const CS_STRING & sBindHost, u
 
 	m_iReadSock = m_iWriteSock = CreateSocket( true );
 
-	if ( m_iReadSock == -1 )
+	if ( m_iReadSock == CS_INVALID_SOCK )
 		return( false );
 
 	m_address.SinFamily();
@@ -1246,7 +1246,7 @@ bool Csock::SSLServerSetup()
 bool Csock::ConnectSSL( const CS_STRING & sBindhost )
 {
 #ifdef HAVE_LIBSSL
-	if ( m_iReadSock == -1 )
+	if ( m_iReadSock == CS_INVALID_SOCK )
 		if ( !Connect( sBindhost ) )
 			return( false );
 	if ( !m_ssl )
@@ -2079,6 +2079,7 @@ int Csock::GetPending()
 
 int Csock::GetAddrInfo( const CS_STRING & sHostname, CSSockAddr & csSockAddr )
 {
+#ifndef _WIN32
 #ifdef HAVE_IPV6
 	if( csSockAddr.GetAFRequire() != AF_INET && inet_pton( AF_INET6, sHostname.c_str(), csSockAddr.GetAddr6() ) > 0 )
 	{
@@ -2093,6 +2094,7 @@ int Csock::GetAddrInfo( const CS_STRING & sHostname, CSSockAddr & csSockAddr )
 #endif /* HAVE_IPV6 */
 		return( 0 );
 	}
+#endif /* _WIN32 */
 
 #ifdef HAVE_C_ARES
 	if( GetType() != LISTENER )
@@ -2270,8 +2272,8 @@ void Csock::Init( const CS_STRING & sHostname, u_short uPort, int itimeout )
 	m_iRequireClientCertFlags = 0;
 #endif /* HAVE_LIBSSL */
 	m_iTcount = 0;
-	m_iReadSock = -1;
-	m_iWriteSock = -1;
+	m_iReadSock = CS_INVALID_SOCK;
+	m_iWriteSock = CS_INVALID_SOCK;
 	m_itimeout = itimeout;
 	m_bssl = false;
 	m_bIsConnected = false;

@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.214 $
+* $Revision: 1.215 $
 */
 
 // note to compile with win32 need to link to winsock2, using gcc its -lws2_32
@@ -115,8 +115,10 @@
 
 #ifdef _WIN32
 typedef SOCKET cs_sock_t;
+#define CS_INVALID_SOCK	INVALID_SOCKET
 #else
 typedef int cs_sock_t;
+#define CS_INVALID_SOCK	-1
 #endif /* _WIN32 */
 
 #ifndef _NO_CSOCKET_NS // some people may not want to use a namespace
@@ -913,11 +915,11 @@ public:
 	//! grabs fd's for the sockets
 	bool CreateSocksFD()
 	{
-		if( m_iReadSock != -1 )
+		if( m_iReadSock != CS_INVALID_SOCK )
 			return( true );
 
 		m_iReadSock = m_iWriteSock = CreateSocket();
-		if ( m_iReadSock == -1 )
+		if ( m_iReadSock == CS_INVALID_SOCK )
 			return( false );
 
 		m_address.SinFamily();
@@ -1636,7 +1638,7 @@ public:
 	}
 
 	//! returns a pointer to the FIRST sock found by filedescriptor or NULL on no match
-	virtual T * FindSockByFD( int iFD )
+	virtual T * FindSockByFD( cs_sock_t iFD )
 	{
 		for( unsigned int i = 0; i < this->size(); i++ )
 			if ( ( (*this)[i]->GetRSock() == iFD ) || ( (*this)[i]->GetWSock() == iFD ) )
@@ -1898,15 +1900,15 @@ private:
 
 			bHasAvailSocks = true;
 
-			int & iRSock = pcSock->GetRSock();
-			int & iWSock = pcSock->GetWSock();
+			cs_sock_t & iRSock = pcSock->GetRSock();
+			cs_sock_t & iWSock = pcSock->GetWSock();
 			bool bIsReadPaused = pcSock->IsReadPaused();
 			if ( bIsReadPaused )
 			{
 				pcSock->ReadPaused();
 				bIsReadPaused = pcSock->IsReadPaused(); // re-read it again, incase it changed status)
 			}
-			if ( ( iRSock < 0 ) || ( iWSock < 0 ) )
+			if ( iRSock == CS_INVALID_SOCK || iWSock == CS_INVALID_SOCK )
 			{
 				SelectSock( mpeSocks, SUCCESS, pcSock );
 				continue;	// invalid sock fd
@@ -2028,11 +2030,11 @@ private:
 			if ( pcSock->GetConState() != T::CST_OK )
 				continue;
 
-			int & iRSock = pcSock->GetRSock();
-			int & iWSock = pcSock->GetWSock();
+			cs_sock_t & iRSock = pcSock->GetRSock();
+			cs_sock_t & iWSock = pcSock->GetWSock();
 			EMessages iErrno = SUCCESS;
 
-			if ( ( iRSock < 0 ) || ( iWSock < 0 ) )
+			if ( iRSock == CS_INVALID_SOCK || iWSock == CS_INVALID_SOCK )
 			{
 				// trigger a success so it goes through the normal motions
 				// and an error is produced
