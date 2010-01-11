@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.113 $
+* $Revision: 1.114 $
 */
 
 #include "Csocket.h"
@@ -235,7 +235,6 @@ static void AresHostCallback( void *pArg, int status, int timeouts, struct hoste
 	else
 	{
 		CS_DEBUG( ares_strerror( status ) );
-		status = ARES_ENOTFOUND; // set this as not found so it doesn't keep trying on failed
 	}
 	pSock->SetAresFinished( status );
 }
