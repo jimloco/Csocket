@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.216 $
+* $Revision: 1.217 $
 */
 
 // note to compile with win32 need to link to winsock2, using gcc its -lws2_32
@@ -2027,15 +2027,7 @@ private:
 #ifdef HAVE_C_ARES
 			ares_channel pChannel = pcSock->GetAresChannel();
 			if( pChannel )
-			{
-				int iAresFD;
-				ares_getsock( pChannel, &iAresFD, 1 );
-				// only process the channels that are actually set in the read/write set
-				// this should effectively be the same as finding the max timeout amongst ares fd's
-				// as this fd is either ready or its not
-				if( TFD_ISSET( iAresFD, &rfds ) || TFD_ISSET( iAresFD, &wfds ) )
-					ares_process( pChannel, &rfds, &wfds );
-			}
+				ares_process( pChannel, &rfds, &wfds );
 #endif /* HAVE_C_ARES */
 
 			if ( pcSock->GetConState() != T::CST_OK )
