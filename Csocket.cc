@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.114 $
+* $Revision: 1.115 $
 */
 
 #include "Csocket.h"
@@ -2110,6 +2110,7 @@ int Csock::GetAddrInfo( const CS_STRING & sHostname, CSSockAddr & csSockAddr )
 			int iFamily = AF_INET;
 
 #ifdef HAVE_IPV6
+			// as of ares 1.6.0 if it fails on af_inet6, it falls back to af_inet, this code was here in the previous Csocket version, just adding the comment as a reminder
 			iFamily = csSockAddr.GetAFRequire() == CSSockAddr::RAF_ANY ? AF_INET6 : csSockAddr.GetAFRequire();
 #endif /* HAVE_IPV6 */
 			ares_gethostbyname( m_pARESChannel, sHostname.c_str(), iFamily, AresHostCallback, this );
@@ -2175,12 +2176,14 @@ int Csock::DNSLookup( EDNSLType eDNSLType )
 	}
 	else if ( iRet == EAGAIN )
 	{
+#ifndef HAVE_C_ARES
 		m_iDNSTryCount++;
 		if ( m_iDNSTryCount > 20 )
 		{
 			m_iDNSTryCount = 0;
 			return( ETIMEDOUT );
 		}
+#endif /* HAVE_C_ARES */
 		return( EAGAIN );
 	}
 	m_iDNSTryCount = 0;
