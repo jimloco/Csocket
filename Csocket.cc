@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.115 $
+* $Revision: 1.116 $
 */
 
 #include "Csocket.h"
@@ -77,6 +77,19 @@ static const char *inet_ntop(int af, const void *src, char *dst, socklen_t cnt)
 	}
 	return( NULL );
 }
+
+#ifndef WIN_MSVC
+static int inet_pton( int af, const char *src, void *dst )
+{
+	int iAddrLen;
+	char *pTmp = strdup( src );
+	int iRet = WSAStringToAddress( pTmp, af, NULL, (sockaddr *)dst, &iAddrLen );
+	free( pTmp );
+	if( iRet == 0 )
+		return( 1 );
+	return( -1 );
+}
+#endif /* WIN_MSVC */
 
 static inline void set_non_blocking(cs_sock_t fd)
 {
@@ -1049,7 +1062,7 @@ bool Csock::SSLClientSetup()
 		CS_DEBUG( "ERROR: sockfd larger than OpenSSL can handle" );
 		return( false );
 	}
-#endif /* _WIN32 */
+#endif /* _WIN64 */
 
 	switch( m_iMethod )
 	{
@@ -1143,7 +1156,7 @@ bool Csock::SSLServerSetup()
 		CS_DEBUG( "ERROR: sockfd larger than OpenSSL can handle" );
 		return( false );
 	}
-#endif /* _WIN32 */
+#endif /* _WIN64 */
 
 
 	switch( m_iMethod )
@@ -2079,7 +2092,6 @@ int Csock::GetPending()
 
 int Csock::GetAddrInfo( const CS_STRING & sHostname, CSSockAddr & csSockAddr )
 {
-#ifndef _WIN32
 #ifdef HAVE_IPV6
 	if( csSockAddr.GetAFRequire() != AF_INET && inet_pton( AF_INET6, sHostname.c_str(), csSockAddr.GetAddr6() ) > 0 )
 	{
@@ -2094,7 +2106,6 @@ int Csock::GetAddrInfo( const CS_STRING & sHostname, CSSockAddr & csSockAddr )
 #endif /* HAVE_IPV6 */
 		return( 0 );
 	}
-#endif /* _WIN32 */
 
 #ifdef HAVE_C_ARES
 	if( GetType() != LISTENER )
