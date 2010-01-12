@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.217 $
+* $Revision: 1.218 $
 */
 
 // note to compile with win32 need to link to winsock2, using gcc its -lws2_32
@@ -1892,6 +1892,8 @@ private:
 			if( pChannel )
 			{
 				ares_fds( pChannel, &rfds, &wfds );
+				// let ares drop the timeout if it has something timing out sooner then whats in tv currently
+				ares_timeout( pChannel, &tv, &tv );
 				bHasWriteable = true;
 			}
 #endif /* HAVE_C_ARES */
