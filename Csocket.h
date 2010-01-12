@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.218 $
+* $Revision: 1.219 $
 */
 
 // note to compile with win32 need to link to winsock2, using gcc its -lws2_32
@@ -108,11 +108,13 @@
 #endif /* __DEBUG__ */
 #endif /* CS_DEBUG */
 
+#ifndef PERROR
 #ifdef __DEBUG__
 #	define PERROR( f ) __Perror( f, __FILE__, __LINE__ )
 #else
 #	define PERROR( f )	(void)0
 #endif /* __DEBUG__ */
+#endif /* PERROR */
 
 #ifdef _WIN32
 typedef SOCKET cs_sock_t;
