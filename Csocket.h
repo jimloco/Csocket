@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.219 $
+* $Revision: 1.220 $
 */
 
 // note to compile with win32 need to link to winsock2, using gcc its -lws2_32
@@ -58,6 +58,7 @@
 #define ETIMEDOUT WSAETIMEDOUT
 #define EADDRNOTAVAIL WSAEADDRNOTAVAIL
 #define ECONNABORTED WSAECONNABORTED
+#define ENETUNREACH WSAENETUNREACH
 
 #endif /* _WIN32 */
 
