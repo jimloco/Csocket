@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.125 $
+* $Revision: 1.126 $
 */
 
 #include "Csocket.h"
@@ -1352,7 +1352,7 @@ bool Csock::AllowWrite( unsigned long long & iNOW ) const
 	return( true );
 }
 
-bool Csock::Write( const char *data, int len )
+bool Csock::Write( const char *data, size_t len )
 {
 	m_sSend.append( data, len );
 
@@ -1369,7 +1369,7 @@ bool Csock::Write( const char *data, int len )
 
 	}
 	// rate shaping
-	u_int iBytesToSend = 0;
+	u_long iBytesToSend = 0;
 
 #ifdef HAVE_LIBSSL
 	if( m_bssl && m_sSSLBuffer.empty() && !m_bsslEstablished )
@@ -1414,7 +1414,7 @@ bool Csock::Write( const char *data, int len )
 		if ( m_sSSLBuffer.empty() ) // on retrying to write data, ssl wants the data in the SAME spot and the SAME size
 			m_sSSLBuffer.append( m_sSend.data(), iBytesToSend );
 
-		int iErr = SSL_write( m_ssl, m_sSSLBuffer.data(), m_sSSLBuffer.length() );
+		int iErr = SSL_write( m_ssl, m_sSSLBuffer.data(), (int)m_sSSLBuffer.length() );
 
 		if ( ( iErr < 0 ) && ( GetSockError() == ECONNREFUSED ) )
 		{
@@ -1467,9 +1467,9 @@ bool Csock::Write( const char *data, int len )
 	}
 #endif /* HAVE_LIBSSL */
 #ifdef _WIN32
-	int bytes = send( m_iWriteSock, m_sSend.data(), iBytesToSend, 0 );
+	ssize_t bytes = send( m_iWriteSock, m_sSend.data(), iBytesToSend, 0 );
 #else
-	int bytes = write( m_iWriteSock, m_sSend.data(), iBytesToSend );
+	ssize_t bytes = write( m_iWriteSock, m_sSend.data(), iBytesToSend );
 #endif /* _WIN32 */
 
 	if ( ( bytes == -1 ) && ( GetSockError() == ECONNREFUSED ) )
@@ -1503,9 +1503,9 @@ bool Csock::Write( const CS_STRING & sData )
 	return( Write( sData.c_str(), sData.length() ) );
 }
 
-int Csock::Read( char *data, int len )
+ssize_t Csock::Read( char *data, size_t len )
 {
-	int bytes = 0;
+	ssize_t bytes = 0;
 
 	if ( ( IsReadPaused() ) && ( SslIsEstablished() ) )
 		return( READ_EAGAIN ); // allow the handshake to complete first
@@ -1525,7 +1525,7 @@ int Csock::Read( char *data, int len )
 
 #ifdef HAVE_LIBSSL
 	if ( m_bssl )
-		bytes = SSL_read( m_ssl, data, len );
+		bytes = SSL_read( m_ssl, data, (int)len );
 	else
 #endif /* HAVE_LIBSSL */
 #ifdef _WIN32
@@ -1552,7 +1552,7 @@ int Csock::Read( char *data, int len )
 #ifdef HAVE_LIBSSL
 		if ( m_bssl )
 		{
-			int iErr = SSL_get_error( m_ssl, bytes );
+			int iErr = SSL_get_error( m_ssl, (int)bytes );
 			if ( ( iErr != SSL_ERROR_WANT_READ ) && ( iErr != SSL_ERROR_WANT_WRITE ) )
 				return( READ_ERR );
 			else
@@ -1712,12 +1712,12 @@ bool Csock::CheckTimeout( time_t iNow )
 	return( false );
 }
 
-void Csock::PushBuff( const char *data, int len, bool bStartAtZero )
+void Csock::PushBuff( const char *data, size_t len, bool bStartAtZero )
 {
 	if ( !m_bEnableReadLine )
 		return;	// If the ReadLine event is disabled, just ditch here
 
-	u_int iStartPos = ( m_sbuffer.empty() || bStartAtZero ? 0 : m_sbuffer.length() - 1 );
+	size_t iStartPos = ( m_sbuffer.empty() || bStartAtZero ? 0 : m_sbuffer.length() - 1 );
 
 	if ( data )
 		m_sbuffer.append( data, len );
