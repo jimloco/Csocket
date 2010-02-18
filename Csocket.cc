@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.131 $
+* $Revision: 1.132 $
 */
 
 #include "Csocket.h"
@@ -721,7 +721,7 @@ void Csock::Copy( const Csock & cCopy )
 
 #endif /* HAVE_LIBSSL */
 
-	if( m_vcCrons.size() )
+	if( !m_vcCrons.empty() )
 	{
 		for( u_long a = 0; a < m_vcCrons.size(); a++ )
 		{
