@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.132 $
+* $Revision: 1.133 $
 */
 
 #include "Csocket.h"
@@ -967,10 +967,13 @@ bool Csock::Listen( u_short iPort, int iMaxConns, const CS_STRING & sBindHost, u
 
 #ifdef HAVE_IPV6
 #ifdef IPV6_V6ONLY
-	// per RFC3493#5.3
-	const int on = ( m_address.GetAFRequire() == CSSockAddr::RAF_INET6 ? 1 : 0 );
-	if( setsockopt( m_iReadSock, IPPROTO_IPV6, IPV6_V6ONLY, (char *)&on, sizeof( on ) ) != 0 )
-		PERROR( "IPV6_V6ONLY" );
+	if( GetIPv6() )
+	{
+		// per RFC3493#5.3
+		const int on = ( m_address.GetAFRequire() == CSSockAddr::RAF_INET6 ? 1 : 0 );
+		if( setsockopt( m_iReadSock, IPPROTO_IPV6, IPV6_V6ONLY, (char *)&on, sizeof( on ) ) != 0 )
+			PERROR( "IPV6_V6ONLY" );
+	}
 #endif /* IPV6_V6ONLY */
 #endif /* HAVE_IPV6 */
 
