@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.133 $
+* $Revision: 1.134 $
 */
 
 #include "Csocket.h"
@@ -966,7 +966,8 @@ bool Csock::Listen( u_short iPort, int iMaxConns, const CS_STRING & sBindHost, u
 		return( false );
 
 #ifdef HAVE_IPV6
-#ifdef IPV6_V6ONLY
+// there's no IPPROTO_IPV6 below Win XP. - KiNgMaR
+#if (!defined(_WIN32) && defined(IPV6_V6ONLY)) || (defined(_WIN32_WINNT) && _WIN32_WINNT >= 0x0501)
 	if( GetIPv6() )
 	{
 		// per RFC3493#5.3
@@ -1478,9 +1479,9 @@ bool Csock::Write( const char *data, size_t len )
 	}
 #endif /* HAVE_LIBSSL */
 #ifdef _WIN32
-	ssize_t bytes = send( m_iWriteSock, m_sSend.data(), iBytesToSend, 0 );
+	cs_ssize_t bytes = send( m_iWriteSock, m_sSend.data(), iBytesToSend, 0 );
 #else
-	ssize_t bytes = write( m_iWriteSock, m_sSend.data(), iBytesToSend );
+	cs_ssize_t bytes = write( m_iWriteSock, m_sSend.data(), iBytesToSend );
 #endif /* _WIN32 */
 
 	if ( ( bytes == -1 ) && ( GetSockError() == ECONNREFUSED ) )
@@ -1514,9 +1515,9 @@ bool Csock::Write( const CS_STRING & sData )
 	return( Write( sData.c_str(), sData.length() ) );
 }
 
-ssize_t Csock::Read( char *data, size_t len )
+cs_ssize_t Csock::Read( char *data, size_t len )
 {
-	ssize_t bytes = 0;
+	cs_ssize_t bytes = 0;
 
 	if ( ( IsReadPaused() ) && ( SslIsEstablished() ) )
 		return( READ_EAGAIN ); // allow the handshake to complete first
