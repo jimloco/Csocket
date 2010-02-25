@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.226 $
+* $Revision: 1.227 $
 */
 
 // note to compile with win32 need to link to winsock2, using gcc its -lws2_32
@@ -1355,7 +1355,7 @@ public:
 #endif /* HAVE_IPV6 */
 		}
 #ifdef HAVE_IPV6
-		else if( cListen.GetAFRequire() == CSSockAddr::RAF_ANY )
+		else
 		{
 				pcSock->SetIPv6( true );
 		}
