@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.135 $
+* $Revision: 1.136 $
 */
 
 #include "Csocket.h"
@@ -2169,6 +2169,7 @@ int Csock::GetPending()
 #else 
 		int iBytes = SSL_pending( m_ssl );
 		ERR_clear_error(); // to get safer handling, upgrade your openssl version!
+		return( iBytes );
 #endif /* OPENSSL_VERSION_NUMBER */
 	}
 	else
