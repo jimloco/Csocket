@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.229 $
+* $Revision: 1.230 $
 */
 
 // note to compile with win32 need to link to winsock2, using gcc its -lws2_32
@@ -599,7 +599,7 @@ public:
 	CS_STRING GetLocalIP();
 	CS_STRING GetRemoteIP();
 
-	virtual CS_STRING ConvertAddress(void *addr, bool ipv6 = false);
+	virtual CS_STRING ConvertAddress( void *addr, bool bIPv6 = false );
 
 	//! Tells you if the socket is connected
 	virtual bool IsConnected();

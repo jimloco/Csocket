@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.137 $
+* $Revision: 1.138 $
 */
 
 #include "Csocket.h"
@@ -1651,20 +1651,23 @@ CS_STRING Csock::GetRemoteIP()
 	return( m_sRemoteIP );
 }
 
-CS_STRING Csock::ConvertAddress(void *addr, bool ipv6)
+CS_STRING Csock::ConvertAddress( void *addr, bool bIPv6 )
 {
-	CString sRet;
+	CS_STRING sRet;
 
-	if (!ipv6) {
+	if( !bIPv6 ) 
+	{
 		in_addr *p = (in_addr*) addr;
 		sRet = inet_ntoa(*p);
-	} else {
+	} 
+	else 
+	{
 		char straddr[INET6_ADDRSTRLEN];
 		if( inet_ntop( AF_INET6, addr, straddr, sizeof(straddr) ) > 0 )
 			sRet = straddr;
 	}
 
-	return sRet;
+	return( sRet );
 }
 
 bool Csock::IsConnected() { return( m_bIsConnected ); }
