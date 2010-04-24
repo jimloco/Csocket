@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.136 $
+* $Revision: 1.137 $
 */
 
 #include "Csocket.h"
@@ -1026,25 +1026,21 @@ cs_sock_t Csock::Accept( CS_STRING & sHost, u_short & iRPort )
 		if( iSock != CS_INVALID_SOCK )
 		{
 			getpeername( iSock, (struct sockaddr *) &client, &clen );
-			sHost = inet_ntoa( client.sin_addr );
+			sHost = ConvertAddress( &client.sin_addr, false );
 			iRPort = ntohs( client.sin_port );
 		}
 	}
 #ifdef HAVE_IPV6
 	else
 	{
-		char straddr[INET6_ADDRSTRLEN];
 		struct sockaddr_in6 client;
 		socklen_t clen = sizeof( client );
 		iSock = accept( m_iReadSock, (struct sockaddr *) &client, &clen );
 		if( iSock != CS_INVALID_SOCK )
 		{
 			getpeername( iSock, (struct sockaddr *) &client, &clen );
-			if( inet_ntop( AF_INET6, &client.sin6_addr, straddr, sizeof(straddr) ) > 0 )
-			{
-				sHost = straddr;
-				iRPort = ntohs( client.sin6_port );
-			}
+			sHost = ConvertAddress( &client.sin6_addr, true );
+			iRPort = ntohs( client.sin6_port );
 		}
 	}
 #endif /* HAVE_IPV6 */
@@ -1640,23 +1636,35 @@ CS_STRING Csock::GetRemoteIP()
 		struct sockaddr_in mRemoteAddr;
 		socklen_t mRemoteLen = sizeof( mRemoteAddr );
 		if ( getpeername( iSock, (struct sockaddr *) &mRemoteAddr, &mRemoteLen ) == 0 )
-			m_sRemoteIP = inet_ntoa( mRemoteAddr.sin_addr );
+			m_sRemoteIP = ConvertAddress( &mRemoteAddr.sin_addr, false );
 	}
 #ifdef HAVE_IPV6
 	else
 	{
-		char straddr[INET6_ADDRSTRLEN];
 		struct sockaddr_in6 mRemoteAddr;
 		socklen_t mRemoteLen = sizeof( mRemoteAddr );
-		if ( ( getpeername( iSock, (struct sockaddr *) &mRemoteAddr, &mRemoteLen ) == 0 )
-			&& ( inet_ntop( AF_INET6, &mRemoteAddr.sin6_addr, straddr, sizeof(straddr) ) ) )
-		{
-			m_sRemoteIP = straddr;
-		}
+		if ( getpeername( iSock, (struct sockaddr *) &mRemoteAddr, &mRemoteLen ) == 0 )
+			m_sRemoteIP = ConvertAddress( &mRemoteAddr.sin6_addr, true );
 	}
 #endif /* HAVE_IPV6 */
 
 	return( m_sRemoteIP );
+}
+
+CS_STRING Csock::ConvertAddress(void *addr, bool ipv6)
+{
+	CString sRet;
+
+	if (!ipv6) {
+		in_addr *p = (in_addr*) addr;
+		sRet = inet_ntoa(*p);
+	} else {
+		char straddr[INET6_ADDRSTRLEN];
+		if( inet_ntop( AF_INET6, addr, straddr, sizeof(straddr) ) > 0 )
+			sRet = straddr;
+	}
+
+	return sRet;
 }
 
 bool Csock::IsConnected() { return( m_bIsConnected ); }
