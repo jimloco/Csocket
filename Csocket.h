@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.230 $
+* $Revision: 1.231 $
 */
 
 // note to compile with win32 need to link to winsock2, using gcc its -lws2_32
@@ -1508,8 +1508,7 @@ public:
 
 						cs_ssize_t bytes = pcSock->Read( cBuff(), iLen );
 
-						if ( ( bytes != T::READ_TIMEDOUT ) && ( bytes != T::READ_CONNREFUSED )
-							&& ( !pcSock->IsConnected() ) )
+						if ( bytes != T::READ_TIMEDOUT && bytes != T::READ_CONNREFUSED && bytes != T::READ_ERR && !pcSock->IsConnected() )
 						{
 							pcSock->SetIsConnected( true );
 							pcSock->Connected();
