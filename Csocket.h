@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.231 $
+* $Revision: 1.232 $
 */
 
 // note to compile with win32 need to link to winsock2, using gcc its -lws2_32
@@ -2018,6 +2018,16 @@ private:
 				m_errno = SELECT_TIMEOUT;
 			else
 				m_errno = SUCCESS;
+#ifdef HAVE_C_ARES
+			// run through ares channels and process timeouts
+			for( u_long uSock = 0; uSock < this->size(); ++uSock )
+			{
+				T *pcSock = this->at( uSock );
+				ares_channel pChannel = pcSock->GetAresChannel();
+				if( pChannel )
+					ares_process_fd( pChannel, ARES_SOCKET_BAD, ARES_SOCKET_BAD );
+			}
+#endif /* HAVE_C_ARES */
 
 			return;
 		}
