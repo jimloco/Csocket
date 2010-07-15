@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.232 $
+* $Revision: 1.233 $
 */
 
 // note to compile with win32 need to link to winsock2, using gcc its -lws2_32
@@ -742,7 +742,6 @@ public:
 
 	void SetSSLObject( SSL *ssl );
 	void SetCTXObject( SSL_CTX *sslCtx );
-	void SetFullSSLAccept();
 	SSL_SESSION * GetSSLSession();
 
 	void SetCertVerifyCB( FPCertVerifyCB pFP ) { m_pCerVerifyCB = pFP; }
@@ -753,7 +752,6 @@ public:
 	void ClearWriteBuffer();
 
 	//! is SSL_accept finished ?
-	bool FullSSLAccept();
 	//! is the ssl properly finished (from write no error)
 	bool SslIsEstablished();
 
@@ -1009,7 +1007,7 @@ private:
 	u_short		m_uPort, m_iRemotePort, m_iLocalPort;
 	cs_sock_t	m_iReadSock, m_iWriteSock;
 	int m_itimeout, m_iConnType, m_iMethod, m_iTcount;
-	bool		m_bssl, m_bIsConnected, m_bBLOCK, m_bFullsslAccept;
+	bool		m_bssl, m_bIsConnected, m_bBLOCK;
 	bool		m_bsslEstablished, m_bEnableReadLine, m_bPauseRead;
 	CS_STRING	m_shostname, m_sbuffer, m_sSockName, m_sPemFile, m_sCipherType, m_sParentName;
 	CS_STRING	m_sSend, m_sPemPass, m_sLocalIP, m_sRemoteIP;
@@ -1943,15 +1941,7 @@ private:
 
 			if ( pcSock->GetType() != T::LISTENER )
 			{
-				if ( ( pcSock->GetSSL() ) && ( pcSock->GetType() == T::INBOUND ) && ( !pcSock->FullSSLAccept() ) )
-				{
-					tv.tv_usec = iQuickReset;	// just make sure this returns quick incase we still need pending
-					tv.tv_sec = 0;
-					// try accept on this socket again
-					if ( !pcSock->AcceptSSL() )
-						pcSock->Close();
-
-				} else if ( ( pcSock->IsConnected() ) && ( pcSock->GetWriteBuffer().empty() ) )
+				if ( ( pcSock->IsConnected() ) && ( pcSock->GetWriteBuffer().empty() ) )
 				{
 					if ( !bIsReadPaused )
 						TFD_SET( iRSock, &rfds );
