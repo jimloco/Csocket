@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.236 $
+* $Revision: 1.237 $
 */
 
 // note to compile with win32 need to link to winsock2, using gcc its -lws2_32
@@ -1896,7 +1896,7 @@ protected:
 	{
 #ifdef CSOCK_USE_POLL
 		if( miiReadyFds.empty() )
-			return( select( FD_SETSIZE, NULL, NULL, NULL, tvtimeout ) );
+			return( select( 0, NULL, NULL, NULL, tvtimeout ) );
 
 		struct pollfd * pFDs = (struct pollfd *)malloc( sizeof( struct pollfd ) * miiReadyFds.size() );
 		size_t uCurrPoll = 0;
@@ -1935,8 +1935,10 @@ protected:
 		TFD_ZERO( &rfds );
 		TFD_ZERO( &wfds );
 		bool bHasWrite = false;
+		int iHighestFD = 0;
 		for( map< int, short >::iterator it = miiReadyFds.begin(); it != miiReadyFds.end(); ++it )
 		{
+			iHighestFD = max( it->first, iHighestFD );
 			if( it->second & eCheckRead )
 			{
 				TFD_SET( it->first, &rfds );
@@ -1948,7 +1950,7 @@ protected:
 			}
 		}
 
-		int iRet = select( FD_SETSIZE, &rfds, ( bHasWrite ? &wfds : NULL ), NULL, tvtimeout );
+		int iRet = select( iHighestFD + 1, &rfds, ( bHasWrite ? &wfds : NULL ), NULL, tvtimeout );
 		if( iRet <= 0 )
 			miiReadyFds.clear();
 		else
