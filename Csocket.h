@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.233 $
+* $Revision: 1.234 $
 */
 
 // note to compile with win32 need to link to winsock2, using gcc its -lws2_32
@@ -1264,6 +1264,8 @@ public:
 		m_errno = SUCCESS;
 		m_iCallTimeouts = millitime();
 		m_iSelectWait = 100000; // Default of 100 milliseconds
+		m_iBytesRead = 0;
+		m_iBytesWritten = 0;
 	}
 
 	virtual ~TSocketManager()
