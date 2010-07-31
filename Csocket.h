@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.234 $
+* $Revision: 1.235 $
 */
 
 // note to compile with win32 need to link to winsock2, using gcc its -lws2_32
@@ -1910,6 +1910,15 @@ private:
 			}
 			else
 				pcSock->Cron(); // call the Cron handler here
+
+			cs_sock_t & iRSock = pcSock->GetRSock();
+			cs_sock_t & iWSock = pcSock->GetWSock();
+			if( iRSock > FD_SETSIZE || iWSock > FD_SETSIZE )
+			{
+				CS_DEBUG( "FD is larger than select() can handle" );
+				DelSock( i-- );
+				continue;
+			}
 		
 #ifdef HAVE_C_ARES
 			ares_channel pChannel = pcSock->GetAresChannel();
@@ -1927,8 +1936,6 @@ private:
 
 			bHasAvailSocks = true;
 
-			cs_sock_t & iRSock = pcSock->GetRSock();
-			cs_sock_t & iWSock = pcSock->GetWSock();
 			bool bIsReadPaused = pcSock->IsReadPaused();
 			if ( bIsReadPaused )
 			{
