@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.237 $
+* $Revision: 1.238 $
 */
 
 // note to compile with win32 need to link to winsock2, using gcc its -lws2_32
@@ -1959,7 +1959,7 @@ protected:
 			{
 				if( (it->second & eCheckRead) && !TFD_ISSET( it->first, &rfds ) )
 					it->second &= ~eCheckRead;
-				if( (it->second & eCheckWrite) && !(!TFD_ISSET( it->first, &wfds ) ) )
+				if( (it->second & eCheckWrite) && !TFD_ISSET( it->first, &wfds ) )
 					it->second &= ~eCheckWrite;
 			}
 		}
