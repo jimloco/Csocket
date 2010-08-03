@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.238 $
+* $Revision: 1.239 $
 */
 
 // note to compile with win32 need to link to winsock2, using gcc its -lws2_32
@@ -1938,7 +1938,7 @@ protected:
 		int iHighestFD = 0;
 		for( map< int, short >::iterator it = miiReadyFds.begin(); it != miiReadyFds.end(); ++it )
 		{
-			iHighestFD = max( it->first, iHighestFD );
+			iHighestFD = std::max( it->first, iHighestFD );
 			if( it->second & eCheckRead )
 			{
 				TFD_SET( it->first, &rfds );
