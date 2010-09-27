@@ -28,7 +28,7 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.139 $
+* $Revision: 1.140 $
 */
 
 #include "Csocket.h"
@@ -2147,7 +2147,10 @@ void Csock::DelCronByAddr( CCron *pcCron )
 }
 
 void Csock::EnableReadLine() { m_bEnableReadLine = true; }
-void Csock::DisableReadLine() { m_bEnableReadLine = false; }
+void Csock::DisableReadLine() {
+	m_bEnableReadLine = false;
+	m_sbuffer.clear();
+}
 
 void Csock::ReachedMaxBuffer()
 {
