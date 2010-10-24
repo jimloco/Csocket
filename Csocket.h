@@ -28,7 +28,6 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.240 $
 */
 
 // note to compile with win32 need to link to winsock2, using gcc its -lws2_32
@@ -605,7 +604,7 @@ public:
 	virtual CS_STRING ConvertAddress( void *addr, bool bIPv6 = false );
 
 	//! Tells you if the socket is connected
-	virtual bool IsConnected();
+	virtual bool IsConnected() const;
 	//! Sets the sock, telling it its connected (internal use only)
 	virtual void SetIsConnected( bool b );
 
@@ -1919,7 +1918,7 @@ protected:
 		for( uCurrPoll = 0; uCurrPoll < uMaxFD; ++uCurrPoll )
 		{
 			short iEvents = 0;
-			if( (pFDs[uCurrPoll].revents & POLLIN ) )
+			if( (pFDs[uCurrPoll].revents & (POLLIN|POLLERR|POLLHUP|POLLNVAL) ) )
 				iEvents |= eCheckRead;
 			if( (pFDs[uCurrPoll].revents & POLLOUT ) )
 				iEvents |= eCheckWrite;

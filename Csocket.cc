@@ -28,7 +28,6 @@
 * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *
 *
-* $Revision: 1.140 $
 */
 
 #include "Csocket.h"
@@ -1666,7 +1665,7 @@ CS_STRING Csock::ConvertAddress( void *addr, bool bIPv6 )
 	return( sRet );
 }
 
-bool Csock::IsConnected() { return( m_bIsConnected ); }
+bool Csock::IsConnected() const { return( m_bIsConnected ); }
 void Csock::SetIsConnected( bool b ) { m_bIsConnected = b; }
 
 cs_sock_t & Csock::GetRSock() { return( m_iReadSock ); }
