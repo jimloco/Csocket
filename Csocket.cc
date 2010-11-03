@@ -587,7 +587,7 @@ u_int CCron::GetCyclesLeft() const { return( ( m_iMaxCycles > m_iCycles ? ( m_iM
 bool CCron::isValid() { return( m_bActive ); }
 const CS_STRING & CCron::GetName() const { return( m_sName ); }
 void CCron::SetName( const CS_STRING & sName ) { m_sName = sName; }
-void CCron::RunJob() { CS_DEBUG( "This should be overriden" ); }
+void CCron::RunJob() { CS_DEBUG( "This should be overridden" ); }
 
 Csock::Csock( int itimeout )
 {
