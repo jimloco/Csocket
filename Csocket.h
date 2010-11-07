@@ -1566,6 +1566,7 @@ public:
 			}
 
 			case SELECT_TIMEOUT:
+			case SELECT_TRYAGAIN:
 			case SELECT_ERROR:
 			default	:
 				break;
