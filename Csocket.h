@@ -1434,7 +1434,7 @@ public:
 			{
 				if ( !pcSock->SetupVHost() )
 				{
-					pcSock->SockError( errno );
+					pcSock->SockError( GetSockError() );
 					DelSock( a-- );
 					continue;
 				}
