@@ -34,6 +34,8 @@
 
 #ifndef _HAS_CSOCKET_
 #define _HAS_CSOCKET_
+#include "defines.h" // require this as a general rule, most projects have a defines.h or the like
+
 #include <stdio.h>
 #include <unistd.h>
 #include <sys/time.h>
@@ -89,8 +91,6 @@
 #include <string>
 #include <set>
 #include <map>
-
-#include "defines.h" // require this as a general rule, most projects have a defines.h or the like
 
 #ifndef CS_STRING
 #	ifdef _HAS_CSTRING_
