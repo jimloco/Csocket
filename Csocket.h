@@ -1986,7 +1986,6 @@ private:
 		if ( m_iSelectWait == 0 )
 			iQuickReset = 0;
 
-		bool bHasWriteable = false;
 		bool bHasAvailSocks = false;
 		unsigned long long iNOW = 0;
 		for( unsigned int i = 0; i < this->size(); i++ )
@@ -2027,7 +2026,6 @@ private:
 					FDSetCheck( aiAresSocks[0], miiReadyFds, eCheckWrite );
 				// let ares drop the timeout if it has something timing out sooner then whats in tv currently
 				ares_timeout( pChannel, &tv, &tv );
-				bHasWriteable = true;
 			}
 #endif /* HAVE_C_ARES */
 
@@ -2068,7 +2066,6 @@ private:
 					if( !pcSock->GetWriteBuffer().empty() )
 					{ // this means we need to write again, not everything got knocked out
 						FDSetCheck( iWSock, miiReadyFds, eCheckWrite );
-						bHasWriteable = true;
 					}
 
 				} else
@@ -2079,7 +2076,6 @@ private:
 					if( pcSock->AllowWrite( iNOW ) )
 					{
 						FDSetCheck( iWSock, miiReadyFds, eCheckWrite );
-						bHasWriteable = true;
 					}
 				}
 
