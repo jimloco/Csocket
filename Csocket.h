@@ -1628,7 +1628,7 @@ public:
 	virtual void AddSock( T *pcSock, const CS_STRING & sSockName )
 	{
 		pcSock->SetSockName( sSockName );
-		push_back( pcSock );
+		this->push_back( pcSock );
 	}
 
 	//! returns a pointer to the FIRST sock found by port or NULL on no match
