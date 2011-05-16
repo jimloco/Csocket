@@ -36,6 +36,7 @@
 #endif /* __NetBSD__ */
 
 #ifdef HAVE_LIBSSL
+#include <stdio.h>
 #include <openssl/conf.h>
 #include <openssl/engine.h>
 #endif /* HAVE_LIBSSL */
@@ -486,7 +487,7 @@ void SSLErrors( const char *filename, u_int iLineNum )
 
 void __Perror( const CS_STRING & s, const char *pszFile, unsigned int iLineNo )
 {
-#if  defined(sgi) || defined(__sun) || defined(_WIN32) || (defined(__NetBSD_Version__) && __NetBSD_Version__ < 4000000000)
+#if defined(__sun) || defined(_WIN32) || (defined(__NetBSD_Version__) && __NetBSD_Version__ < 4000000000)
 	std::cerr << s << "(" << pszFile << ":" << iLineNo << "): " << strerror( GetSockError() ) << endl;
 #else
 	char buff[512];
@@ -1259,21 +1260,49 @@ bool Csock::SSLServerSetup()
 
 	//
 	// set up the CTX
-	if ( SSL_CTX_use_certificate_chain_file( m_ssl_ctx, m_sPemFile.c_str() ) <= 0 )
+	if( SSL_CTX_use_certificate_chain_file( m_ssl_ctx, m_sPemFile.c_str() ) <= 0 )
 	{
 		CS_DEBUG( "Error with PEM file [" << m_sPemFile << "]" );
 		SSLErrors( __FILE__, __LINE__ );
 		return( false );
 	}
 
-	if ( SSL_CTX_use_PrivateKey_file( m_ssl_ctx, m_sPemFile.c_str(), SSL_FILETYPE_PEM ) <= 0 )
+	if( SSL_CTX_use_PrivateKey_file( m_ssl_ctx, m_sPemFile.c_str(), SSL_FILETYPE_PEM ) <= 0 )
 	{
 		CS_DEBUG( "Error with PEM file [" << m_sPemFile << "]" );
 		SSLErrors( __FILE__, __LINE__ );
 		return( false );
 	}
 
-	if ( SSL_CTX_set_cipher_list( m_ssl_ctx, m_sCipherType.c_str() ) <= 0 )
+	// check to see if this pem file contains a DH structure for use with DH key exchange
+	// https://github.com/znc/znc/pull/46
+	FILE *dhParamsFile = fopen( m_sPemFile.c_str(), "r" );
+	if( !dhParamsFile )
+	{
+		CS_DEBUG( "There is a problem with [" << m_sPemFile << "]" );
+		return( false );
+	}
+
+	DH * dhParams = PEM_read_DHparams( dhParamsFile, NULL, NULL, NULL );
+	fclose( dhParamsFile );
+	if( dhParams )
+	{
+		SSL_CTX_set_options( m_ssl_ctx, SSL_OP_SINGLE_DH_USE );
+		if( !SSL_CTX_set_tmp_dh( m_ssl_ctx, dhParams ) )
+		{
+			CS_DEBUG( "Error setting ephemeral DH parameters from [" << m_sPemFile << "]" );
+			SSLErrors( __FILE__, __LINE__ );
+			DH_free( dhParams );
+			return( false );
+		}
+		DH_free( dhParams );
+	}
+	else
+	{ // Presumably PEM_read_DHparams failed, as there was no DH structure. Clearing those errors here so they are removed off the stack
+		ERR_clear_error();
+	}
+
+	if( SSL_CTX_set_cipher_list( m_ssl_ctx, m_sCipherType.c_str() ) <= 0 )
 	{
 		CS_DEBUG( "Could not assign cipher [" << m_sCipherType << "]" );
 		return( false );
@@ -1281,7 +1310,7 @@ bool Csock::SSLServerSetup()
 
 	//
 	// setup the SSL
-	m_ssl = SSL_new ( m_ssl_ctx );
+	m_ssl = SSL_new( m_ssl_ctx );
 	if ( !m_ssl )
 		return( false );
 
