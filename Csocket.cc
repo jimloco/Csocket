@@ -242,7 +242,7 @@ void Csock::FreeAres()
 static void AresHostCallback( void *pArg, int status, int timeouts, struct hostent *hent )
 {
 	Csock *pSock = (Csock *)pArg;
-	if( status == ARES_SUCCESS && hent )
+	if( status == ARES_SUCCESS && hent && hent->h_addr_list[0] != NULL )
 	{
 		CSSockAddr *pSockAddr = pSock->GetCurrentAddr();
 		if( hent->h_addrtype == AF_INET )
@@ -265,6 +265,11 @@ static void AresHostCallback( void *pArg, int status, int timeouts, struct hoste
 	else
 	{
 		CS_DEBUG( ares_strerror( status ) );
+		if( status == ARES_SUCCESS )
+		{
+			CS_DEBUG("Received ARES_SUCCESS without any useful reply, using NODATA instead");
+			status = ARES_ENODATA;
+		}
 	}
 	pSock->SetAresFinished( status );
 }
