@@ -1557,7 +1557,7 @@ cs_ssize_t Csock::Read( char *data, size_t len )
 {
 	cs_ssize_t bytes = 0;
 
-	if ( ( IsReadPaused() ) && ( SslIsEstablished() ) )
+	if ( IsReadPaused() && SslIsEstablished() )
 		return( READ_EAGAIN ); // allow the handshake to complete first
 
 	if ( m_bBLOCK )
@@ -1575,7 +1575,11 @@ cs_ssize_t Csock::Read( char *data, size_t len )
 
 #ifdef HAVE_LIBSSL
 	if ( m_bssl )
+	{
 		bytes = SSL_read( m_ssl, data, (int)len );
+		if( bytes >= 0 )
+			m_bsslEstablished = true; // this means all is good in the realm of ssl
+	}
 	else
 #endif /* HAVE_LIBSSL */
 #ifdef _WIN32

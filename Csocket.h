@@ -2055,39 +2055,44 @@ private:
 				continue;	// invalid sock fd
 			}
 
-			if ( pcSock->GetType() != T::LISTENER )
+			if( pcSock->GetType() != T::LISTENER )
 			{
-				if ( ( pcSock->IsConnected() ) && ( pcSock->GetWriteBuffer().empty() ) )
-				{
-					if ( !bIsReadPaused )
-						FDSetCheck( iRSock, miiReadyFds, eCheckRead );
+				bool bHasWriteBuffer = !pcSock->GetWriteBuffer().empty();
 
-				} else if ( ( pcSock->GetSSL() ) && ( !pcSock->SslIsEstablished() ) && ( !pcSock->GetWriteBuffer().empty() ) )
-				{
+				if ( !bIsReadPaused )
+					FDSetCheck( iRSock, miiReadyFds, eCheckRead );
+
+				if( pcSock->AllowWrite( iNOW ) && ( !pcSock->IsConnected() || bHasWriteBuffer ) )
+				{ 
+					if( !pcSock->IsConnected() )
+					{ // set the write bit if not connected yet
+						FDSetCheck( iWSock, miiReadyFds, eCheckWrite );
+					}
+					else if( bHasWriteBuffer && !pcSock->GetSSL() )
+					{ // always set the write bit if there is data to send when NOT ssl
+						FDSetCheck( iWSock, miiReadyFds, eCheckWrite );
+					}
+					else if( bHasWriteBuffer && pcSock->GetSSL() && pcSock->SslIsEstablished() )
+					{ // ONLY set the write bit if there is data to send and the SSL handshake is finished
+						FDSetCheck( iWSock, miiReadyFds, eCheckWrite );
+					}
+				}
+
+				if( pcSock->GetSSL() && !pcSock->SslIsEstablished() && bHasWriteBuffer )
+				{ // if this is an unestabled SSL session with data to send ... try sending it
 					// do this here, cause otherwise ssl will cause a small
 					// cpu spike waiting for the handshake to finish
-					FDSetCheck( iRSock, miiReadyFds, eCheckRead );
 					// resend this data
 					if ( !pcSock->Write( "" ) )
 					{
 						pcSock->Close();
 					}
-					if( !pcSock->GetWriteBuffer().empty() )
-					{ // this means we need to write again, not everything got knocked out
-						FDSetCheck( iWSock, miiReadyFds, eCheckWrite );
-					}
-
-				} else
-				{
-					if ( !bIsReadPaused )
-						FDSetCheck( iRSock, miiReadyFds, eCheckRead );
-
-					if( pcSock->AllowWrite( iNOW ) )
-					{
-						FDSetCheck( iWSock, miiReadyFds, eCheckWrite );
-					}
-				}
-
+					// warning ... setting write bit in here causes massive CPU spinning on invalid SSL servers
+					// http://bugs.debian.org/cgi-bin/bugreport.cgi?bug=631590
+					// however, we can set the select WAY down and it will retry quickly, but keep it from spinning at 100%
+					tv.tv_usec = iQuickReset;
+					tv.tv_sec = 0;
+				} 
 			} 
 			else
 			{
@@ -2104,12 +2109,12 @@ private:
 		// old fashion select, go fer it
 		int iSel;
 
-		if ( !mpeSocks.empty() ) // .1 ms pause to see if anything else is ready (IE if there is SSL data pending, don't wait too long)
+		if( !mpeSocks.empty() ) // .1 ms pause to see if anything else is ready (IE if there is SSL data pending, don't wait too long)
 		{
 			tv.tv_usec = iQuickReset;
 			tv.tv_sec = 0;
 		}
-		else if ( ( !this->empty() ) && ( !bHasAvailSocks ) )
+		else if ( !this->empty() && !bHasAvailSocks )
 		{
 			tv.tv_usec = iQuickReset;
 			tv.tv_sec = 0;
