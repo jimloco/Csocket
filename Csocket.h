@@ -1010,6 +1010,18 @@ public:
 	ares_channel GetAresChannel() { return( m_pARESChannel ); }
 #endif /* HAVE_C_ARES */
 
+	/**
+	 * @brief Chance to have select()/poll() on any file descriptors not being handled by Csocket
+	 * @param miiReadyFds map of file descriptors to the bitwise operation they should be checked for (@see ECheckType)
+	 * @param tvtimeout timeout passedto select()/poll(), you can adjust this here. You probably only want to change it if your change value is less then the actualy value. When this is passed in, it is initialized to the current value to be used
+	 */
+	virtual void AssignAdditionalFds( std::map< int, short > & miiReadyFds, struct timeval & tvtimeout ) {}
+	/**
+	 * @brief select()/poll() has been called, and this the result that can be verified via FDHasCheck()
+	 * @param miiReadyFds the map of file descriptors that contain their state as suggested by poll()/select() (@see ECheckType)
+	 */
+	virtual void CheckAdditionalFds( std::map< int, short > & miiReadyFds ) {}
+
 private:
 	//! making private for safety
 	Csock( const Csock & cCopy ) {}
@@ -1877,13 +1889,11 @@ public:
 
 		return( iRet );
 	}
-
-protected:
 	//! this is a strict wrapper around C-api select(). Added in the event you need to do special work here
 	enum ECheckType
 	{
-		eCheckRead = 1,
-		eCheckWrite = 2
+		ECT_Read = 1,
+		ECT_Write = 2
 	};
 
 	void FDSetCheck( int iFd, std::map< int, short > & miiReadyFds, ECheckType eType )
@@ -1901,8 +1911,25 @@ protected:
 			return( (it->second & eType) );
 		return( false );
 	}
+
+protected:
+
+
+	/**
+	 * @brief Chance to have select()/poll() on any file descriptors not being handled by Csocket
+	 * @param miiReadyFds map of file descriptors to the bitwise operation they should be checked for (@see ECheckType)
+	 * @param tvtimeout timeout passedto select()/poll(), you can adjust this here. You probably only want to change it if your change value is less then the actualy value. When this is passed in, it is initialized to the current value to be used
+	 */
+	virtual void AssignAdditionalFds( std::map< int, short > & miiReadyFds, struct timeval & tvtimeout ) {}
+	/**
+	 * @brief select()/poll() has been called, and this the result that can be verified via FDHasCheck()
+	 * @param miiReadyFds the map of file descriptors that contain their state as suggested by poll()/select() (@see ECheckType)
+	 */
+	virtual void CheckAdditionalFds( std::map< int, short > & miiReadyFds ) {}
+	
 	virtual int Select( std::map< int, short > & miiReadyFds, struct timeval *tvtimeout)
 	{
+		AssignAdditionalFds( miiReadyFds, *tvtimeout );
 #ifdef CSOCK_USE_POLL
 		if( miiReadyFds.empty() )
 			return( select( 0, NULL, NULL, NULL, tvtimeout ) );
@@ -1912,9 +1939,9 @@ protected:
 		for( std::map< int, short >::iterator it = miiReadyFds.begin(); it != miiReadyFds.end(); ++it, ++uCurrPoll )
 		{
 			short iEvents = 0;
-			if( it->second & eCheckRead )
+			if( it->second & ECT_Read )
 				iEvents |= POLLIN;
-			if( it->second & eCheckWrite )
+			if( it->second & ECT_Write )
 				iEvents |= POLLOUT;
 			pFDs[uCurrPoll].fd = it->first;
 			pFDs[uCurrPoll].events = iEvents;
@@ -1929,9 +1956,9 @@ protected:
 		{
 			short iEvents = 0;
 			if( (pFDs[uCurrPoll].revents & (POLLIN|POLLERR|POLLHUP|POLLNVAL) ) )
-				iEvents |= eCheckRead;
+				iEvents |= ECT_Read;
 			if( (pFDs[uCurrPoll].revents & POLLOUT ) )
-				iEvents |= eCheckWrite;
+				iEvents |= ECT_Write;
 			std::map< int, short >::iterator it = miiReadyFds.find( pFDs[uCurrPoll].fd );
 			if( it != miiReadyFds.end() )
 				it->second |= iEvents;
@@ -1948,11 +1975,11 @@ protected:
 		for( std::map< int, short >::iterator it = miiReadyFds.begin(); it != miiReadyFds.end(); ++it )
 		{
 			iHighestFD = std::max( it->first, iHighestFD );
-			if( it->second & eCheckRead )
+			if( it->second & ECT_Read )
 			{
 				TFD_SET( it->first, &rfds );
 			}
-			if( it->second & eCheckWrite )
+			if( it->second & ECT_Write )
 			{
 				bHasWrite = true;
 				TFD_SET( it->first, &wfds );
@@ -1966,10 +1993,10 @@ protected:
 		{
 			for( std::map< int, short >::iterator it = miiReadyFds.begin(); it != miiReadyFds.end(); ++it )
 			{
-				if( (it->second & eCheckRead) && !TFD_ISSET( it->first, &rfds ) )
-					it->second &= ~eCheckRead;
-				if( (it->second & eCheckWrite) && !TFD_ISSET( it->first, &wfds ) )
-					it->second &= ~eCheckWrite;
+				if( (it->second & ECT_Read) && !TFD_ISSET( it->first, &rfds ) )
+					it->second &= ~ECT_Read;
+				if( (it->second & ECT_Write) && !TFD_ISSET( it->first, &wfds ) )
+					it->second &= ~ECT_Write;
 			}
 		}
 #endif /* CSOCK_USE_POLL */
@@ -1983,7 +2010,7 @@ private:
 	* each struct contains the socks error
 	* @see GetErrno()
 	*/
-	virtual void Select( std::map<T *, EMessages> & mpeSocks )
+	void Select( std::map<T *, EMessages> & mpeSocks )
 	{
 		mpeSocks.clear();
 		struct timeval tv;
@@ -2030,13 +2057,15 @@ private:
 				aiAresSocks[0] = ARES_SOCKET_BAD;
 				int iSockMask = ares_getsock( pChannel, aiAresSocks, 1 );
 				if( ARES_GETSOCK_READABLE( iSockMask, 0 ) )
-					FDSetCheck( aiAresSocks[0], miiReadyFds, eCheckRead );
+					FDSetCheck( aiAresSocks[0], miiReadyFds, ECT_Read );
 				if( ARES_GETSOCK_WRITABLE( iSockMask, 0 ) )
-					FDSetCheck( aiAresSocks[0], miiReadyFds, eCheckWrite );
+					FDSetCheck( aiAresSocks[0], miiReadyFds, ECT_Write );
 				// let ares drop the timeout if it has something timing out sooner then whats in tv currently
 				ares_timeout( pChannel, &tv, &tv );
 			}
 #endif /* HAVE_C_ARES */
+
+			pcSock->AssignAdditionalFds( miiReadyFds, tv );
 
 			if ( pcSock->GetConState() != T::CST_OK )
 				continue;
@@ -2060,21 +2089,21 @@ private:
 				bool bHasWriteBuffer = !pcSock->GetWriteBuffer().empty();
 
 				if ( !bIsReadPaused )
-					FDSetCheck( iRSock, miiReadyFds, eCheckRead );
+					FDSetCheck( iRSock, miiReadyFds, ECT_Read );
 
 				if( pcSock->AllowWrite( iNOW ) && ( !pcSock->IsConnected() || bHasWriteBuffer ) )
 				{ 
 					if( !pcSock->IsConnected() )
 					{ // set the write bit if not connected yet
-						FDSetCheck( iWSock, miiReadyFds, eCheckWrite );
+						FDSetCheck( iWSock, miiReadyFds, ECT_Write );
 					}
 					else if( bHasWriteBuffer && !pcSock->GetSSL() )
 					{ // always set the write bit if there is data to send when NOT ssl
-						FDSetCheck( iWSock, miiReadyFds, eCheckWrite );
+						FDSetCheck( iWSock, miiReadyFds, ECT_Write );
 					}
 					else if( bHasWriteBuffer && pcSock->GetSSL() && pcSock->SslIsEstablished() )
 					{ // ONLY set the write bit if there is data to send and the SSL handshake is finished
-						FDSetCheck( iWSock, miiReadyFds, eCheckWrite );
+						FDSetCheck( iWSock, miiReadyFds, ECT_Write );
 					}
 				}
 
@@ -2096,7 +2125,7 @@ private:
 			} 
 			else
 			{
-				FDSetCheck( iRSock, miiReadyFds, eCheckRead );
+				FDSetCheck( iRSock, miiReadyFds, ECT_Read );
 			}
 			
 			if( pcSock->GetSSL() && pcSock->GetType() != Csock::LISTENER )
@@ -2121,6 +2150,7 @@ private:
 		}
 
 		iSel = Select( miiReadyFds, &tv );
+
 		if ( iSel == 0 )
 		{
 			if ( mpeSocks.empty() )
@@ -2164,6 +2194,8 @@ private:
 			m_errno = SUCCESS;
 		}
 
+		CheckAdditionalFds( miiReadyFds );
+
 		// find out wich one is ready
 		for( unsigned int i = 0; i < this->size(); i++ )
 		{
@@ -2176,10 +2208,11 @@ private:
 				ares_socket_t aiAresSocks[1];
 				aiAresSocks[0] = ARES_SOCKET_BAD;
 				ares_getsock( pChannel, aiAresSocks, 1 );
-				if( FDHasCheck( aiAresSocks[0], miiReadyFds, eCheckRead ) || FDHasCheck( aiAresSocks[0], miiReadyFds, eCheckWrite ) )
+				if( FDHasCheck( aiAresSocks[0], miiReadyFds, ECT_Read ) || FDHasCheck( aiAresSocks[0], miiReadyFds, ECT_Write ) )
 					ares_process_fd( pChannel, aiAresSocks[0], aiAresSocks[0] );
 			}
 #endif /* HAVE_C_ARES */
+			pcSock->CheckAdditionalFds( miiReadyFds );
 
 			if ( pcSock->GetConState() != T::CST_OK )
 				continue;
@@ -2196,7 +2229,7 @@ private:
 				continue; // watch for invalid socks
 			}
 
-			if ( FDHasCheck( iWSock, miiReadyFds, eCheckWrite ) )
+			if ( FDHasCheck( iWSock, miiReadyFds, ECT_Write ) )
 			{
 				if ( iSel > 0 )
 				{
@@ -2215,7 +2248,7 @@ private:
 				SelectSock( mpeSocks, iErrno, pcSock );
 
 			} 
-			else if ( FDHasCheck( iRSock, miiReadyFds, eCheckRead ) )
+			else if ( FDHasCheck( iRSock, miiReadyFds, ECT_Read ) )
 			{
 				if ( iSel > 0 )
 					iErrno = SUCCESS;
