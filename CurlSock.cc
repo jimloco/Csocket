@@ -44,7 +44,7 @@ CCurlSock::CCurlSock()
 
 CCurlSock::~CCurlSock() 
 {	
-	for( map< CURL *, bool >::iterator it = m_pcbCurlHandles.begin(); it != m_pcbCurlHandles.end(); ++it )
+	for( std::map< CURL *, bool >::iterator it = m_pcbCurlHandles.begin(); it != m_pcbCurlHandles.end(); ++it )
 	{
 		CURL * pCurl = it->first;
 		if( m_pMultiHandle )
@@ -69,13 +69,19 @@ bool CCurlSock::GatherFDsForSelect( std::map< int, short > & miiReadyFds, long &
 
 		if( iRunningHandles >= 1 )
 		{ // this means there is a request working
-
-			if( m_miiMonitorFDs.size() ) 
+			size_t uNumFDs = m_miiMonitorFDs.size();
+			if( uNumFDs > 0 )
 			{ // the call back came through and there are fd's to work on
 
-				// cycle through the available fd's and get the specific actions needed to proceed
-				for( std::map< int, short >::iterator it = m_miiMonitorFDs.begin(); it != m_miiMonitorFDs.end(); ++it )
-					curl_multi_socket_action( m_pMultiHandle, it->first, 0, &iRunningHandles );
+				int * aiFDs = (int *)malloc( sizeof( int ) * uNumFDs );
+				int * pTmp = aiFDs;
+				// cycle through the available fd's and get the specific actions needed to proceed, need to copy as m_miiMonitorFDs might change during the callback
+				for( std::map< int, short >::iterator it = m_miiMonitorFDs.begin(); it != m_miiMonitorFDs.end(); ++it, ++pTmp )
+					*pTmp = it->first;
+				pTmp = aiFDs;
+				for( size_t uCount = 0; uCount < uNumFDs; ++uCount, ++pTmp )
+					curl_multi_socket_action( m_pMultiHandle, aiFDs[uCount], 0, &iRunningHandles );
+				free( aiFDs );
 
 				// cycle through any additional fd's and set them into Csocket to monitor
 				for( std::map< int, short >::iterator it = m_miiMonitorFDs.begin(); it != m_miiMonitorFDs.end(); ++it )
