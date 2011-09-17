@@ -92,7 +92,7 @@ private:
 
 	long m_iTimeout_ms; //!< current timeout to use
 	CURLM	* m_pMultiHandle; //!< the main multi handle
-	map< CURL *, bool > m_pcbCurlHandles; //!< map of CURL objects to bools. If the bool is true then that object is in use
+	std::map< CURL *, bool > m_pcbCurlHandles; //!< map of CURL objects to bools. If the bool is true then that object is in use
 };
 #ifndef _NO_CSOCKET_NS
 };
