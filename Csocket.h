@@ -1,6 +1,6 @@
 /**
 *
-*    Copyright (c) 1999-2009 Jim Hull <imaginos@imaginos.net>
+*    Copyright (c) 1999-2011 Jim Hull <imaginos@imaginos.net>
 *    All rights reserved
 *
 * Redistribution and use in source and binary forms, with or without modification,
@@ -278,6 +278,9 @@ enum ECompType
 	CT_RLE	= 2
 };
 
+//! adjusts tv with a new timeout if iTimeoutMS is smaller
+void CSAdjustTVTimeout( struct timeval & tv, long iTimeoutMS );
+
 void SSLErrors( const char *filename, u_int iLineNum );
 
 /**
@@ -401,6 +404,99 @@ private:
 	CS_STRING	m_sName;
 };
 
+/**
+ * @class CSMonitorFD
+ * @brief class to tie sockets to for monitoring by Csocket at either the Csock or TSockManager
+ */
+class CSMonitorFD
+{
+public:
+	CSMonitorFD() { m_bEnabled = true; }
+	virtual ~CSMonitorFD() {}
+
+	/**
+	 * @brief called before select, typically you don't need to reimplement this just add sockets via Add and let the default implementation have its way
+	 * @param miiReadyFds fill with fd's to monitor and the associated bit to check them for (@see CSockManager::ECheckType)
+	 * @param iTimeoutMS the timeout to change to, setting this to -1 (the default)
+	 * @return returning false will remove this from monitoring. The same effect can be had by setting m_bEnabled to false as it is returned from this
+	 */
+	virtual bool GatherFDsForSelect( std::map< int, short > & miiReadyFds, long & iTimeoutMS );
+
+	/**
+	 * @brief called when there are fd's belonging to this class that have triggered
+	 * @param miiReadyFds the map of fd's with the bits that triggered them (@see CSockManager::ECheckType)
+	 * @return returning false will remove this from monitoring
+	 */
+	virtual bool FDsThatTriggered( const std::map< int, short > & miiReadyFds ) { return( true ); }
+
+	/**
+	 * @brief gets called to diff miiReadyFds with m_miiMonitorFDs, and calls FDsThatTriggered when appropriate. Typically you don't need to reimplement this.
+	 * @param miiReadyFds the map of all triggered fd's, not just the fd's from this class
+	 * @return returning false will remove this from monitoring
+	 */
+	virtual bool CheckFDs( const std::map< int, short > & miiReadyFds );
+
+	/**
+	 * @brief adds a file descriptor to be monitored
+	 * @param iFD the file descriptor
+	 * @param iMonitorEvents bitset of events to monitor for (@see CSockManager::ECheckType)
+	 */
+	void Add( int iFD, short iMonitorEvents ) { m_miiMonitorFDs[iFD] = iMonitorEvents; }
+	//! removes this fd from monitoring
+	void Remove( int iFD ) { m_miiMonitorFDs.erase( iFD ); }
+	//! causes this monitor to be removed
+	void DisableMonitor() { m_bEnabled = false; }
+	
+	bool IsEnabled() const { return( m_bEnabled ); }
+
+protected:
+	std::map< int, short > m_miiMonitorFDs;
+	bool m_bEnabled;
+};
+
+/**
+ * @class CSockCommon
+ * @brief simple class to share common code to both TSockManager and Csock
+ */
+class CSockCommon
+{
+public:
+	CSockCommon() {}
+	virtual ~CSockCommon();
+
+	void CleanupCrons();
+	void CleanupFDMonitors();
+	
+	//! returns a const reference to the crons associated to this socket
+	const std::vector<CCron *> & GetCrons() const { return( m_vcCrons ); }
+	//! This has a garbage collecter, and is used internall to call the jobs
+	virtual void Cron();
+
+	//! insert a newly created cron
+	virtual void AddCron( CCron * pcCron );
+	/**
+	 * @brief deletes a cron by name
+	 * @param sName the name of the cron
+	 * @param bDeleteAll delete all crons that match sName
+	 * @param bCaseSensitive use strcmp or strcasecmp
+	 */
+	virtual void DelCron( const CS_STRING & sName, bool bDeleteAll = true, bool bCaseSensitive = true );
+	//! delete cron by idx
+	virtual void DelCron( u_int iPos );
+	//! delete cron by address
+	virtual void DelCronByAddr( CCron *pcCron );
+
+	void CheckFDs( const std::map< int, short > & miiReadyFds );
+	void AssignFDs( std::map< int, short > & miiReadyFds, struct timeval * tvtimeout );
+
+	//! add an FD set to monitor
+	void MonitorFD( CSMonitorFD * pMonitorFD ) { m_vcMonitorFD.push_back( pMonitorFD ); }
+
+protected:
+	std::vector<CCron *>		m_vcCrons;
+	std::vector<CSMonitorFD *>	m_vcMonitorFD;
+};
+
 #ifdef HAVE_LIBSSL
 typedef int (*FPCertVerifyCB)( int, X509_STORE_CTX * );
 #endif /* HAVE_LIBSSL */
@@ -414,7 +510,7 @@ typedef int (*FPCertVerifyCB)( int, X509_STORE_CTX * );
 * @see TSocketManager
 * @author Jim Hull <imaginos@imaginos.net>
 */
-class Csock
+class Csock : public CSockCommon
 {
 public:
 	//! default constructor, sets a timeout of 60 seconds
@@ -447,7 +543,7 @@ public:
 	{
 		OUTBOUND			= 0,		//!< outbound connection
 		LISTENER			= 1,		//!< a socket accepting connections
-		INBOUND				= 2			//!< an inbound connection, passed from LISTENER
+		INBOUND				= 2		//!< an inbound connection, passed from LISTENER
 	};
 
 	enum EFRead
@@ -785,22 +881,6 @@ public:
 
 	u_int GetRateBytes();
 	unsigned long long GetRateTime();
-	//! This has a garbage collecter, and is used internall to call the jobs
-	virtual void Cron();
-
-	//! insert a newly created cron
-	virtual void AddCron( CCron * pcCron );
-	/**
-	 * @brief deletes a cron by name
-	 * @param sName the name of the cron
-	 * @param bDeleteAll delete all crons that match sName
-	 * @param bCaseSensitive use strcmp or strcasecmp
-	 */
-	virtual void DelCron( const CS_STRING & sName, bool bDeleteAll = true, bool bCaseSensitive = true );
-	//! delete cron by idx
-	virtual void DelCron( u_int iPos );
-	//! delete cron by address
-	virtual void DelCronByAddr( CCron *pcCron );
 
 	/**
 	* Override these functions for an easy interface when using the Socket Manager
@@ -991,8 +1071,6 @@ public:
 	//! returns true if this socket can write its data, primarily used with rate shaping, initialize iNOW to 0 and it sets it on the first call
 	bool AllowWrite( unsigned long long & iNOW ) const;
 
-	//! returns a const reference to the crons associated to this socket
-	const std::vector<CCron *> & GetCrons() const { return( m_vcCrons ); }
 
 	void SetSkipConnect( bool b ) { m_bSkipConnect = b; }
 
@@ -1009,18 +1087,6 @@ public:
 	void SetAresFinished( int status ) { m_pCurrAddr = NULL; m_iARESStatus = status; }
 	ares_channel GetAresChannel() { return( m_pARESChannel ); }
 #endif /* HAVE_C_ARES */
-
-	/**
-	 * @brief Chance to have select()/poll() on any file descriptors not being handled by Csocket
-	 * @param miiReadyFds map of file descriptors to the bitwise operation they should be checked for (@see ECheckType)
-	 * @param tvtimeout timeout passedto select()/poll(), you can adjust this here. You probably only want to change it if your change value is less then the actualy value. When this is passed in, it is initialized to the current value to be used
-	 */
-	virtual void AssignAdditionalFds( std::map< int, short > & miiReadyFds, struct timeval & tvtimeout ) {}
-	/**
-	 * @brief select()/poll() has been called, and this the result that can be verified via FDHasCheck()
-	 * @param miiReadyFds the map of file descriptors that contain their state as suggested by poll()/select() (@see ECheckType)
-	 */
-	virtual void CheckAdditionalFds( std::map< int, short > & miiReadyFds ) {}
 
 private:
 	//! making private for safety
@@ -1057,7 +1123,6 @@ private:
 
 #endif /* HAVE_LIBSSL */
 
-	std::vector<CCron *>		m_vcCrons;
 
 	//! Create the socket
 	cs_sock_t CreateSocket( bool bListen = false );
@@ -1279,10 +1344,10 @@ public:
 */
 
 template<class T>
-class TSocketManager : public std::vector<T *>
+class TSocketManager : public std::vector<T *>, public CSockCommon
 {
 public:
-	TSocketManager() : std::vector<T *>()
+	TSocketManager() : std::vector<T *>(), CSockCommon()
 	{
 		m_errno = SUCCESS;
 		m_iCallTimeouts = millitime();
@@ -1293,7 +1358,7 @@ public:
 
 	virtual ~TSocketManager()
 	{
-		Cleanup();
+		clear();
 	}
 
 	void clear()
@@ -1304,10 +1369,8 @@ public:
 
 	virtual void Cleanup()
 	{
-		for( u_int a = 0; a < m_vcCrons.size(); a++ )
-			CS_Delete( m_vcCrons[a] );
-
-		m_vcCrons.clear();
+		CleanupCrons();
+		CleanupFDMonitors();
 		clear();
 	}
 
@@ -1428,6 +1491,11 @@ public:
 	}
 
 
+	//! simple method to see if there are file descriptors being processed, useful to know if all the work is done in the manager
+	bool HasFDs() const
+	{
+		return( this->size() || m_vcMonitorFD.size() );
+	}
 	/**
 	* Best place to call this class for running, all the call backs are called.
 	* You should through this in your main while loop (long as its not blocking)
@@ -1722,66 +1790,13 @@ public:
 	//! return the last known error as set by this class
 	int GetErrno() { return( m_errno ); }
 
-	//! add a cronjob at the manager level
-	virtual void AddCron( CCron *pcCron )
-	{
-		m_vcCrons.push_back( pcCron );
-	}
 
-	/**
-	 * @brief deletes a cron by name
-	 * @param sName the name of the cron
-	 * @param bDeleteAll delete all crons that match sName
-	 * @param bCaseSensitive use strcmp or strcasecmp
-	 */
-	virtual void DelCron( const CS_STRING & sName, bool bDeleteAll = true, bool bCaseSensitive = true )
-	{
-		for( u_int a = 0; a < m_vcCrons.size(); a++ )
-		{
-			int (*Cmp)(const char *, const char *) = ( bCaseSensitive ? strcmp : strcasecmp );
-			if ( Cmp( m_vcCrons[a]->GetName().c_str(), sName.c_str() ) == 0 )
-			{
-				m_vcCrons[a]->Stop();
-				CS_Delete( m_vcCrons[a] );
-				m_vcCrons.erase( m_vcCrons.begin() + a-- );
-				if( !bDeleteAll )
-					break;
-			}
-		}
-	}
-
-	//! delete cron by idx
-	virtual void DelCron( u_int iPos )
-	{
-		if ( iPos < m_vcCrons.size() )
-		{
-			m_vcCrons[iPos]->Stop();
-			CS_Delete( m_vcCrons[iPos] );
-			m_vcCrons.erase( m_vcCrons.begin() + iPos );
-		}
-	}
-	//! delete cron by address
-	virtual void DelCronByAddr( CCron *pcCron )
-	{
-		for( u_int a = 0; a < m_vcCrons.size(); a++ )
-		{
-			if ( m_vcCrons[a] == pcCron )
-			{
-				m_vcCrons[a]->Stop();
-				CS_Delete( m_vcCrons[a] );
-				m_vcCrons.erase( m_vcCrons.begin() + a );
-				return;
-			}
-		}
-	}
 
 	//! Get the Select Timeout in MICROSECONDS ( 1000 == 1 millisecond )
 	u_long GetSelectTimeout() { return( m_iSelectWait ); }
 	//! Set the Select Timeout in MICROSECONDS ( 1000 == 1 millisecond )
 	//! Setting this to 0 will cause no timeout to happen, Select() will return instantly
 	void  SetSelectTimeout( u_long iTimeout ) { m_iSelectWait = iTimeout; }
-
-	std::vector<CCron *> & GetCrons() { return( m_vcCrons ); }
 
 	//! Delete a sock by addr
 	//! its position is looked up
@@ -1914,22 +1929,9 @@ public:
 
 protected:
 
-
-	/**
-	 * @brief Chance to have select()/poll() on any file descriptors not being handled by Csocket
-	 * @param miiReadyFds map of file descriptors to the bitwise operation they should be checked for (@see ECheckType)
-	 * @param tvtimeout timeout passedto select()/poll(), you can adjust this here. You probably only want to change it if your change value is less then the actualy value. When this is passed in, it is initialized to the current value to be used
-	 */
-	virtual void AssignAdditionalFds( std::map< int, short > & miiReadyFds, struct timeval & tvtimeout ) {}
-	/**
-	 * @brief select()/poll() has been called, and this the result that can be verified via FDHasCheck()
-	 * @param miiReadyFds the map of file descriptors that contain their state as suggested by poll()/select() (@see ECheckType)
-	 */
-	virtual void CheckAdditionalFds( std::map< int, short > & miiReadyFds ) {}
-	
 	virtual int Select( std::map< int, short > & miiReadyFds, struct timeval *tvtimeout)
 	{
-		AssignAdditionalFds( miiReadyFds, *tvtimeout );
+		AssignFDs( miiReadyFds, tvtimeout );
 #ifdef CSOCK_USE_POLL
 		if( miiReadyFds.empty() )
 			return( select( 0, NULL, NULL, NULL, tvtimeout ) );
@@ -2065,7 +2067,7 @@ private:
 			}
 #endif /* HAVE_C_ARES */
 
-			pcSock->AssignAdditionalFds( miiReadyFds, tv );
+			pcSock->AssignFDs( miiReadyFds, &tv );
 
 			if ( pcSock->GetConState() != T::CST_OK )
 				continue;
@@ -2194,7 +2196,7 @@ private:
 			m_errno = SUCCESS;
 		}
 
-		CheckAdditionalFds( miiReadyFds );
+		CheckFDs( miiReadyFds );
 
 		// find out wich one is ready
 		for( unsigned int i = 0; i < this->size(); i++ )
@@ -2212,7 +2214,7 @@ private:
 					ares_process_fd( pChannel, aiAresSocks[0], aiAresSocks[0] );
 			}
 #endif /* HAVE_C_ARES */
-			pcSock->CheckAdditionalFds( miiReadyFds );
+			pcSock->CheckFDs( miiReadyFds );
 
 			if ( pcSock->GetConState() != T::CST_OK )
 				continue;
@@ -2369,34 +2371,16 @@ private:
 		mpeSocks[pcSock] = eErrno;
 	}
 
-	//! these crons get ran and checked in Loop()
-	virtual void Cron()
-	{
-		time_t iNow = 0;
-		for( unsigned int a = 0; a < m_vcCrons.size(); a++ )
-		{
-			CCron *pcCron = m_vcCrons[a];
-
-			if ( !pcCron->isValid() )
-			{
-				CS_Delete( pcCron );
-				m_vcCrons.erase( m_vcCrons.begin() + a-- );
-			} else
-				pcCron->run( iNow );
-		}
-	}
-
 	////////
 	// Connection State Functions
 
 	///////////
 	// members
-	EMessages				m_errno;
-	std::vector<CCron *>	m_vcCrons;
-	unsigned long long		m_iCallTimeouts;
-	unsigned long long		m_iBytesRead;
-	unsigned long long		m_iBytesWritten;
-	u_long					m_iSelectWait;
+	EMessages					m_errno;
+	unsigned long long			m_iCallTimeouts;
+	unsigned long long			m_iBytesRead;
+	unsigned long long			m_iBytesWritten;
+	u_long						m_iSelectWait;
 };
 
 //! basic socket class

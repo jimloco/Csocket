@@ -1,6 +1,6 @@
 /** @file
 *
-*    Copyright (c) 1999-2009 Jim Hull <imaginos@imaginos.net>
+*    Copyright (c) 1999-2011 Jim Hull <imaginos@imaginos.net>
 *    All rights reserved
 *
 * Redistribution and use in source and binary forms, with or without modification,
@@ -475,6 +475,20 @@ bool InitSSL( ECompType eCompressionType )
 	return( true );
 }
 
+void CSAdjustTVTimeout( struct timeval & tv, long iTimeoutMS )
+{
+	if( iTimeoutMS >= 0 )
+	{
+		long iCurTimeout = tv.tv_usec / 1000;
+		iCurTimeout += tv.tv_sec * 1000;
+		if( iCurTimeout > iTimeoutMS )
+		{
+			tv.tv_sec = iTimeoutMS / 1000;
+			tv.tv_usec = iTimeoutMS % 1000;
+		}
+	}
+}
+
 void SSLErrors( const char *filename, u_int iLineNum )
 {
 	unsigned long iSSLError = 0;
@@ -595,7 +609,141 @@ const CS_STRING & CCron::GetName() const { return( m_sName ); }
 void CCron::SetName( const CS_STRING & sName ) { m_sName = sName; }
 void CCron::RunJob() { CS_DEBUG( "This should be overridden" ); }
 
-Csock::Csock( int itimeout )
+bool CSMonitorFD::GatherFDsForSelect( std::map< int, short > & miiReadyFds, long & iTimeoutMS )
+{
+	iTimeoutMS = -1; // don't bother changing anything in the default implementation
+	for( std::map< int, short >::iterator it = m_miiMonitorFDs.begin(); it != m_miiMonitorFDs.end(); ++it )
+	{
+		miiReadyFds[it->first] = it->second;
+	}
+	return( m_bEnabled );
+}
+
+bool CSMonitorFD::CheckFDs( const std::map< int, short > & miiReadyFds )
+{
+	std::map< int, short > miiTriggerdFds;
+	for( std::map< int, short >::iterator it = m_miiMonitorFDs.begin(); it != m_miiMonitorFDs.end(); ++it )
+	{
+		std::map< int, short >::const_iterator itFD = miiReadyFds.find( it->first );
+		if( itFD != miiReadyFds.end() )
+			miiTriggerdFds[itFD->first] = itFD->second;
+	}
+	if( miiTriggerdFds.size() )
+		return( FDsThatTriggered( miiTriggerdFds ) );
+	return( m_bEnabled );
+}
+
+CSockCommon::~CSockCommon()
+{
+	// delete any left over crons
+	CleanupCrons();
+	CleanupFDMonitors();
+}
+
+void CSockCommon::CleanupCrons()
+{
+	for( size_t a = 0; a < m_vcCrons.size(); a++ )
+		CS_Delete( m_vcCrons[a] );
+	m_vcCrons.clear();
+}
+
+void CSockCommon::CleanupFDMonitors()
+{
+	for( size_t a = 0; a < m_vcMonitorFD.size(); a++ )
+		CS_Delete( m_vcMonitorFD[a] );
+	m_vcMonitorFD.clear();
+}
+
+void CSockCommon::CheckFDs( const std::map< int, short > & miiReadyFds )
+{
+	for( size_t uMon = 0; uMon < m_vcMonitorFD.size(); ++uMon )
+	{
+		if( !m_vcMonitorFD[uMon]->IsEnabled() || !m_vcMonitorFD[uMon]->CheckFDs( miiReadyFds ) )
+			m_vcMonitorFD.erase( m_vcMonitorFD.begin() + uMon-- );
+	}
+}
+
+void CSockCommon::AssignFDs( std::map< int, short > & miiReadyFds, struct timeval * tvtimeout )
+{
+	for( size_t uMon = 0; uMon < m_vcMonitorFD.size(); ++uMon )
+	{
+		long iTimeoutMS = -1;
+		if( m_vcMonitorFD[uMon]->IsEnabled() && m_vcMonitorFD[uMon]->GatherFDsForSelect( miiReadyFds, iTimeoutMS ) )
+		{
+			CSAdjustTVTimeout( *tvtimeout, iTimeoutMS );
+		}
+		else
+		{
+			CS_Delete( m_vcMonitorFD[uMon] );
+			m_vcMonitorFD.erase( m_vcMonitorFD.begin() + uMon-- );
+		}
+	}
+}
+
+
+void CSockCommon::Cron()
+{
+	time_t iNow = 0;
+
+	for( vector<CCron *>::size_type a = 0; a < m_vcCrons.size(); a++ )
+	{
+		CCron *pcCron = m_vcCrons[a];
+
+		if ( !pcCron->isValid() )
+		{
+			CS_Delete( pcCron );
+			m_vcCrons.erase( m_vcCrons.begin() + a-- );
+		} else
+			pcCron->run( iNow );
+	}
+}
+
+void CSockCommon::AddCron( CCron * pcCron )
+{
+	m_vcCrons.push_back( pcCron );
+}
+
+void CSockCommon::DelCron( const CS_STRING & sName, bool bDeleteAll, bool bCaseSensitive )
+{
+	for( u_int a = 0; a < m_vcCrons.size(); a++ )
+	{
+		int (*Cmp)(const char *, const char *) = ( bCaseSensitive ? strcmp : strcasecmp );
+		if ( Cmp( m_vcCrons[a]->GetName().c_str(), sName.c_str() ) == 0 )
+		{
+			m_vcCrons[a]->Stop();
+			CS_Delete( m_vcCrons[a] );
+			m_vcCrons.erase( m_vcCrons.begin() + a-- );
+			if( !bDeleteAll )
+				break;
+		}
+	}
+}
+
+void CSockCommon::DelCron( u_int iPos )
+{
+	if ( iPos < m_vcCrons.size() )
+	{
+		m_vcCrons[iPos]->Stop();
+		CS_Delete( m_vcCrons[iPos] );
+		m_vcCrons.erase( m_vcCrons.begin() + iPos );
+	}
+}
+
+void CSockCommon::DelCronByAddr( CCron *pcCron )
+{
+	for( u_int a = 0; a < m_vcCrons.size(); a++ )
+	{
+		if ( m_vcCrons[a] == pcCron )
+		{
+			m_vcCrons[a]->Stop();
+			CS_Delete( m_vcCrons[a] );
+			m_vcCrons.erase( m_vcCrons.begin() + a );
+			return;
+		}
+	}
+}
+
+Csock::Csock( int itimeout ) : CSockCommon()
 {
 #ifdef HAVE_LIBSSL
 	m_pCerVerifyCB = NULL;
@@ -603,7 +751,7 @@ Csock::Csock( int itimeout )
 	Init( "", 0, itimeout );
 }
 
-Csock::Csock( const CS_STRING & sHostname, u_short iport, int itimeout )
+Csock::Csock( const CS_STRING & sHostname, u_short iport, int itimeout ) : CSockCommon()
 {
 #ifdef HAVE_LIBSSL
 	m_pCerVerifyCB = NULL;
@@ -638,9 +786,6 @@ Csock::~Csock()
 
 	CloseSocksFD();
 
-	// delete any left over crons
-	for( vector<CCron *>::size_type i = 0; i < m_vcCrons.size(); i++ )
-		CS_Delete( m_vcCrons[i] );
 }
 
 void Csock::CloseSocksFD()
@@ -668,7 +813,9 @@ void Csock::Dereference()
 	m_ssl_ctx = NULL;
 #endif /* HAVE_LIBSSL */
 
+	// don't delete and erase, just erase since they were moved to the copied sock
 	m_vcCrons.clear();
+	m_vcMonitorFD.clear();
 	Close( CLT_DEREFERENCE );
 }
 
@@ -735,15 +882,10 @@ void Csock::Copy( const Csock & cCopy )
 
 #endif /* HAVE_LIBSSL */
 
-	if( !m_vcCrons.empty() )
-	{
-		for( u_long a = 0; a < m_vcCrons.size(); a++ )
-		{
-			CS_Delete( m_vcCrons[a] );
-		}
-		m_vcCrons.clear();
-	}
+	CleanupCrons();
+	CleanupFDMonitors();
 	m_vcCrons			= cCopy.m_vcCrons;
+	m_vcMonitorFD		= cCopy.m_vcMonitorFD;
 
 	m_eConState			= cCopy.m_eConState;
 	m_sBindHost			= cCopy.m_sBindHost;
@@ -2128,67 +2270,6 @@ void Csock::SetRate( u_int iBytes, unsigned long long iMilliseconds )
 u_int Csock::GetRateBytes() { return( m_iMaxBytes ); }
 unsigned long long Csock::GetRateTime() { return( m_iMaxMilliSeconds ); }
 
-void Csock::Cron()
-{
-	time_t iNow = 0;
-
-	for( vector<CCron *>::size_type a = 0; a < m_vcCrons.size(); a++ )
-	{
-		CCron *pcCron = m_vcCrons[a];
-
-		if ( !pcCron->isValid() )
-		{
-			CS_Delete( pcCron );
-			m_vcCrons.erase( m_vcCrons.begin() + a-- );
-		} else
-			pcCron->run( iNow );
-	}
-}
-
-void Csock::AddCron( CCron * pcCron )
-{
-	m_vcCrons.push_back( pcCron );
-}
-
-void Csock::DelCron( const CS_STRING & sName, bool bDeleteAll, bool bCaseSensitive )
-{
-	for( u_int a = 0; a < m_vcCrons.size(); a++ )
-	{
-		int (*Cmp)(const char *, const char *) = ( bCaseSensitive ? strcmp : strcasecmp );
-		if ( Cmp( m_vcCrons[a]->GetName().c_str(), sName.c_str() ) == 0 )
-		{
-			m_vcCrons[a]->Stop();
-			CS_Delete( m_vcCrons[a] );
-			m_vcCrons.erase( m_vcCrons.begin() + a-- );
-			if( !bDeleteAll )
-				break;
-		}
-	}
-}
-
-void Csock::DelCron( u_int iPos )
-{
-	if ( iPos < m_vcCrons.size() )
-	{
-		m_vcCrons[iPos]->Stop();
-		CS_Delete( m_vcCrons[iPos] );
-		m_vcCrons.erase( m_vcCrons.begin() + iPos );
-	}
-}
-
-void Csock::DelCronByAddr( CCron *pcCron )
-{
-	for( u_int a = 0; a < m_vcCrons.size(); a++ )
-	{
-		if ( m_vcCrons[a] == pcCron )
-		{
-			m_vcCrons[a]->Stop();
-			CS_Delete( m_vcCrons[a] );
-			m_vcCrons.erase( m_vcCrons.begin() + a );
-			return;
-		}
-	}
-}
 
 void Csock::EnableReadLine() { m_bEnableReadLine = true; }
 void Csock::DisableReadLine() {
