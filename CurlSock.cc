@@ -114,8 +114,9 @@ bool CCurlSock::GatherFDsForSelect( std::map< int, short > & miiReadyFds, long &
 	return( m_bEnabled );
 }
 
-CURL * CCurlSock::Retr( const CS_STRING & sURL )
+CURL * CCurlSock::Retr( const CS_STRING & sURL, const CS_STRING & sReferrer )
 {
+	CURL * pCURL = NULL;
 	if( !m_pMultiHandle )
 	{
 		m_pMultiHandle = curl_multi_init();
@@ -125,13 +126,11 @@ CURL * CCurlSock::Retr( const CS_STRING & sURL )
 		curl_multi_setopt( m_pMultiHandle, CURLMOPT_TIMERFUNCTION, CCurlSock::SetupTimer );
 		curl_multi_setopt( m_pMultiHandle, CURLMOPT_TIMERDATA, this );
 	}
-	CURL * pCURL = NULL;
-	for( map< CURL *, bool >::iterator it = m_pcbCurlHandles.begin(); it != m_pcbCurlHandles.end(); ++it )
+	for( std::map< CURL *, bool >::iterator it = m_pcbCurlHandles.begin(); it != m_pcbCurlHandles.end(); ++it )
 	{
 		if( !it->second )
 		{
 			pCURL = it->first;
-			it->second = true; // mark it as used
 			curl_easy_reset( pCURL );
 			break;
 		}
@@ -140,19 +139,20 @@ CURL * CCurlSock::Retr( const CS_STRING & sURL )
 	if( !pCURL )
 	{
 		pCURL = curl_easy_init();
-		m_pcbCurlHandles[pCURL] = true;
 	}
+	m_pcbCurlHandles[pCURL] = false;
 	// prepare the handle, this is just a proof of concept, so doing it right here
 	// you can create a CURL handle for each query, re-use them (to persist connections), drop them off, etc
 	// the easiest method if you are serially retrieving documents is to do them through one CURL handle
 	// otherwise you can make a pool of handles, etc using curl_multi_info_read to see which is ready and so forth
-curl_easy_setopt( pCURL, CURLOPT_VERBOSE, 1 );
+	// curl_easy_setopt( pCURL, CURLOPT_VERBOSE, 1 );
 	curl_easy_setopt( pCURL, CURLOPT_FOLLOWLOCATION, 1 );
 	curl_easy_setopt( pCURL, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1 );
 	curl_easy_setopt( pCURL, CURLOPT_ENCODING, "" );
 	curl_easy_setopt( pCURL, CURLOPT_SSL_VERIFYPEER, 0 );
 	curl_easy_setopt( pCURL, CURLOPT_WRITEFUNCTION, CCurlSock::WriteData );
 	curl_easy_setopt( pCURL, CURLOPT_HEADERFUNCTION, CCurlSock::WriteHeader );
+	curl_easy_setopt( pCURL, CURLOPT_COOKIEFILE, "" ); // empty string means enable cookie handling
 
 	// send curl back as the argument to the functions,
 	// and tie this class as a reference to that object for function calls
@@ -161,7 +161,11 @@ curl_easy_setopt( pCURL, CURLOPT_VERBOSE, 1 );
 	curl_easy_setopt( pCURL, CURLOPT_PRIVATE, this );
 	curl_multi_add_handle( m_pMultiHandle, pCURL );
 
-	curl_easy_setopt( pCURL, CURLOPT_URL, sURL.c_str() );
+	if( curl_easy_setopt( pCURL, CURLOPT_URL, sURL.c_str() ) != CURLE_OK )
+		return( NULL );
+	if( sReferrer.size() && curl_easy_setopt( pCURL, CURLOPT_REFERER, sReferrer.c_str() ) != CURLE_OK )
+		return( NULL );
+	m_pcbCurlHandles[pCURL] = true;
 	return( pCURL );
 }
 
@@ -173,6 +177,7 @@ size_t CCurlSock::WriteData( void * pData, size_t uSize, size_t uNemb, void * pC
 		return( 0 );
 	assert( pManager );
 	size_t uBytes = uSize * uNemb;
+//cout.write( (const char *)pData, uBytes );
 	return( pManager->OnBody( pCURL, (const char *)pData, uBytes ) );
 }
 

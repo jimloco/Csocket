@@ -65,11 +65,16 @@ public:
 	virtual bool CheckFDs( const std::map< int, short > & miiReadyFds ) { return( m_bEnabled ); }
 
 	/**
-	 * @brief the main trigger to fetch a document. This could change, but so far this is what I have
-	 * @param sURL the location of the document
-	 * @return a CURL object tied to that document which you can use to configure any additional tweaks to CURL before the request is sent
+	 * @brief initiates a GET style transfer, but the process doesn't get started until the next GatherFDsForSelect() is called
+	 * @param sURL the target document
+	 * @param sReferrer the referring URL
+	 *
+	 * Its important to check the man page on curl_easy_setopt for the various variables. Certain data is tracked and some is not.
+	 * - CURLOPT_POSTFIELDS used to posting data. It is NOT copied by libcurl, so you have to track it until OnCURLComplete is called and the tranfer is complete
+	 * - CURLOPT_HTTPPOST used for multipart post. The linked list passed to this needs to be tracked, and following OnCURLComplete you should set CURLOPT_HTTPPOST with null and then free your data
 	 */
-	CURL * Retr( const CS_STRING & sURL );
+	CURL * Retr( const CS_STRING & sURL, const CS_STRING & sReferrer = "" );
+
 protected:
 	//! called when the transfer associate with this CURL object is completed
 	virtual void OnCURLComplete( CURL * pCURL ) { m_bEnabled = false; }
@@ -79,6 +84,7 @@ protected:
 	size_t OnHeader( CURL * pCURL, const char * pData, size_t uBytes ) { return( uBytes ); }
 	//! called as the document is returned
 	size_t OnBody( CURL * pCURL, const char * pData, size_t uBytes ) { return( uBytes ); }
+
 private:
 	static size_t WriteData( void * pData, size_t uSize, size_t uNemb, void * pStream );
 	static size_t WriteHeader( void * pData, size_t uSize, size_t uNemb, void * pStream );
