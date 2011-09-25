@@ -3,7 +3,8 @@ LOCALOBJS=$(foreach file, $(notdir $(addsuffix .o, $(basename $(wildcard *.cc)))
 TARGETS=$(basename $(wildcard *.cc))
 SRCS=$(wildcard ../*.cc *.cc)
 VPATH=..:.
-CXXFLAGS=-ggdb -Werror -Wall -Wextra -Wconversion -Wno-unused-parameter -Woverloaded-virtual -Wshadow -D_GNU_SOURCE -DHAVE_LIBSSL -DHAVE_IPV6 -DHAVE_C_ARES
+CXXFLAGS=-ggdb -Werror -Wall -Wextra -Wconversion -Wno-unused-parameter -Woverloaded-virtual -Wshadow -D_GNU_SOURCE -DHAVE_LIBSSL -DHAVE_IPV6 -DHAVE_C_ARES -D__DEBUG__
+TESTBINS=GetWebPage SendTest
 
 INCLUDES=-I.. -I.
 LIBS=-lcrypto -lssl -lcares -lcurl
@@ -29,8 +30,13 @@ depend:
 tags: $(SRCS) $(wildcard ../*.h *.h)
 	/usr/bin/exuberant-ctags -R --c++-kinds=+p --fields=+iaS --extra=+q ..
 
+test: $(TESTBINS)
+	@for i in $(TESTBINS); do \
+		echo "Running $$i ..."; \
+		./$$i >$$i.out 2>$$i.err; \
+	done
 
 clean:
-	rm -rf .objs core.* core $(TARGETS)
+	rm -rf .objs core.* core $(TARGETS) *.out *.err
 
 -include .depend

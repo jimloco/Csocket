@@ -44,6 +44,8 @@ int main( int argc, char **argv )
 
 	cerr << "-------- Header --------" << endl;
 	cerr << sHeader << endl;
+	assert( sHeader.compare( 0, 15, "HTTP/1.1 200 OK" ) == 0 );
+	assert( sBody.size() );
 	cerr << "Body Size: " << sBody.size() << endl;
 
 	return( 0 );
