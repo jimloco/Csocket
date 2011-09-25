@@ -145,7 +145,7 @@ CURL * CCurlSock::Retr( const CS_STRING & sURL, const CS_STRING & sReferrer )
 	// you can create a CURL handle for each query, re-use them (to persist connections), drop them off, etc
 	// the easiest method if you are serially retrieving documents is to do them through one CURL handle
 	// otherwise you can make a pool of handles, etc using curl_multi_info_read to see which is ready and so forth
-	// curl_easy_setopt( pCURL, CURLOPT_VERBOSE, 1 );
+// curl_easy_setopt( pCURL, CURLOPT_VERBOSE, 1 );
 	curl_easy_setopt( pCURL, CURLOPT_FOLLOWLOCATION, 1 );
 	curl_easy_setopt( pCURL, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1 );
 	curl_easy_setopt( pCURL, CURLOPT_ENCODING, "" );

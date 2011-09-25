@@ -77,13 +77,13 @@ public:
 
 protected:
 	//! called when the transfer associate with this CURL object is completed
-	virtual void OnCURLComplete( CURL * pCURL ) { m_bEnabled = false; }
+	virtual void OnCURLComplete( CURL * pCURL ) = 0;
 
 
 	//! called as header information for the document is returned
-	size_t OnHeader( CURL * pCURL, const char * pData, size_t uBytes ) { return( uBytes ); }
+	virtual size_t OnHeader( CURL * pCURL, const char * pData, size_t uBytes ) { return( uBytes ); }
 	//! called as the document is returned
-	size_t OnBody( CURL * pCURL, const char * pData, size_t uBytes ) { return( uBytes ); }
+	virtual size_t OnBody( CURL * pCURL, const char * pData, size_t uBytes ) { return( uBytes ); }
 
 private:
 	static size_t WriteData( void * pData, size_t uSize, size_t uNemb, void * pStream );
