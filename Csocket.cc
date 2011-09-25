@@ -2344,8 +2344,15 @@ int Csock::GetAddrInfo( const CS_STRING & sHostname, CSSockAddr & csSockAddr )
 
 			int iFamily = AF_INET;
 #ifdef HAVE_IPV6
-			// as of ares 1.6.0 if it fails on af_inet6, it falls back to af_inet, this code was here in the previous Csocket version, just adding the comment as a reminder
+#if ARES_VERSION >= CREATE_ARES_VER( 1, 7, 5 )
+			// as of ares 1.7.5, it falls back to af_inet only when AF_UNSPEC is specified
+			// so this can finally let the code flow through as anticipated :)
+			iFamily = csSockAddr.GetAFRequire();
+#else
+			// as of ares 1.6.0 if it fails on af_inet6, it falls back to af_inet, 
+			// this code was here in the previous Csocket version, just adding the comment as a reminder
 			iFamily = csSockAddr.GetAFRequire() == CSSockAddr::RAF_ANY ? AF_INET6 : csSockAddr.GetAFRequire();
+#endif /* CREATE_ARES_VER( 1, 7, 5 ) */
 #endif /* HAVE_IPV6 */
 			ares_gethostbyname( m_pARESChannel, sHostname.c_str(), iFamily, AresHostCallback, this );
 		}
