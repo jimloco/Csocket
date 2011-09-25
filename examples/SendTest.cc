@@ -15,7 +15,7 @@ int main( int argc, char **argv )
 		bool bTestIPv6 = ( iType == 1 || iType == 3 );
 		if( bTestIPv6 )
 			cerr << "IPv6 Test now!" << endl;
-		bool bTestSSL = ( iType == 2 );
+		bool bTestSSL = ( iType == 2 || iType == 3 );
 		if( bTestSSL )
 			cerr << "Testing SSL!" << endl;
 		unlink( "SendTest-Port.txt.out" );
@@ -90,5 +90,6 @@ int main( int argc, char **argv )
 			cerr << "Success!" << endl;
 		}
 	}
+	ShutdownCsocket();
 	return( 0 );
 }
