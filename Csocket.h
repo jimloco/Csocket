@@ -610,18 +610,6 @@ public:
 	virtual bool Connect( const CS_STRING & sBindHost = "", bool bSkipSetup = false );
 
 	/**
-	* WriteSelect on this socket
-	* Only good if JUST using this socket, otherwise use the CSocketManager
-	*/
-	virtual int WriteSelect();
-
-	/**
-	* ReadSelect on this socket
-	* Only good if JUST using this socket, otherwise use the CSocketManager
-	*/
-	virtual int ReadSelect();
-
-	/**
 	* Listens for connections
 	*
 	* @param iPort the port to listen on
@@ -802,9 +790,6 @@ public:
 	//! returns int of type to close @see ECloseType
 	ECloseType GetCloseType() { return( m_eCloseType ); }
 	bool IsClosed() { return( GetCloseType() != CLT_DONT ); }
-
-	//! Set rather to NON Blocking IO on this socket, default is true
-	void BlockIO( bool bBLOCK );
 
 	//! Use this to change your fd's to blocking or none blocking
 	void NonBlockingIO();

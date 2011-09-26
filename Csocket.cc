@@ -833,7 +833,6 @@ void Csock::Copy( const Csock & cCopy )
 	m_iMethod		= cCopy.m_iMethod;
 	m_bssl			= cCopy.m_bssl;
 	m_bIsConnected	= cCopy.m_bIsConnected;
-	m_bBLOCK		= cCopy.m_bBLOCK;
 	m_bsslEstablished	= cCopy.m_bsslEstablished;
 	m_bEnableReadLine	= cCopy.m_bEnableReadLine;
 	m_bPauseRead		= cCopy.m_bPauseRead;
@@ -1029,11 +1028,6 @@ bool Csock::Connect( const CS_STRING & sBindHost, bool bSkipSetup )
 		return( false );
 	}
 
-	if ( m_bBLOCK )
-	{
-		set_blocking( m_iReadSock );
-	}
-
 	if ( m_eConState != CST_OK )
 	{
 		m_eConState = ( GetSSL() ? CST_CONNECTSSL : CST_OK );
@@ -1042,65 +1036,6 @@ bool Csock::Connect( const CS_STRING & sBindHost, bool bSkipSetup )
 	return( true );
 }
 
-int Csock::WriteSelect()
-{
-	if ( m_iWriteSock == CS_INVALID_SOCK )
-		return( SEL_ERR );
-
-	struct timeval tv;
-	fd_set wfds;
-
-	TFD_ZERO( &wfds );
-	TFD_SET( m_iWriteSock, &wfds );
-
-	tv.tv_sec = m_itimeout;
-	tv.tv_usec = 0;
-
-	int ret = select( FD_SETSIZE, NULL, &wfds, NULL, &tv );
-
-	if ( ret == 0 )
-		return( SEL_TIMEOUT );
-
-	if ( ret == -1 )
-	{
-		if ( GetSockError() == EINTR )
-			return( SEL_EAGAIN );
-		else
-			return( SEL_ERR );
-	}
-
-	return( SEL_OK );
-}
-
-int Csock::ReadSelect()
-{
-	if ( m_iReadSock == CS_INVALID_SOCK )
-		return( SEL_ERR );
-
-	struct timeval tv;
-	fd_set rfds;
-
-	TFD_ZERO( &rfds );
-	TFD_SET( m_iReadSock, &rfds );
-
-	tv.tv_sec = m_itimeout;
-	tv.tv_usec = 0;
-
-	int ret = select( FD_SETSIZE, &rfds, NULL, NULL, &tv );
-
-	if ( ret == 0 )
-		return( SEL_TIMEOUT );
-
-	if ( ret == -1 )
-	{
-		if ( GetSockError() == EINTR )
-			return( SEL_EAGAIN );
-		else
-			return( SEL_ERR );
-	}
-
-	return( SEL_OK );
-}
 
 bool Csock::Listen( u_short iPort, int iMaxConns, const CS_STRING & sBindHost, u_int iTimeout )
 {
@@ -1152,11 +1087,8 @@ bool Csock::Listen( u_short iPort, int iMaxConns, const CS_STRING & sBindHost, u
 	if ( listen( m_iReadSock, iMaxConns ) == -1 )
 		return( false );
 
-	if ( !m_bBLOCK )
-	{
-		// set it none blocking
-		set_non_blocking( m_iReadSock );
-	}
+	// set it none blocking
+	set_non_blocking( m_iReadSock );
 
 	return( true );
 }
@@ -1196,11 +1128,8 @@ cs_sock_t Csock::Accept( CS_STRING & sHost, u_short & iRPort )
 		// Make it close-on-exec
 		set_close_on_exec( iSock );
 
-		if ( !m_bBLOCK )
-		{
-			// make it none blocking 
-			set_non_blocking( iSock );
-		}
+		// make it none blocking 
+		set_non_blocking( iSock );
 
 		if ( !ConnectionFrom( sHost, iRPort ) )
 		{
@@ -1490,11 +1419,6 @@ bool Csock::ConnectSSL( const CS_STRING & sBindhost )
 
 	bool bPass = true;
 
-	if ( m_bBLOCK )
-	{
-		set_non_blocking( m_iReadSock );
-	}
-
 	int iErr = SSL_connect( m_ssl );
 	if ( iErr != 1 )
 	{
@@ -1514,12 +1438,6 @@ bool Csock::ConnectSSL( const CS_STRING & sBindhost )
 #endif /* _WIN32 */
 	} else
 		bPass = true;
-
-	if ( m_bBLOCK )
-	{
-		// unset the flags afterwords, rather then have connect block
-		set_blocking( m_iReadSock );
-	}
 
 	if ( m_eConState != CST_OK )
 		m_eConState = CST_OK;
@@ -1554,12 +1472,6 @@ bool Csock::Write( const char *data, size_t len )
 	if ( m_eConState != CST_OK )
 		return( true );
 
-	if ( m_bBLOCK )
-	{
-		if ( WriteSelect() != SEL_OK )
-			return( false );
-
-	}
 	// rate shaping
 	u_long iBytesToSend = 0;
 
@@ -1701,19 +1613,6 @@ cs_ssize_t Csock::Read( char *data, size_t len )
 
 	if ( IsReadPaused() && SslIsEstablished() )
 		return( READ_EAGAIN ); // allow the handshake to complete first
-
-	if ( m_bBLOCK )
-	{
-		switch( ReadSelect() )
-		{
-			case SEL_OK:
-				break;
-			case SEL_TIMEOUT:
-				return( READ_TIMEDOUT );
-			default:
-				return( READ_ERR );
-		}
-	}
 
 #ifdef HAVE_LIBSSL
 	if ( m_bssl )
@@ -2060,7 +1959,6 @@ void Csock::Close( ECloseType eCloseType )
 {
 	m_eCloseType = eCloseType;
 }
-void Csock::BlockIO( bool bBLOCK ) { m_bBLOCK = bBLOCK; }
 
 void Csock::NonBlockingIO()
 {
@@ -2070,8 +1968,6 @@ void Csock::NonBlockingIO()
 	{
 		set_non_blocking( m_iWriteSock );
 	}
-
-	BlockIO( false );
 }
 
 bool Csock::GetSSL() { return( m_bssl ); }
@@ -2555,7 +2451,6 @@ void Csock::Init( const CS_STRING & sHostname, u_short uPort, int itimeout )
 	m_shostname = sHostname;
 	m_sbuffer.clear();
 	m_eCloseType = CLT_DONT;
-	m_bBLOCK = true;
 	m_iMethod = SSL23;
 	m_sCipherType = "ALL";
 	m_iMaxBytes = 0;
@@ -2634,9 +2529,6 @@ bool CSocketManager::Connect( const CSConnection & cCon, Csock * pcSock )
 	if( cCon.GetAFRequire() != CSSockAddr::RAF_ANY )
 		pcSock->SetAFRequire( cCon.GetAFRequire() );
 
-	// make it NON-Blocking IO
-	pcSock->BlockIO( false );
-
 	// bind the vhost
 	pcSock->SetBindHost( cCon.GetBindHost() );
 
@@ -2666,7 +2558,6 @@ bool CSocketManager::Listen( const CSListener & cListen, Csock * pcSock, u_short
 	if ( !pcSock )
 		pcSock = GetSockObj( "", 0 );
 
-	pcSock->BlockIO( false );
 	if( cListen.GetAFRequire() != CSSockAddr::RAF_ANY )
 	{
 		pcSock->SetAFRequire( cListen.GetAFRequire() );
@@ -3429,7 +3320,6 @@ void CSocketManager::Select( std::map<Csock *, EMessages> & mpeSocks )
 					if ( !NewpcSock )
 						NewpcSock = GetSockObj( sHost, port );
 
-					NewpcSock->BlockIO( false );
 					NewpcSock->SetType( Csock::INBOUND );
 					NewpcSock->SetRSock( inSock );
 					NewpcSock->SetWSock( inSock );
