@@ -114,11 +114,14 @@ static inline void set_non_blocking(cs_sock_t fd)
 	ioctlsocket( fd, FIONBIO, &iOpts );
 }
 
+/*
+ * not used by anything anymore
 static inline void set_blocking(cs_sock_t fd)
 {
 	u_long iOpts = 0;
 	ioctlsocket( fd, FIONBIO, &iOpts );
 }
+*/
 
 static inline void set_close_on_exec(cs_sock_t fd)
 {
@@ -135,6 +138,8 @@ static inline void set_non_blocking(cs_sock_t fd)
 	fcntl( fd, F_SETFL, fdflags|O_NONBLOCK );
 }
 
+/*
+ * not used by anything anymore
 static inline void set_blocking(cs_sock_t fd)
 {
 	int fdflags = fcntl(fd, F_GETFL, 0);
@@ -143,6 +148,7 @@ static inline void set_blocking(cs_sock_t fd)
 	fdflags &= ~O_NONBLOCK;
 	fcntl( fd, F_SETFL, fdflags );
 }
+*/
 
 static inline void set_close_on_exec(cs_sock_t fd)
 {
