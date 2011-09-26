@@ -18,7 +18,9 @@ endif
 
 all: $(OBJS) $(LOCALOBJS) $(TARGETS)
 
-depend:
+depend: .depend
+
+.depend:
 	g++ -MM $(CXXFLAGS) $(SRCS) $(INCLUDES) | sed -e 's/^\([^[:space:]]\)/.objs\/\1/' -e 's/^.objs\/#.*//' >.depend
 
 .objs/%.o: %.cc
@@ -37,6 +39,6 @@ test: $(TESTBINS)
 	done
 
 clean:
-	rm -rf .objs core.* core $(TARGETS) *.out *.err
+	rm -rf .objs core.* core $(TARGETS) *.out *.err .depend
 
 -include .depend
