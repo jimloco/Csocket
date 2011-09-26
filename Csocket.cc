@@ -41,6 +41,20 @@
 #include <openssl/engine.h>
 #endif /* HAVE_LIBSSL */
 
+/***
+ * doing this because there seems to be a bug that is losing the "short" on htons when in optimize mode turns into a macro
+ * gcc 4.3.4
+ */
+#ifdef __OPTIMIZE__
+#ifdef htons
+#undef htons
+#endif /* htons */
+#ifdef ntohs
+#undef ntohs
+#endif /* ntohs */
+#endif /* __OPTIMIZE__ */
+
+
 #include <list>
 
 #define CS_SRANDBUFFER 128
@@ -158,6 +172,35 @@ static inline void set_close_on_exec(cs_sock_t fd)
 	fcntl( fd, F_SETFD, fdflags|FD_CLOEXEC);
 }
 #endif /* _WIN32 */
+
+void CSSockAddr::SinFamily()
+{
+#ifdef HAVE_IPV6
+	m_saddr6.sin6_family = PF_INET6;
+#endif /* HAVE_IPV6 */
+	m_saddr.sin_family = PF_INET;
+}
+void CSSockAddr::SinPort( u_short iPort )
+{
+#ifdef HAVE_IPV6
+	m_saddr6.sin6_port = htons( iPort );
+#endif /* HAVE_IPV6 */
+	m_saddr.sin_port = htons( iPort );
+}
+
+void CSSockAddr::SetIPv6( bool b )
+{
+#ifndef HAVE_IPV6
+	if( b )
+	{
+		CS_DEBUG( "-DHAVE_IPV6 must be set during compile time to enable this feature" );
+		m_bIsIPv6 = false;
+		return;
+	}
+#endif /* HAVE_IPV6 */
+	m_bIsIPv6 = b;
+	SinFamily();
+}
 
 #ifdef HAVE_LIBSSL
 Csock *GetCsockFromCTX( X509_STORE_CTX *pCTX )

@@ -185,34 +185,9 @@ public:
 		RAF_INET	= AF_INET
 	};
 
-	void SinFamily()
-	{
-#ifdef HAVE_IPV6
-		m_saddr6.sin6_family = PF_INET6;
-#endif /* HAVE_IPV6 */
-		m_saddr.sin_family = PF_INET;
-	}
-	void SinPort( u_short iPort )
-	{
-#ifdef HAVE_IPV6
-		m_saddr6.sin6_port = htons( iPort );
-#endif /* HAVE_IPV6 */
-		m_saddr.sin_port = htons( iPort );
-	}
-
-	void SetIPv6( bool b )
-	{
-#ifndef HAVE_IPV6
-		if( b )
-		{
-			CS_DEBUG( "-DHAVE_IPV6 must be set during compile time to enable this feature" );
-			m_bIsIPv6 = false;
-			return;
-		}
-#endif /* HAVE_IPV6 */
-		m_bIsIPv6 = b;
-		SinFamily();
-	}
+	void SinFamily();
+	void SinPort( u_short iPort );
+	void SetIPv6( bool b );
 	bool GetIPv6() const { return( m_bIsIPv6 ); }
 
 
