@@ -45,7 +45,7 @@ namespace Csocket
  * http://curl.haxx.se/libcurl/c/libcurl-multi.html
  * This isn't finished, but this is my basic approach. I added a means to which Csocket can
  * monitor file descriptors it doesn't directly control. This class hooks into that by virtue
- * of a callback "GatherFDsForSelect" and ties that libcurl-multi. When Csocket looks for fd's to 
+ * of a callback "GatherFDsForSelect" and ties that libcurl-multi. When Csocket looks for fd's to
  * monitor, this class calls "curl_multi_socket_action" which does a couple things ...
  * - 1. Calls our CURL callback CCurlSock::SetupSock to let us know the FD's and what they should be monitored for
  * - 2. Calls our CURL callback CCurlSock::SetupTimer which lets us know the maxium wait time for activity
@@ -56,7 +56,7 @@ namespace Csocket
 class CCurlSock : public CSMonitorFD
 {
 public:
-	CCurlSock(); 
+	CCurlSock();
 	virtual ~CCurlSock();
 
 	//! the hook we tie into to get events from csocket
