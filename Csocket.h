@@ -576,13 +576,11 @@ public:
 	Csock & operator<<( double i );
 
 	/**
-	* Create the connection
+	* Create the connection, this is used by the socket manager, and shouldn't be called directly by the user
 	*
-	* @param sBindHost the ip you want to bind to locally
-	* @param bSkipSetup if true, setting up the vhost etc is skipped
 	* @return true on success
 	*/
-	virtual bool Connect( const CS_STRING & sBindHost = "", bool bSkipSetup = false );
+	virtual bool Connect();
 
 	/**
 	* Listens for connections
@@ -607,12 +605,11 @@ public:
 	virtual bool SSLServerSetup();
 
 	/**
-	* Create the SSL connection
+	* Create the SSL connection, this is used by the socket manager, and shouldn't be called directly by the user
 	*
-	* @param sBindhost the ip you want to bind to locally
 	* @return true on success
 	*/
-	virtual bool ConnectSSL( const CS_STRING & sBindhost = "" );
+	virtual bool ConnectSSL();
 
 
 	/**
@@ -1326,9 +1323,8 @@ public:
 	*
 	* @param cCon the connection which should be established
 	* @param pcSock the socket used for the connectiong, can be NULL
-	* @return true on success
 	*/
-	bool Connect( const CSConnection & cCon, Csock * pcSock = NULL );
+	void Connect( const CSConnection & cCon, Csock * pcSock = NULL );
 
 	virtual bool Listen( const CSListener & cListen, Csock * pcSock = NULL, u_short *piRandPort = NULL );
 

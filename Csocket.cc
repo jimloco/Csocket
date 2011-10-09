@@ -415,7 +415,7 @@ int GetAddrInfo( const CS_STRING & sHostname, Csock *pSock, CSSockAddr & csSockA
 
 			if( bTryConnect && it != lpTryAddrs.end() )
 			{ // save the last attempt for the outer loop, the issue then becomes that the error is thrown on the last failure
-				if( pSock->CreateSocksFD() && pSock->Connect( pSock->GetBindHost(), true ) )
+				if( pSock->CreateSocksFD() && pSock->Connect() )
 				{
 					pSock->SetSkipConnect( true ); // this tells the socket that the connection state has been started
 					bFound = true;
@@ -1004,7 +1004,7 @@ Csock & Csock::operator<<( double i )
 	return( *this );
 }
 
-bool Csock::Connect( const CS_STRING & sBindHost, bool bSkipSetup )
+bool Csock::Connect()
 {
 	if( m_bSkipConnect )
 	{ // this was already called, so skipping now. this is to allow easy pass through
@@ -1013,45 +1013,6 @@ bool Csock::Connect( const CS_STRING & sBindHost, bool bSkipSetup )
 			m_eConState = ( GetSSL() ? CST_CONNECTSSL : CST_OK );
 		}
 		return( true );
-	}
-	// bind to a hostname if requested
-	m_sBindHost = sBindHost;
-	if ( !bSkipSetup )
-	{
-		if ( !sBindHost.empty() )
-		{
-			// try to bind 3 times, otherwise exit failure
-			bool bBound = false;
-			for( int a = 0; a < 3 && !bBound; a++ )
-			{
-				if ( SetupVHost() )
-					bBound = true;
-#ifdef _WIN32
-				Sleep( 5000 );
-#else
-				usleep( 5000 );	// quick pause, common lets BIND!)(!*!
-#endif /* _WIN32 */
-			}
-
-			if ( !bBound )
-			{
-				CS_DEBUG( "Failure to bind to " << sBindHost );
-				return( false );
-			}
-		}
-
-		int iDNSRet = ETIMEDOUT;
-		while( true )
-		{
-			iDNSRet = DNSLookup( DNS_VHOST );
-			if ( iDNSRet == EAGAIN )
-				continue;
-
-			break;
-		}
-		if ( iDNSRet != 0 )
-			return( false );
-
 	}
 
 	// set it none blocking
@@ -1456,15 +1417,13 @@ bool Csock::SSLServerSetup()
 #endif /* HAVE_LIBSSL */
 }
 
-bool Csock::ConnectSSL( const CS_STRING & sBindhost )
+bool Csock::ConnectSSL()
 {
 #ifdef HAVE_LIBSSL
-	if ( m_iReadSock == CS_INVALID_SOCK )
-		if ( !Connect( sBindhost ) )
-			return( false );
-	if ( !m_ssl )
-		if ( !SSLClientSetup() )
-			return( false );
+	if( m_iReadSock == CS_INVALID_SOCK )
+		return( false ); // this should be long passed at this point
+	if( !m_ssl && !SSLClientSetup() )
+		return( false );
 
 	bool bPass = true;
 
@@ -2117,9 +2076,9 @@ bool Csock::ConnectFD( int iReadFD, int iWriteFD, const CS_STRING & sName, bool 
 
 	if ( bIsSSL )
 	{
-		if ( ( eDirection == INBOUND ) && ( !AcceptSSL() ) )
+		if( eDirection == INBOUND && !AcceptSSL() )
 			return( false );
-		else if ( ( eDirection == OUTBOUND ) && ( !ConnectSSL() ) )
+		else if( eDirection == OUTBOUND && !ConnectSSL() )
 			return( false );
 	}
 
@@ -2308,7 +2267,7 @@ int Csock::GetAddrInfo( const CS_STRING & sHostname, CSSockAddr & csSockAddr )
 			if( m_iARESStatus == ARES_SUCCESS && csSockAddr.GetAFRequire() == CSSockAddr::RAF_ANY && GetIPv6() )
 			{
 				// this means that ares_host returned an ipv6 host, so try a connect right away
-				if( CreateSocksFD() && Connect( GetBindHost(), true ) )
+				if( CreateSocksFD() && Connect() )
 				{
 					SetSkipConnect( true );
 				}
@@ -2563,7 +2522,7 @@ Csock * CSocketManager::GetSockObj( const CS_STRING & sHostname, u_short uPort, 
 	return( new Csock( sHostname, uPort, iTimeout ) );
 }
 
-bool CSocketManager::Connect( const CSConnection & cCon, Csock * pcSock )
+void CSocketManager::Connect( const CSConnection & cCon, Csock * pcSock )
 {
 	// create the new object
 	if ( !pcSock )
@@ -2599,7 +2558,6 @@ bool CSocketManager::Connect( const CSConnection & cCon, Csock * pcSock )
 
 	pcSock->SetConState( Csock::CST_START );
 	AddSock( pcSock, cCon.GetSockName() );
-	return( true );
 }
 
 bool CSocketManager::Listen( const CSListener & cListen, Csock * pcSock, u_short *piRandPort )
@@ -2705,7 +2663,7 @@ void CSocketManager::Loop()
 		}
 		if ( pcSock->GetConState() == Csock::CST_CONNECT )
 		{
-			if ( !pcSock->Connect( pcSock->GetBindHost(), true ) )
+			if ( !pcSock->Connect() )
 			{
 				if ( GetSockError() == ECONNREFUSED )
 					pcSock->ConnectionRefused();

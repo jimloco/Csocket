@@ -74,7 +74,8 @@ int main( int argc, char **argv )
 			Csock * pSock = new Csock;
 			CSConnection csConn( bTestIPv6 ? "::1" : "127.0.0.1", uPort );
 			csConn.SetIsSSL( bTestSSL );
-			assert( cSockManager.Connect( csConn, pSock ) );
+			csConn.SetBindHost( bTestIPv6 ? "::1" : "127.0.0.1" );
+			cSockManager.Connect( csConn, pSock );
 			pSock->Write( sBuffer );
 			pSock->Close( Csock::CLT_AFTERWRITE );
 			while( cSockManager.HasFDs() )
