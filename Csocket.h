@@ -489,15 +489,15 @@ class Csock : public CSockCommon
 {
 public:
 	//! default constructor, sets a timeout of 60 seconds
-	Csock( int itimeout = 60 );
+	Csock( int iTimeout = 60 );
 	/**
 	* Advanced constructor, for creating a simple connection
 	*
 	* @param sHostname the hostname your are connecting to
 	* @param uPort the port you are connectint to
-	* @param itimeout how long to wait before ditching the connection, default is 60 seconds
+	* @param iTimeout how long to wait before ditching the connection, default is 60 seconds
 	*/
-	Csock( const CS_STRING & sHostname, u_short uPort, int itimeout = 60 );
+	Csock( const CS_STRING & sHostname, u_short uPort, int iTimeout = 60 );
 
 	//! override this for accept sockets
 	virtual Csock *GetSockObj( const CS_STRING & sHostname, u_short iPort );
@@ -954,16 +954,16 @@ public:
 	{
 		if( iNow == 0 )
 			iNow = time( NULL );
-		time_t itimeout = m_itimeout;
+		time_t iTimeout = m_iTimeout;
 		time_t iDiff = iNow - m_iLastCheckTimeoutTime;
 		/* CheckTimeout() wants to be called after half the timeout */
 		if( m_iTcount == 0 )
-			itimeout /= 2;
-		if( iDiff > itimeout )
-			itimeout = 0;
+			iTimeout /= 2;
+		if( iDiff > iTimeout )
+			iTimeout = 0;
 		else
-			itimeout -= iDiff;
-		return( iNow + itimeout );
+			iTimeout -= iDiff;
+		return( iNow + iTimeout );
 	}
 
 	//! return the data imediatly ready for read
@@ -1054,7 +1054,7 @@ private:
 	// NOTE! if you add any new members, be sure to add them to Copy()
 	u_short		m_uPort, m_iRemotePort, m_iLocalPort;
 	cs_sock_t	m_iReadSock, m_iWriteSock;
-	int m_itimeout, m_iConnType, m_iMethod, m_iTcount;
+	int m_iTimeout, m_iConnType, m_iMethod, m_iTcount;
 	bool		m_bssl, m_bIsConnected, m_bBLOCK;
 	bool		m_bsslEstablished, m_bEnableReadLine, m_bPauseRead;
 	CS_STRING	m_shostname, m_sbuffer, m_sSockName, m_sPemFile, m_sCipherType, m_sParentName;
@@ -1085,7 +1085,7 @@ private:
 
 	//! Create the socket
 	cs_sock_t CreateSocket( bool bListen = false );
-	void Init( const CS_STRING & sHostname, u_short uPort, int itimeout = 60 );
+	void Init( const CS_STRING & sHostname, u_short uPort, int iTimeout = 60 );
 
 
 	// Connection State Info

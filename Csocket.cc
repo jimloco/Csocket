@@ -792,20 +792,20 @@ void CSockCommon::DelCronByAddr( CCron *pcCron )
 	}
 }
 
-Csock::Csock( int itimeout ) : CSockCommon()
+Csock::Csock( int iTimeout ) : CSockCommon()
 {
 #ifdef HAVE_LIBSSL
 	m_pCerVerifyCB = NULL;
 #endif /* HAVE_LIBSSL */
-	Init( "", 0, itimeout );
+	Init( "", 0, iTimeout );
 }
 
-Csock::Csock( const CS_STRING & sHostname, u_short iport, int itimeout ) : CSockCommon()
+Csock::Csock( const CS_STRING & sHostname, u_short iport, int iTimeout ) : CSockCommon()
 {
 #ifdef HAVE_LIBSSL
 	m_pCerVerifyCB = NULL;
 #endif /* HAVE_LIBSSL */
-	Init( sHostname, iport, itimeout );
+	Init( sHostname, iport, iTimeout );
 }
 
 // override this for accept sockets
@@ -877,7 +877,7 @@ void Csock::Copy( const Csock & cCopy )
 	m_iLocalPort	= cCopy.m_iLocalPort;
 	m_iReadSock		= cCopy.m_iReadSock;
 	m_iWriteSock	= cCopy.m_iWriteSock;
-	m_itimeout		= cCopy.m_itimeout;
+	m_iTimeout		= cCopy.m_iTimeout;
 	m_iConnType		= cCopy.m_iConnType;
 	m_iMethod		= cCopy.m_iMethod;
 	m_bssl			= cCopy.m_bssl;
@@ -1050,7 +1050,7 @@ bool Csock::Connect()
 bool Csock::Listen( u_short iPort, int iMaxConns, const CS_STRING & sBindHost, u_int iTimeout )
 {
 	m_iConnType = LISTENER;
-	m_itimeout = iTimeout;
+	m_iTimeout = iTimeout;
 
 	m_sBindHost = sBindHost;
 	if ( !sBindHost.empty() )
@@ -1792,11 +1792,11 @@ void Csock::UnPauseRead()
 void Csock::SetTimeout( int iTimeout, u_int iTimeoutType )
 {
 	m_iTimeoutType = iTimeoutType;
-	m_itimeout = iTimeout;
+	m_iTimeout = iTimeout;
 }
 
 void Csock::SetTimeoutType( u_int iTimeoutType ) { m_iTimeoutType = iTimeoutType; }
-int Csock::GetTimeout() const { return m_itimeout; }
+int Csock::GetTimeout() const { return m_iTimeout; }
 u_int Csock::GetTimeoutType() const { return( m_iTimeoutType ); }
 
 bool Csock::CheckTimeout( time_t iNow )
@@ -1821,11 +1821,11 @@ bool Csock::CheckTimeout( time_t iNow )
 		m_iLastCheckTimeoutTime = iNow;
 	}
 
-	if ( m_itimeout > 0 )
+	if ( m_iTimeout > 0 )
 	{
 		// this is basically to help stop a clock adjust ahead, stuff could reset immediatly on a clock jump
 		// otherwise
-		time_t iRealTimeout = m_itimeout;
+		time_t iRealTimeout = m_iTimeout;
 		if( iRealTimeout <= 1 )
 			m_iTcount++;
 		else if( m_iTcount == 0 )
@@ -2452,7 +2452,7 @@ cs_sock_t Csock::CreateSocket( bool bListen )
 	return( iRet );
 }
 
-void Csock::Init( const CS_STRING & sHostname, u_short uPort, int itimeout )
+void Csock::Init( const CS_STRING & sHostname, u_short uPort, int iTimeout )
 {
 #ifdef HAVE_LIBSSL
 	m_ssl = NULL;
@@ -2462,7 +2462,7 @@ void Csock::Init( const CS_STRING & sHostname, u_short uPort, int itimeout )
 	m_iTcount = 0;
 	m_iReadSock = CS_INVALID_SOCK;
 	m_iWriteSock = CS_INVALID_SOCK;
-	m_itimeout = itimeout;
+	m_iTimeout = iTimeout;
 	m_bssl = false;
 	m_bIsConnected = false;
 	m_uPort = uPort;
