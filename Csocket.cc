@@ -1417,6 +1417,16 @@ bool Csock::SSLServerSetup()
 #endif /* HAVE_LIBSSL */
 }
 
+bool Csock::StartTLS()
+{
+	if( m_iConnType == INBOUND )
+		return( AcceptSSL() );
+	if( m_iConnType == OUTBOUND )
+		return( ConnectSSL() );
+	CS_DEBUG( "Invalid connection type with StartTLS" );
+	return( false );
+}
+
 bool Csock::ConnectSSL()
 {
 #ifdef HAVE_LIBSSL

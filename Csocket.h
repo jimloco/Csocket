@@ -611,6 +611,8 @@ public:
 	*/
 	virtual bool ConnectSSL();
 
+	//! start a TLS connection on an existing plain connection
+	bool StartTLS();
 
 	/**
 	* Write data to the socket
