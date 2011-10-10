@@ -2197,6 +2197,29 @@ void Csock::ReachedMaxBuffer()
 	std::cerr << "If you don't care, then set SetMaxBufferThreshold to 0" << endl;
 }
 
+time_t Csock::GetTimeSinceLastDataTransaction( time_t iNow )
+{
+	if( m_iLastCheckTimeoutTime == 0 )
+		return( 0 );
+	return( ( iNow > 0 ? iNow : time( NULL ) ) - m_iLastCheckTimeoutTime );
+}
+
+time_t Csock::GetNextCheckTimeout( time_t iNow ) 
+{
+	if( iNow == 0 )
+		iNow = time( NULL );
+	time_t iTimeout = m_iTimeout;
+	time_t iDiff = iNow - m_iLastCheckTimeoutTime;
+	/* CheckTimeout() wants to be called after half the timeout */
+	if( m_iTcount == 0 )
+		iTimeout /= 2;
+	if( iDiff > iTimeout )
+		iTimeout = 0;
+	else
+		iTimeout -= iDiff;
+	return( iNow + iTimeout );
+}
+
 int Csock::GetPending()
 {
 #ifdef HAVE_LIBSSL
@@ -2224,6 +2247,21 @@ int Csock::GetPending()
 #else
 	return( 0 );
 #endif /* HAVE_LIBSSL */
+}
+
+bool Csock::CreateSocksFD()
+{
+	if( m_iReadSock != CS_INVALID_SOCK )
+		return( true );
+
+	m_iReadSock = m_iWriteSock = CreateSocket();
+	if ( m_iReadSock == CS_INVALID_SOCK )
+		return( false );
+
+	m_address.SinFamily();
+	m_address.SinPort( m_uPort );
+
+	return( true );
 }
 
 int Csock::GetAddrInfo( const CS_STRING & sHostname, CSSockAddr & csSockAddr )

@@ -941,30 +941,12 @@ public:
 
 
 	//! return how long it has been (in seconds) since the last read or successful write
-	time_t GetTimeSinceLastDataTransaction( time_t iNow = 0 )
-	{
-		if( m_iLastCheckTimeoutTime == 0 )
-			return( 0 );
-		return( ( iNow > 0 ? iNow : time( NULL ) ) - m_iLastCheckTimeoutTime );
-	}
+	time_t GetTimeSinceLastDataTransaction( time_t iNow = 0 );
+
 	time_t GetLastCheckTimeout() { return( m_iLastCheckTimeoutTime ); }
 
 	//! Returns the time when CheckTimeout() should be called next
-	time_t GetNextCheckTimeout( time_t iNow = 0 ) 
-	{
-		if( iNow == 0 )
-			iNow = time( NULL );
-		time_t iTimeout = m_iTimeout;
-		time_t iDiff = iNow - m_iLastCheckTimeoutTime;
-		/* CheckTimeout() wants to be called after half the timeout */
-		if( m_iTcount == 0 )
-			iTimeout /= 2;
-		if( iDiff > iTimeout )
-			iTimeout = 0;
-		else
-			iTimeout -= iDiff;
-		return( iNow + iTimeout );
-	}
+	time_t GetNextCheckTimeout( time_t iNow = 0 );
 
 	//! return the data imediatly ready for read
 	virtual int GetPending();
@@ -977,20 +959,7 @@ public:
 	void SetConState( ECONState eState ) { m_eConState = eState; }
 
 	//! grabs fd's for the sockets
-	bool CreateSocksFD()
-	{
-		if( m_iReadSock != CS_INVALID_SOCK )
-			return( true );
-
-		m_iReadSock = m_iWriteSock = CreateSocket();
-		if ( m_iReadSock == CS_INVALID_SOCK )
-			return( false );
-
-		m_address.SinFamily();
-		m_address.SinPort( m_uPort );
-
-		return( true );
-	}
+	bool CreateSocksFD();
 
 	//! puts the socks back to the state they were prior to calling CreateSocksFD
 	void CloseSocksFD();
