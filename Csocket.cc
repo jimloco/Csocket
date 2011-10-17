@@ -2144,7 +2144,7 @@ CS_STRING Csock::GetPeerPubKey()
 	}
 	return( sKey );
 }
-int Csock::GetPeerFingerprint( CS_STRING & sFP )
+long Csock::GetPeerFingerprint( CS_STRING & sFP )
 {
 	sFP.clear();
 
