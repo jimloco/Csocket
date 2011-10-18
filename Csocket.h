@@ -817,7 +817,7 @@ public:
 	//! Returns the peer's public key
 	CS_STRING GetPeerPubKey();
 	//! Returns the peer's certificate finger print
-	int GetPeerFingerprint( CS_STRING & sFP);
+	long GetPeerFingerprint( CS_STRING & sFP);
 
 	unsigned int GetRequireClientCertFlags();
 	//! legacy, deprecated @see SetRequireClientCertFlags

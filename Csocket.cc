@@ -1277,7 +1277,6 @@ bool Csock::SSLClientSetup()
 bool Csock::SSLServerSetup()
 {
 #ifdef HAVE_LIBSSL
-	m_bssl = true;
 	FREE_SSL();
 	FREE_CTX();
 
@@ -1411,6 +1410,7 @@ bool Csock::SSLServerSetup()
 	}
 
 	SSLFinishSetup( m_ssl );
+	m_bssl = true;
 	return( true );
 #else
 	return( false );
@@ -2144,7 +2144,7 @@ CS_STRING Csock::GetPeerPubKey()
 	}
 	return( sKey );
 }
-int Csock::GetPeerFingerprint( CS_STRING & sFP )
+long Csock::GetPeerFingerprint( CS_STRING & sFP )
 {
 	sFP.clear();
 
