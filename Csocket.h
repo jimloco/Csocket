@@ -768,7 +768,7 @@ public:
 	//! Use this to change your fd's to blocking or none blocking
 	void NonBlockingIO();
 
-	//! if this connection type is ssl or not
+	//! Return true if this socket is using ssl. Note this does not mean the SSL state is finished, but simply that its configured to use ssl
 	bool GetSSL();
 	void SetSSL( bool b );
 
@@ -812,12 +812,12 @@ public:
 
 	//! Get the peer's X509 cert
 #ifdef HAVE_LIBSSL
-	X509 *getX509();
+	X509 *GetX509();
 
 	//! Returns the peer's public key
 	CS_STRING GetPeerPubKey();
 	//! Returns the peer's certificate finger print
-	int GetPeerFingerprint( CS_STRING & sFP);
+	long GetPeerFingerprint( CS_STRING & sFP);
 
 	unsigned int GetRequireClientCertFlags();
 	//! legacy, deprecated @see SetRequireClientCertFlags
@@ -1018,13 +1018,13 @@ public:
 
 private:
 	//! making private for safety
-	Csock( const Csock & cCopy ) {}
+	Csock( const Csock & cCopy ) : CSockCommon() {}
 
 	// NOTE! if you add any new members, be sure to add them to Copy()
 	u_short		m_uPort, m_iRemotePort, m_iLocalPort;
 	cs_sock_t	m_iReadSock, m_iWriteSock;
 	int m_iTimeout, m_iConnType, m_iMethod, m_iTcount;
-	bool		m_bssl, m_bIsConnected, m_bBLOCK;
+	bool		m_bUseSSL, m_bIsConnected, m_bBLOCK;
 	bool		m_bsslEstablished, m_bEnableReadLine, m_bPauseRead;
 	CS_STRING	m_shostname, m_sbuffer, m_sSockName, m_sPemFile, m_sCipherType, m_sParentName;
 	CS_STRING	m_sSend, m_sPemPass, m_sLocalIP, m_sRemoteIP;

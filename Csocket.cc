@@ -880,7 +880,7 @@ void Csock::Copy( const Csock & cCopy )
 	m_iTimeout		= cCopy.m_iTimeout;
 	m_iConnType		= cCopy.m_iConnType;
 	m_iMethod		= cCopy.m_iMethod;
-	m_bssl			= cCopy.m_bssl;
+	m_bUseSSL			= cCopy.m_bUseSSL;
 	m_bIsConnected	= cCopy.m_bIsConnected;
 	m_bsslEstablished	= cCopy.m_bsslEstablished;
 	m_bEnableReadLine	= cCopy.m_bEnableReadLine;
@@ -1181,7 +1181,7 @@ bool Csock::AcceptSSL()
 bool Csock::SSLClientSetup()
 {
 #ifdef HAVE_LIBSSL
-	m_bssl = true;
+	m_bUseSSL = true;
 	FREE_SSL();
 	FREE_CTX();
 
@@ -1257,7 +1257,7 @@ bool Csock::SSLClientSetup()
 		}
 	}
 
-	m_ssl = SSL_new ( m_ssl_ctx );
+	m_ssl = SSL_new( m_ssl_ctx );
 	if ( !m_ssl )
 		return( false );
 
@@ -1277,7 +1277,7 @@ bool Csock::SSLClientSetup()
 bool Csock::SSLServerSetup()
 {
 #ifdef HAVE_LIBSSL
-	m_bssl = true;
+	m_bUseSSL = true;
 	FREE_SSL();
 	FREE_CTX();
 
@@ -1494,7 +1494,7 @@ bool Csock::Write( const char *data, size_t len )
 	u_long iBytesToSend = 0;
 
 #ifdef HAVE_LIBSSL
-	if( m_bssl && m_sSSLBuffer.empty() && !m_bsslEstablished )
+	if( m_bUseSSL && m_sSSLBuffer.empty() && !m_bsslEstablished )
 	{
 		// to keep openssl from spinning, just initiate the connection with 1 byte so the connection establishes faster
 		iBytesToSend = 1;
@@ -1530,8 +1530,13 @@ bool Csock::Write( const char *data, size_t len )
 		iBytesToSend = m_sSend.length();
 
 #ifdef HAVE_LIBSSL
-	if ( m_bssl )
+	if ( m_bUseSSL )
 	{
+		if( !m_ssl )
+		{
+			CS_DEBUG( "SSL object is NULL but m_bUseSSL is true" );
+			return( false );
+		}
 
 		if ( m_sSSLBuffer.empty() ) // on retrying to write data, ssl wants the data in the SAME spot and the SAME size
 			m_sSSLBuffer.append( m_sSend.data(), iBytesToSend );
@@ -1633,8 +1638,14 @@ cs_ssize_t Csock::Read( char *data, size_t len )
 		return( READ_EAGAIN ); // allow the handshake to complete first
 
 #ifdef HAVE_LIBSSL
-	if ( m_bssl )
+	if( m_bUseSSL )
 	{
+		if( !m_ssl )
+		{
+			CS_DEBUG( "SSL object is NULL but m_bUseSSL is true" );
+			return( READ_ERR );
+		}
+
 		bytes = SSL_read( m_ssl, data, (int)len );
 		if( bytes >= 0 )
 			m_bsslEstablished = true; // this means all is good in the realm of ssl
@@ -1663,7 +1674,7 @@ cs_ssize_t Csock::Read( char *data, size_t len )
 #endif /* _WIN32 */
 
 #ifdef HAVE_LIBSSL
-		if ( m_bssl )
+		if ( m_ssl )
 		{
 			int iErr = SSL_get_error( m_ssl, (int)bytes );
 			if ( ( iErr != SSL_ERROR_WANT_READ ) && ( iErr != SSL_ERROR_WANT_WRITE ) )
@@ -1988,8 +1999,8 @@ void Csock::NonBlockingIO()
 	}
 }
 
-bool Csock::GetSSL() { return( m_bssl ); }
-void Csock::SetSSL( bool b ) { m_bssl = b; }
+bool Csock::GetSSL() { return( m_bUseSSL ); }
+void Csock::SetSSL( bool b ) { m_bUseSSL = b; }
 
 #ifdef HAVE_LIBSSL
 void Csock::SetCipher( const CS_STRING & sCipher ) { m_sCipherType = sCipher; }
@@ -2096,7 +2107,7 @@ bool Csock::ConnectFD( int iReadFD, int iWriteFD, const CS_STRING & sName, bool 
 }
 
 #ifdef HAVE_LIBSSL
-X509 *Csock::getX509()
+X509 *Csock::GetX509()
 {
 	if ( m_ssl )
 		return( SSL_get_peer_certificate( m_ssl ) );
@@ -2144,14 +2155,14 @@ CS_STRING Csock::GetPeerPubKey()
 	}
 	return( sKey );
 }
-int Csock::GetPeerFingerprint( CS_STRING & sFP )
+long Csock::GetPeerFingerprint( CS_STRING & sFP )
 {
 	sFP.clear();
 
-	if ( !GetSSL() )
-		return 0;
+	if ( !m_ssl )
+		return( 0 );
 
-	X509* pCert = getX509();
+	X509* pCert = GetX509();
 
 	// Inspired by charybdis
 	if ( pCert )
@@ -2165,7 +2176,7 @@ int Csock::GetPeerFingerprint( CS_STRING & sFP )
 		X509_free(pCert);
 	}
 
-	return SSL_get_verify_result(m_ssl);
+	return( SSL_get_verify_result( m_ssl ) );
 }
 unsigned int Csock::GetRequireClientCertFlags() { return( m_iRequireClientCertFlags ); }
 void Csock::SetRequiresClientCert( bool bRequiresCert ) { m_iRequireClientCertFlags = ( bRequiresCert ? SSL_VERIFY_FAIL_IF_NO_PEER_CERT|SSL_VERIFY_PEER : 0 ); }
@@ -2501,7 +2512,7 @@ void Csock::Init( const CS_STRING & sHostname, u_short uPort, int iTimeout )
 	m_iReadSock = CS_INVALID_SOCK;
 	m_iWriteSock = CS_INVALID_SOCK;
 	m_iTimeout = iTimeout;
-	m_bssl = false;
+	m_bUseSSL = false;
 	m_bIsConnected = false;
 	m_uPort = uPort;
 	m_shostname = sHostname;
