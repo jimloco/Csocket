@@ -822,6 +822,12 @@ Csock *Csock::GetSockObj( const CS_STRING & sHostname, u_short iPort )
 
 Csock::~Csock()
 {
+#ifdef _WIN32
+	// prevent successful closesocket() calls and such from
+	// overwriting any possible previous errors.
+	int iOldError = ::WSAGetLastError();
+#endif /* _WIN32 */
+
 #ifdef HAVE_C_ARES
 	if( m_pARESChannel )
 		ares_cancel( m_pARESChannel );
@@ -835,6 +841,9 @@ Csock::~Csock()
 
 	CloseSocksFD();
 
+#ifdef _WIN32
+	::WSASetLastError(iOldError);
+#endif /* _WIN32 */
 }
 
 void Csock::CloseSocksFD()
