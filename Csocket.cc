@@ -524,20 +524,6 @@ bool InitSSL( ECompType eCompressionType )
 	return( true );
 }
 
-void CSAdjustTVTimeout( struct timeval & tv, long iTimeoutMS )
-{
-	if( iTimeoutMS >= 0 )
-	{
-		long iCurTimeout = tv.tv_usec / 1000;
-		iCurTimeout += tv.tv_sec * 1000;
-		if( iCurTimeout > iTimeoutMS )
-		{
-			tv.tv_sec = iTimeoutMS / 1000;
-			tv.tv_usec = iTimeoutMS % 1000;
-		}
-	}
-}
-
 void SSLErrors( const char *filename, u_int iLineNum )
 {
 	unsigned long iSSLError = 0;
@@ -552,6 +538,20 @@ void SSLErrors( const char *filename, u_int iLineNum )
 	}
 }
 #endif /* HAVE_LIBSSL */
+
+static void CSAdjustTVTimeout( struct timeval & tv, long iTimeoutMS )
+{
+	if( iTimeoutMS >= 0 )
+	{
+		long iCurTimeout = tv.tv_usec / 1000;
+		iCurTimeout += tv.tv_sec * 1000;
+		if( iCurTimeout > iTimeoutMS )
+		{
+			tv.tv_sec = iTimeoutMS / 1000;
+			tv.tv_usec = iTimeoutMS % 1000;
+		}
+	}
+}
 
 void __Perror( const CS_STRING & s, const char *pszFile, unsigned int iLineNo )
 {
