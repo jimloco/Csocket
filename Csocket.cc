@@ -1030,6 +1030,7 @@ bool Csock::Connect()
 	if( !GetIPv6() )
 		set_non_blocking( m_iReadSock );
 	// non-blocking sockets on Win32 do *not* return ENETUNREACH/EHOSTUNREACH if there's no IPv6 gateway.
+	// we need those error codes for the v4 fallback in GetAddrInfo!
 #endif  /* _WIN32 */
 
 	m_iConnType = OUTBOUND;
