@@ -1024,8 +1024,14 @@ bool Csock::Connect()
 		return( true );
 	}
 
-	// set it none blocking
+#ifndef _WIN32
 	set_non_blocking( m_iReadSock );
+#else
+	if( !GetIPv6() )
+		set_non_blocking( m_iReadSock );
+	// non-blocking sockets on Win32 do *not* return ENETUNREACH/EHOSTUNREACH if there's no IPv6 gateway.
+	// we need those error codes for the v4 fallback in GetAddrInfo!
+#endif  /* _WIN32 */
 
 	m_iConnType = OUTBOUND;
 
@@ -1046,6 +1052,12 @@ bool Csock::Connect()
 		CS_DEBUG( "Connect Failed. ERRNO [" << GetSockError() << "] FD [" << m_iReadSock << "]" );
 		return( false );
 	}
+
+#ifdef _WIN32
+	// do what we didn't do above since connect() is now over!
+	if( GetIPv6() )
+		set_non_blocking( m_iReadSock );
+#endif /* _WIN32 */
 
 	if ( m_eConState != CST_OK )
 	{
@@ -2348,7 +2360,11 @@ int Csock::GetAddrInfo( const CS_STRING & sHostname, CSSockAddr & csSockAddr )
 				{
 					SetSkipConnect( true );
 				}
+#ifndef _WIN32
 				else if( GetSockError() == ENETUNREACH )
+#else
+				else if( GetSockError() == WSAENETUNREACH || GetSockError() == WSAEHOSTUNREACH )
+#endif /* !_WIN32 */
 				{
 					// the Connect() failed, so throw a retry back in with ipv4, and let it process normally
 					CS_DEBUG( "Failed ipv6 connection with PF_UNSPEC, falling back to ipv4" );
