@@ -3186,7 +3186,7 @@ void CSocketManager::Select( std::map<Csock *, EMessages> & mpeSocks )
 
 		cs_sock_t & iRSock = pcSock->GetRSock();
 		cs_sock_t & iWSock = pcSock->GetWSock();
-#ifndef CSOCK_USE_POLL
+#if !defined(CSOCK_USE_POLL) && !defined(_WIN32)
 		if( iRSock > FD_SETSIZE || iWSock > FD_SETSIZE )
 		{
 			CS_DEBUG( "FD is larger than select() can handle" );
