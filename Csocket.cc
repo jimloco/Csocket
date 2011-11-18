@@ -30,6 +30,14 @@
 *
 */
 
+/***
+ * doing this because there seems to be a bug that is losing the "short" on htons when in optimize mode turns into a macro
+ * gcc 4.3.4
+ */
+#if defined(__OPTIMIZE__) && __GNUC__ == 4 && __GNUC_MINOR__ >= 3
+#pragma GCC diagnostic warning "-Wconversion"
+#endif /* defined(__OPTIMIZE__) && __GNUC__ == 4 && __GNUC_MINOR__ >= 3 */
+
 #include "Csocket.h"
 #ifdef __NetBSD__
 #include <sys/param.h>
@@ -41,18 +49,6 @@
 #include <openssl/engine.h>
 #endif /* HAVE_LIBSSL */
 
-/***
- * doing this because there seems to be a bug that is losing the "short" on htons when in optimize mode turns into a macro
- * gcc 4.3.4
- */
-#ifdef __OPTIMIZE__
-#ifdef htons
-#undef htons
-#endif /* htons */
-#ifdef ntohs
-#undef ntohs
-#endif /* ntohs */
-#endif /* __OPTIMIZE__ */
 
 
 #include <list>
@@ -539,7 +535,7 @@ void SSLErrors( const char *filename, u_int iLineNum )
 }
 #endif /* HAVE_LIBSSL */
 
-static void CSAdjustTVTimeout( struct timeval & tv, long iTimeoutMS )
+void CSAdjustTVTimeout( struct timeval & tv, long iTimeoutMS )
 {
 	if( iTimeoutMS >= 0 )
 	{
