@@ -71,28 +71,6 @@ int GetCsockClassIdx()
 }
 
 #ifdef _WIN32
-static const char *inet_ntop(int af, const void *src, char *dst, socklen_t cnt)
-{
-	if( af == AF_INET )
-	{
-		struct sockaddr_in in;
-		memset(&in, 0, sizeof(in));
-		in.sin_family = AF_INET;
-		memcpy( &in.sin_addr, src, sizeof(struct in_addr) );
-		getnameinfo( (struct sockaddr *)&in, sizeof(struct sockaddr_in), dst, cnt, NULL, 0, NI_NUMERICHOST );
-		return dst;
-	}
-	else if( af == AF_INET6 )
-	{
-		struct sockaddr_in6 in;
-		memset( &in, 0, sizeof(in) );
-		in.sin6_family = AF_INET6;
-		memcpy( &in.sin6_addr, src, sizeof(struct in_addr6) );
-		getnameinfo( (struct sockaddr *)&in, sizeof(struct sockaddr_in6), dst, cnt, NULL, 0, NI_NUMERICHOST );
-		return dst;
-	}
-	return( NULL );
-}
 
 #if defined(_WIN32) && (!defined(_WIN32_WINNT) || (_WIN32_WINNT < 0x0600))
 //! thanks to KiNgMaR @ #znc for this wrapper
@@ -198,6 +176,7 @@ void CSSockAddr::SetIPv6( bool b )
 	SinFamily();
 }
 
+
 #ifdef HAVE_LIBSSL
 Csock *GetCsockFromCTX( X509_STORE_CTX *pCTX )
 {
@@ -210,7 +189,7 @@ Csock *GetCsockFromCTX( X509_STORE_CTX *pCTX )
 #endif /* HAVE_LIBSSL */
 
 
-#ifndef HAVE_IPV6
+#ifdef USE_GETHOSTNAME
 
 // this issue here is getaddrinfo has a significant behavior difference when dealing with round robin dns on an
 // ipv4 network. This is not desirable IMHO. so when this is compiled without ipv6 support backwards compatibility
@@ -270,7 +249,7 @@ static int __GetHostByName( const CS_STRING & sHostName, struct in_addr *paddr, 
 
 	return( iReturn == TRY_AGAIN ? EAGAIN : iReturn );
 }
-#endif /* !HAVE_IPV6 */
+#endif /* !USE_GETHOSTNAME */
 
 #ifdef HAVE_C_ARES
 void Csock::FreeAres()
@@ -322,15 +301,13 @@ static void AresHostCallback( void *pArg, int status, int timeouts, struct hoste
 
 int GetAddrInfo( const CS_STRING & sHostname, Csock *pSock, CSSockAddr & csSockAddr )
 {
-#ifndef HAVE_IPV6
-	// if ipv6 is not enabled, then simply use gethostbyname, nothing special outside of this is done
+#ifdef USE_GETHOSTBYNAME
 	if( pSock )
 		pSock->SetIPv6( false );
 	csSockAddr.SetIPv6( false );
 	if( __GetHostByName( sHostname, csSockAddr.GetAddr(), 3 ) == 0 )
 		return( 0 );
-
-#else /* HAVE_IPV6 */
+#else /* USE_GETHOSTBYNAME */
 	struct addrinfo *res = NULL;
 	struct addrinfo hints;
 	memset( (struct addrinfo *)&hints, '\0', sizeof( hints ) );
@@ -433,6 +410,20 @@ int GetAddrInfo( const CS_STRING & sHostname, Csock *pSock, CSSockAddr & csSockA
 	}
 #endif /* ! HAVE_IPV6 */
 	return( ETIMEDOUT );
+}
+
+int Csock::ConvertAddress( const struct sockaddr_storage * pAddr, socklen_t iAddrLen, CS_STRING & sIP, u_short * piPort )
+{
+	char szHostname[NI_MAXHOST];
+	char szServ[NI_MAXSERV];
+	int iRet = getnameinfo( (const struct sockaddr *)pAddr, iAddrLen, szHostname, NI_MAXHOST, szServ, NI_MAXSERV, NI_NUMERICHOST|NI_NUMERICSERV );
+	if( iRet == 0 )
+	{
+		sIP = szHostname;
+		if( piPort )
+			*piPort = (u_short)atoi( szServ );
+	}
+	return( iRet );
 }
 
 bool InitCsocket()
@@ -1132,32 +1123,13 @@ bool Csock::Listen( u_short iPort, int iMaxConns, const CS_STRING & sBindHost, u
 cs_sock_t Csock::Accept( CS_STRING & sHost, u_short & iRPort )
 {
 	cs_sock_t iSock = CS_INVALID_SOCK;
-	if( !GetIPv6() )
+	struct sockaddr_storage cAddr;
+	socklen_t iAddrLen = sizeof( cAddr );
+	iSock = accept( m_iReadSock, (struct sockaddr *)&cAddr, &iAddrLen );
+	if( iSock != CS_INVALID_SOCK && getpeername( iSock, (struct sockaddr *)&cAddr, &iAddrLen ) == 0 )
 	{
-		struct sockaddr_in client;
-		socklen_t clen = sizeof( client );
-		iSock = accept( m_iReadSock, (struct sockaddr *) &client, &clen );
-		if( iSock != CS_INVALID_SOCK )
-		{
-			getpeername( iSock, (struct sockaddr *) &client, &clen );
-			sHost = ConvertAddress( &client.sin_addr, false );
-			iRPort = ntohs( client.sin_port );
-		}
+		ConvertAddress( &cAddr, iAddrLen, sHost, &iRPort );
 	}
-#ifdef HAVE_IPV6
-	else
-	{
-		struct sockaddr_in6 client;
-		socklen_t clen = sizeof( client );
-		iSock = accept( m_iReadSock, (struct sockaddr *) &client, &clen );
-		if( iSock != CS_INVALID_SOCK )
-		{
-			getpeername( iSock, (struct sockaddr *) &client, &clen );
-			sHost = ConvertAddress( &client.sin6_addr, true );
-			iRPort = ntohs( client.sin6_port );
-		}
-	}
-#endif /* HAVE_IPV6 */
 
 	if ( iSock != CS_INVALID_SOCK )
 	{
@@ -1729,30 +1701,12 @@ CS_STRING Csock::GetLocalIP()
 	if ( iSock == CS_INVALID_SOCK )
 		return( "" );
 
-	if( !GetIPv6() )
+	struct sockaddr_storage cAddr;
+	socklen_t iAddrLen = sizeof( cAddr );
+	if( getsockname( iSock, (struct sockaddr *)&cAddr, &iAddrLen ) == 0 )
 	{
-		char straddr[INET_ADDRSTRLEN];
-		struct sockaddr_in mLocalAddr;
-		socklen_t mLocalLen = sizeof( mLocalAddr );
-		if ( ( getsockname( iSock, (struct sockaddr *) &mLocalAddr, &mLocalLen ) == 0 )
-			&& ( inet_ntop( AF_INET, &mLocalAddr.sin_addr, straddr, sizeof(straddr) ) ) )
-		{
-			m_sLocalIP = straddr;
-		}
+		ConvertAddress( &cAddr, iAddrLen, m_sLocalIP, NULL );
 	}
-#ifdef HAVE_IPV6
-	else
-	{
-		char straddr[INET6_ADDRSTRLEN];
-		struct sockaddr_in6 mLocalAddr;
-		socklen_t mLocalLen = sizeof( mLocalAddr );
-		if ( ( getsockname( iSock, (struct sockaddr *) &mLocalAddr, &mLocalLen ) == 0 )
-			&& ( inet_ntop( AF_INET6, &mLocalAddr.sin6_addr, straddr, sizeof(straddr) ) ) )
-		{
-			m_sLocalIP = straddr;
-		}
-	}
-#endif /* HAVE_IPV6 */
 
 	return( m_sLocalIP );
 }
@@ -1767,43 +1721,14 @@ CS_STRING Csock::GetRemoteIP()
 	if ( iSock == CS_INVALID_SOCK )
 		return( "" );
 
-	if( !GetIPv6() )
+	struct sockaddr_storage cAddr;
+	socklen_t iAddrLen = sizeof( cAddr );
+	if( getpeername( iSock, (struct sockaddr *)&cAddr, &iAddrLen ) == 0 )
 	{
-		struct sockaddr_in mRemoteAddr;
-		socklen_t mRemoteLen = sizeof( mRemoteAddr );
-		if ( getpeername( iSock, (struct sockaddr *) &mRemoteAddr, &mRemoteLen ) == 0 )
-			m_sRemoteIP = ConvertAddress( &mRemoteAddr.sin_addr, false );
+		ConvertAddress( &cAddr, iAddrLen, m_sRemoteIP, NULL );
 	}
-#ifdef HAVE_IPV6
-	else
-	{
-		struct sockaddr_in6 mRemoteAddr;
-		socklen_t mRemoteLen = sizeof( mRemoteAddr );
-		if ( getpeername( iSock, (struct sockaddr *) &mRemoteAddr, &mRemoteLen ) == 0 )
-			m_sRemoteIP = ConvertAddress( &mRemoteAddr.sin6_addr, true );
-	}
-#endif /* HAVE_IPV6 */
 
 	return( m_sRemoteIP );
-}
-
-CS_STRING Csock::ConvertAddress( void *addr, bool bIPv6 )
-{
-	CS_STRING sRet;
-
-	if( !bIPv6 ) 
-	{
-		in_addr *p = (in_addr*) addr;
-		sRet = inet_ntoa(*p);
-	} 
-	else 
-	{
-		char straddr[INET6_ADDRSTRLEN];
-		if( inet_ntop( AF_INET6, addr, straddr, sizeof(straddr) ) > 0 )
-			sRet = straddr;
-	}
-
-	return( sRet );
 }
 
 bool Csock::IsConnected() const { return( m_bIsConnected ); }
@@ -2300,6 +2225,7 @@ bool Csock::CreateSocksFD()
 
 	return( true );
 }
+
 
 int Csock::GetAddrInfo( const CS_STRING & sHostname, CSSockAddr & csSockAddr )
 {

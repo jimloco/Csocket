@@ -651,8 +651,6 @@ public:
 	CS_STRING GetLocalIP();
 	CS_STRING GetRemoteIP();
 
-	virtual CS_STRING ConvertAddress( void *addr, bool bIPv6 = false );
-
 	//! Tells you if the socket is connected
 	virtual bool IsConnected() const;
 	//! Sets the sock, telling it its connected (internal use only)
@@ -1009,6 +1007,20 @@ public:
 	 * @return 0 on success, ETIMEDOUT if no lookup was found, EAGAIN if you should check again later for an answer
 	 */
 	virtual int GetAddrInfo( const CS_STRING & sHostname, CSSockAddr & csSockAddr );
+
+	/**
+	 * @brief retrieve name info (numeric only) for a given sockaddr_storage
+	 * @param pAddr the sockaddr_storage
+	 * @param iAddrLen the length
+	 * @param sHostname filled with the IP from getnameinfo
+	 * @param piPort if not null, filled with the port
+	 * @return 0 on success.
+	 *
+	 * In the event you want to do additional work before or after getnameinfo is called, you can override this and do just that.
+	 * One example is in the event that an ipv6 ip is a mapped ipv4 mapped, you can check like so.
+	 * - if( pAddr->ss_family == AF_INET6 && IN6_IS_ADDR_V4MAPPED( &(((const struct sockaddr_in6 *)pAddr)->sin6_addr ) )
+	 */
+	virtual int ConvertAddress( const struct sockaddr_storage * pAddr, socklen_t iAddrLen, CS_STRING & sIP, u_short * piPort );
 
 #ifdef HAVE_C_ARES
 	CSSockAddr * GetCurrentAddr() const { return( m_pCurrAddr ); }
