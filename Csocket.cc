@@ -1757,6 +1757,24 @@ void Csock::SetTimeout( int iTimeout, u_int iTimeoutType )
 	m_iTimeout = iTimeout;
 }
 
+void Csock::CallSockError( int iErrno, const CS_STRING & sDescription )
+{
+	if( sDescription.size() )
+		SockError( iErrno, sDescription );
+	else
+	{
+#if defined( sgi ) || defined(__sun) || defined(_WIN32) || (defined(__NetBSD_Version__) && __NetBSD_Version__ < 4000000000)
+		SockError( iErrno, strerror( iErrno ) );
+#else
+		char szBuff[0xff];
+		memset( (char *)szBuff, '\0', 0xff );
+		if ( strerror_r( iErrno, szBuff, 0xff ) == 0 )
+			SockError( iErrno, szBuff );
+		else
+			SockError( iErrno, "Unknown error" );
+#endif
+	}
+}
 void Csock::SetTimeoutType( u_int iTimeoutType ) { m_iTimeoutType = iTimeoutType; }
 int Csock::GetTimeout() const { return m_iTimeout; }
 u_int Csock::GetTimeoutType() const { return( m_iTimeoutType ); }
@@ -2651,7 +2669,7 @@ void CSocketManager::Loop()
 		{
 			if ( pcSock->DNSLookup( Csock::DNS_VHOST ) == ETIMEDOUT )
 			{
-				pcSock->SockError( EDOM );
+				pcSock->CallSockError( EDOM, "DNS Lookup for bind host failed" );
 				DelSock( a-- );
 				continue;
 			}
@@ -2661,7 +2679,7 @@ void CSocketManager::Loop()
 		{
 			if ( !pcSock->SetupVHost() )
 			{
-				pcSock->SockError( GetSockError() );
+				pcSock->CallSockError( GetSockError(), "Failed to setup bind host" );
 				DelSock( a-- );
 				continue;
 			}
@@ -2671,7 +2689,7 @@ void CSocketManager::Loop()
 		{
 			if ( pcSock->DNSLookup( Csock::DNS_DEST ) == ETIMEDOUT )
 			{
-				pcSock->SockError( EADDRNOTAVAIL );
+				pcSock->CallSockError( EADDRNOTAVAIL, "Unable to resolve requested address" );
 				DelSock( a-- );
 				continue;
 			}
@@ -2683,7 +2701,7 @@ void CSocketManager::Loop()
 				if ( GetSockError() == ECONNREFUSED )
 					pcSock->ConnectionRefused();
 				else
-					pcSock->SockError( GetSockError() );
+					pcSock->CallSockError( GetSockError() );
 
 				DelSock( a-- );
 				continue;
@@ -2699,7 +2717,7 @@ void CSocketManager::Loop()
 					if ( GetSockError() == ECONNREFUSED )
 						pcSock->ConnectionRefused();
 					else
-						pcSock->SockError( GetSockError() == 0 ? ECONNABORTED : GetSockError() );
+						pcSock->CallSockError( GetSockError() == 0 ? ECONNABORTED : GetSockError() );
 
 					DelSock( a-- );
 					continue;
@@ -2753,7 +2771,7 @@ void CSocketManager::Loop()
 
 						case Csock::READ_ERR:
 						{
-							pcSock->SockError( GetSockError() );
+							pcSock->CallSockError( GetSockError() );
 							DelSockByAddr( pcSock );
 							break;
 						}
@@ -3383,7 +3401,7 @@ void CSocketManager::Select( std::map<Csock *, EMessages> & mpeSocks )
 				else if( GetSockError() != EAGAIN )
 #endif /* _WIN32 */
 				{
-					pcSock->SockError( GetSockError() );
+					pcSock->CallSockError( GetSockError() );
 				}
 			}
 		}

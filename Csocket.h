@@ -30,7 +30,12 @@
 *
 */
 
-// note to compile with win32 need to link to winsock2, using gcc its -lws2_32
+/***
+ * NOTES ...
+ * - You should always compile with -Woverloaded-virtual to detect callbacks that may have been redefined since your last update
+ * - If you want to use gethostbyname instead of getaddrinfo, the use -DUSE_GETHOSTBYNAME when compiling
+ * - To compile with win32 need to link to winsock2, using gcc its -lws2_32
+ ***/
 
 #ifndef _HAS_CSOCKET_
 #define _HAS_CSOCKET_
@@ -665,6 +670,12 @@ public:
 	void SetSock( cs_sock_t iSock );
 	cs_sock_t & GetSock();
 
+	/**
+	 * @brief calls SockError, if sDescription is not set, then strerror is used to pull out a default description
+	 * @param iErrno the errno to send
+	 * @param sDescription the description of the error that occurred
+	 */
+	void CallSockError( int iErrno, const CS_STRING & sDescription = "" );
 	//! resets the time counter, this is virtual in the event you need an event on the timer being Reset
 	virtual void ResetTimer();
 
@@ -902,7 +913,7 @@ public:
 	*
 	* A sock error occured event
 	*/
-	virtual void SockError( int iErrno ) {}
+	virtual void SockError( int iErrno, const CS_STRING & sDescription ) {}
 	/**
 	* Override these functions for an easy interface when using the Socket Manager
 	* Don't bother using these callbacks if you are using this class directly (without Socket Manager)

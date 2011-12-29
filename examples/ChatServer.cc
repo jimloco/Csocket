@@ -68,10 +68,9 @@ public:
 			}
 		}
 
-		virtual void SockError( int iError )
+		virtual void SockError( int iError, const std::string & sDescription )
 		{		
-			cerr << "ACK [" << iError << "]" << endl;
-			perror( "SockError" );
+			cerr << "ACK [" << iError << "] " << sDescription << endl;
 		}
 
 		bool ConnectionFrom( const std::string & sHost, u_short iPort )
