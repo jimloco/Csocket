@@ -591,11 +591,12 @@ public:
 	* Listens for connections
 	*
 	* @param iPort the port to listen on
-	* @param iMaxConns the maximum amount of connections to allow
+	* @param iMaxConns the maximum amount of pending connections to allow
 	* @param sBindHost the vhost on which to listen
-	* @param iTimeout i dont know what this does :(
+	* @param iTimeout if no connections come in by this timeout, the listener is closed
+	* @param bDetach don't block waiting for port to come up, instead detach and return immediately
 	*/
-	virtual bool Listen( u_short iPort, int iMaxConns = SOMAXCONN, const CS_STRING & sBindHost = "", u_int iTimeout = 0 );
+	virtual bool Listen( u_short iPort, int iMaxConns = SOMAXCONN, const CS_STRING & sBindHost = "", u_int iTimeout = 0, bool bDetach = false );
 
 	//! Accept an inbound connection, this is used internally
 	virtual cs_sock_t Accept( CS_STRING & sHost, u_short & iRPort );
@@ -927,6 +928,13 @@ public:
 	virtual bool ConnectionFrom( const CS_STRING & sHost, u_short iPort ) { return( true ); }
 
 	/**
+	 * @brief called when type is LISTENER and the listening port is up and running
+	 * @param sBindIP the IP that is being bound to. Empty if no bind restriction
+	 * @param uPort the listening port
+	 */
+	virtual void Listening( const CS_STRING & sBindIP, u_short uPort ) {}
+
+	/**
 	 * Override these functions for an easy interface when using the Socket Manager
 	 * Don't bother using these callbacks if you are using this class directly (without Socket Manager)
 	 * as the Socket Manager calls most of these callbacks
@@ -1039,6 +1047,9 @@ public:
 	ares_channel GetAresChannel() { return( m_pARESChannel ); }
 #endif /* HAVE_C_ARES */
 
+	//! returns the number of max pending connections when type is LISTENER
+	int GetMaxConns() const { return( m_iMaxConns ); }
+
 private:
 	//! making private for safety
 	Csock( const Csock & cCopy ) : CSockCommon() {}
@@ -1046,7 +1057,7 @@ private:
 	// NOTE! if you add any new members, be sure to add them to Copy()
 	u_short		m_uPort, m_iRemotePort, m_iLocalPort;
 	cs_sock_t	m_iReadSock, m_iWriteSock;
-	int m_iTimeout, m_iConnType, m_iMethod, m_iTcount;
+	int m_iTimeout, m_iConnType, m_iMethod, m_iTcount, m_iMaxConns;
 	bool		m_bUseSSL, m_bIsConnected, m_bBLOCK;
 	bool		m_bsslEstablished, m_bEnableReadLine, m_bPauseRead;
 	CS_STRING	m_shostname, m_sbuffer, m_sSockName, m_sPemFile, m_sCipherType, m_sParentName;
@@ -1188,8 +1199,9 @@ public:
 	/**
 	 * @param iPort port to listen on. Set to 0 to listen on a random port
 	 * @param sBindHost host to bind to
+	 * @param bDetach don't block while waiting for the port to come up, instead detach and return immediately
 	 */
-	CSListener( u_short iPort, const CS_STRING & sBindHost = "" )
+	CSListener( u_short iPort, const CS_STRING & sBindHost = "", bool bDetach = false )
 	{
 		m_iPort = iPort;
 		m_sBindHost = sBindHost;
@@ -1197,6 +1209,7 @@ public:
 		m_iMaxConns = SOMAXCONN;
 		m_iTimeout = 0;
 		m_iAFrequire = CSSockAddr::RAF_ANY;
+		m_bDetach = bDetach;
 #ifdef HAVE_LIBSSL
 		m_sCipher = "HIGH";
 		m_iRequireCertFlags = 0;
@@ -1204,6 +1217,8 @@ public:
 	}
 	virtual ~CSListener() {}
 
+	void SetDetach( bool b ) { m_bDetach = b; }
+	bool GetDetach() const { return( m_bDetach ); }
 	u_short GetPort() const { return( m_iPort ); }
 	const CS_STRING & GetSockName() const { return( m_sSockName ); }
 	const CS_STRING & GetBindHost() const { return( m_sBindHost ); }
@@ -1249,6 +1264,7 @@ private:
 	u_short		m_iPort;
 	CS_STRING	m_sSockName, m_sBindHost;
 	bool		m_bIsSSL;
+	bool		m_bDetach;
 	int			m_iMaxConns;
 	u_int		m_iTimeout;
 	CSSockAddr::EAFRequire	m_iAFrequire;
@@ -1320,6 +1336,15 @@ public:
 	*/
 	void Connect( const CSConnection & cCon, Csock * pcSock = NULL );
 
+	/**
+	 * @brief Sets up a listening socket
+	 * @param cListen the listener configuration
+	 * @param pcSock preconfigured sock to use
+	 * @param piRandPort if listener is set to port 0, then a random port is used and this is assigned. 
+	 *
+	 * IF you provide piRandPort to be assigned, AND you set bDetach to true, then Listen() still blocks. If you don't want this
+	 * behavior, then look for the port assignment to be called in Csock::Listening
+	 */
 	virtual bool Listen( const CSListener & cListen, Csock * pcSock = NULL, u_short *piRandPort = NULL );
 
 

@@ -366,6 +366,7 @@ int GetAddrInfo( const CS_STRING & sHostname, Csock *pSock, CSSockAddr & csSockA
 					break;
 				}
 			}
+#ifdef HAVE_IPV6
 			else if( pRes->ai_family == AF_INET6 )
 			{
 				if( pSock )
@@ -383,6 +384,7 @@ int GetAddrInfo( const CS_STRING & sHostname, Csock *pSock, CSSockAddr & csSockA
 					break;
 				}
 			}
+#endif /* HAVE_IPV6 */
 
 			it++; // increment the iterator her so we know if its the last element or not
 
@@ -540,18 +542,27 @@ void CSAdjustTVTimeout( struct timeval & tv, long iTimeoutMS )
 	}
 }
 
-void __Perror( const CS_STRING & s, const char *pszFile, unsigned int iLineNo )
+#define CS_UNKNOWN_ERROR "Unknown Error"
+static const char * CS_StrError( int iErrno, char * pszBuff, size_t uBuffLen )
 {
 #if defined( sgi ) || defined(__sun) || defined(_WIN32) || (defined(__NetBSD_Version__) && __NetBSD_Version__ < 4000000000)
-	std::cerr << s << "(" << pszFile << ":" << iLineNo << "): " << strerror( GetSockError() ) << endl;
+	return( strerror( iErrno ) );
 #else
-	char buff[512];
-	memset( (char *)buff, '\0', 512 );
-	if ( strerror_r( GetSockError(), buff, 511 ) == 0 )
-		std::cerr << s << "(" << pszFile << ":" << iLineNo << "): " << buff << endl;
-	else
-		std::cerr << s << "(" << pszFile << ":" << iLineNo << "): Unknown Error Occured " << endl;
-#endif /* __sun */
+	memset( pszBuff, '\0', uBuffLen );
+#if (_POSIX_C_SOURCE >= 200112L || _XOPEN_SOURCE >= 600) && !defined( _GNU_SOURCE )
+	if( strerror_r( iErrno, pszBuff, uBuffLen ) == 0 )
+		return( pszBuff );
+#else
+	return( strerror_r( iErrno, pszBuff, uBuffLen ) );
+#endif /* (_POSIX_C_SOURCE >= 200112L || _XOPEN_SOURCE >= 600) && !defined( _GNU_SOURCE ) */
+#endif /* defined( sgi ) || defined(__sun) || defined(_WIN32) || (defined(__NetBSD_Version__) && __NetBSD_Version__ < 4000000000) */
+	return( CS_UNKNOWN_ERROR );
+}
+
+void __Perror( const CS_STRING & s, const char *pszFile, unsigned int iLineNo )
+{
+	char szBuff[0xff];
+	std::cerr << s << "(" << pszFile << ":" << iLineNo << "): " << CS_StrError( GetSockError(), szBuff, 0xff ) << endl;
 }
 
 unsigned long long millitime()
@@ -874,6 +885,7 @@ void Csock::Copy( const Csock & cCopy )
 	m_iReadSock		= cCopy.m_iReadSock;
 	m_iWriteSock	= cCopy.m_iWriteSock;
 	m_iTimeout		= cCopy.m_iTimeout;
+	m_iMaxConns		= cCopy.m_iMaxConns;
 	m_iConnType		= cCopy.m_iConnType;
 	m_iMethod		= cCopy.m_iMethod;
 	m_bUseSSL			= cCopy.m_bUseSSL;
@@ -1055,24 +1067,48 @@ bool Csock::Connect()
 }
 
 
-bool Csock::Listen( u_short iPort, int iMaxConns, const CS_STRING & sBindHost, u_int iTimeout )
+bool Csock::Listen( u_short iPort, int iMaxConns, const CS_STRING & sBindHost, u_int iTimeout, bool bDetach )
 {
 	m_iConnType = LISTENER;
 	m_iTimeout = iTimeout;
-
 	m_sBindHost = sBindHost;
-	if ( !sBindHost.empty() )
+	m_iMaxConns = iMaxConns;
+
+	SetConState( Csock::CST_OK );
+	if( !m_sBindHost.empty() )
 	{
-		// forcing this to block regardless of resolver overloading, because listen is not currently setup to
-		// to handle nonblocking operations. This is used to resolve local ip's for binding anyways and should be instant
-		if( ::GetAddrInfo( sBindHost, this, m_address ) != 0 )
-			return( false );
+		if( bDetach )
+		{
+			int iRet = GetAddrInfo( m_sBindHost, m_address );
+			if( iRet == ETIMEDOUT )
+			{
+				CallSockError( EADDRNOTAVAIL );
+				return( false );
+			}
+			else if( iRet == EAGAIN )
+			{
+				SetConState( Csock::CST_BINDVHOST );
+				return( true );
+			}
+		}
+		else
+		{
+			// if not detaching, then must block to do DNS resolution, so might as well use internal resolver
+			if( ::GetAddrInfo( m_sBindHost, this, m_address ) != 0 )
+			{
+				CallSockError( EADDRNOTAVAIL );
+				return( false );
+			}
+		}
 	}
 
 	m_iReadSock = m_iWriteSock = CreateSocket( true );
 
-	if ( m_iReadSock == CS_INVALID_SOCK )
+	if( m_iReadSock == CS_INVALID_SOCK )
+	{
+		CallSockError( EBADF );
 		return( false );
+	}
 
 #ifdef HAVE_IPV6
 #ifdef _WIN32
@@ -1100,22 +1136,41 @@ bool Csock::Listen( u_short iPort, int iMaxConns, const CS_STRING & sBindHost, u
 	m_address.SinPort( iPort );
 	if( !GetIPv6() )
 	{
-		if ( bind( m_iReadSock, (struct sockaddr *) m_address.GetSockAddr(), m_address.GetSockAddrLen() ) == -1 )
+		if( bind( m_iReadSock, (struct sockaddr *) m_address.GetSockAddr(), m_address.GetSockAddrLen() ) == -1 )
+		{
+			CallSockError( GetSockError() );
 			return( false );
+		}
 	}
 #ifdef HAVE_IPV6
 	else
 	{
-		if ( bind( m_iReadSock, (struct sockaddr *) m_address.GetSockAddr6(), m_address.GetSockAddrLen6() ) == -1 )
+		if( bind( m_iReadSock, (struct sockaddr *) m_address.GetSockAddr6(), m_address.GetSockAddrLen6() ) == -1 )
+		{
+			CallSockError( GetSockError() );
 			return( false );
+		}
 	}
 #endif /* HAVE_IPV6 */
 
-	if ( listen( m_iReadSock, iMaxConns ) == -1 )
+	if( listen( m_iReadSock, iMaxConns ) == -1 )
+	{
+		CallSockError( GetSockError() );
 		return( false );
+	}
 
 	// set it none blocking
 	set_non_blocking( m_iReadSock );
+	if( m_uPort == 0 || m_sBindHost.size() )
+	{
+		struct sockaddr_storage cAddr;
+		socklen_t iAddrLen = sizeof( cAddr );
+		if( getsockname( m_iReadSock, (struct sockaddr *)&cAddr, &iAddrLen ) == 0 )
+		{
+			ConvertAddress( &cAddr, iAddrLen, m_sBindHost, &m_uPort );
+		}
+	}
+	Listening( m_sBindHost, m_uPort );
 
 	return( true );
 }
@@ -1763,16 +1818,8 @@ void Csock::CallSockError( int iErrno, const CS_STRING & sDescription )
 		SockError( iErrno, sDescription );
 	else
 	{
-#if defined( sgi ) || defined(__sun) || defined(_WIN32) || (defined(__NetBSD_Version__) && __NetBSD_Version__ < 4000000000)
-		SockError( iErrno, strerror( iErrno ) );
-#else
 		char szBuff[0xff];
-		memset( (char *)szBuff, '\0', 0xff );
-		if ( strerror_r( iErrno, szBuff, 0xff ) == 0 )
-			SockError( iErrno, szBuff );
-		else
-			SockError( iErrno, "Unknown error" );
-#endif
+		SockError( iErrno, CS_StrError( iErrno, szBuff, 0xff ) );
 	}
 }
 void Csock::SetTimeoutType( u_int iTimeoutType ) { m_iTimeoutType = iTimeoutType; }
@@ -2263,74 +2310,71 @@ int Csock::GetAddrInfo( const CS_STRING & sHostname, CSSockAddr & csSockAddr )
 	}
 
 #ifdef HAVE_C_ARES
-	if( GetType() != LISTENER )
-	{ // right now the current function in Listen() is it blocks, the easy way around this at the moment is to use ip
-		// need to compute this up here
-		if( !m_pARESChannel )
-		{
-			if( ares_init( &m_pARESChannel ) != ARES_SUCCESS )
-			{ // TODO throw some debug?
-				FreeAres();
-				return( ETIMEDOUT );
-			}
-			m_pCurrAddr = &csSockAddr; // flag its starting
+	// need to compute this up here
+	if( !m_pARESChannel )
+	{
+		if( ares_init( &m_pARESChannel ) != ARES_SUCCESS )
+		{ // TODO throw some debug?
+			FreeAres();
+			return( ETIMEDOUT );
+		}
+		m_pCurrAddr = &csSockAddr; // flag its starting
 
-			int iFamily = AF_INET;
+		int iFamily = AF_INET;
 #ifdef HAVE_IPV6
 #if ARES_VERSION >= CREATE_ARES_VER( 1, 7, 5 )
-			// as of ares 1.7.5, it falls back to af_inet only when AF_UNSPEC is specified
-			// so this can finally let the code flow through as anticipated :)
-			iFamily = csSockAddr.GetAFRequire();
+		// as of ares 1.7.5, it falls back to af_inet only when AF_UNSPEC is specified
+		// so this can finally let the code flow through as anticipated :)
+		iFamily = csSockAddr.GetAFRequire();
 #else
-			// as of ares 1.6.0 if it fails on af_inet6, it falls back to af_inet, 
-			// this code was here in the previous Csocket version, just adding the comment as a reminder
-			iFamily = csSockAddr.GetAFRequire() == CSSockAddr::RAF_ANY ? AF_INET6 : csSockAddr.GetAFRequire();
+		// as of ares 1.6.0 if it fails on af_inet6, it falls back to af_inet, 
+		// this code was here in the previous Csocket version, just adding the comment as a reminder
+		iFamily = csSockAddr.GetAFRequire() == CSSockAddr::RAF_ANY ? AF_INET6 : csSockAddr.GetAFRequire();
 #endif /* CREATE_ARES_VER( 1, 7, 5 ) */
 #endif /* HAVE_IPV6 */
-			ares_gethostbyname( m_pARESChannel, sHostname.c_str(), iFamily, AresHostCallback, this );
-		}
-		if( !m_pCurrAddr )
-		{ // this means its finished
-			FreeAres();
+		ares_gethostbyname( m_pARESChannel, sHostname.c_str(), iFamily, AresHostCallback, this );
+	}
+	if( !m_pCurrAddr )
+	{ // this means its finished
+		FreeAres();
 #ifdef HAVE_IPV6
-			if( m_iARESStatus == ARES_SUCCESS && csSockAddr.GetAFRequire() == CSSockAddr::RAF_ANY && GetIPv6() )
+		if( GetType() != LISTENER && m_iARESStatus == ARES_SUCCESS && csSockAddr.GetAFRequire() == CSSockAddr::RAF_ANY && GetIPv6() )
+		{
+			// this means that ares_host returned an ipv6 host, so try a connect right away
+			if( CreateSocksFD() && Connect() )
 			{
-				// this means that ares_host returned an ipv6 host, so try a connect right away
-				if( CreateSocksFD() && Connect() )
-				{
-					SetSkipConnect( true );
-				}
-#ifndef _WIN32
-				else if( GetSockError() == ENETUNREACH )
-#else
-				else if( GetSockError() == WSAENETUNREACH || GetSockError() == WSAEHOSTUNREACH )
-#endif /* !_WIN32 */
-				{
-					// the Connect() failed, so throw a retry back in with ipv4, and let it process normally
-					CS_DEBUG( "Failed ipv6 connection with PF_UNSPEC, falling back to ipv4" );
-					m_iARESStatus = -1;
-					CloseSocksFD();
-					SetAFRequire( CSSockAddr::RAF_INET );
-					return( GetAddrInfo( sHostname, csSockAddr ) );
-				}
+				SetSkipConnect( true );
 			}
-#if ARES_VERSION < CREATE_ARES_VER( 1, 5, 3 )
-			if( m_iARESStatus != ARES_SUCCESS && csSockAddr.GetAFRequire() == CSSockAddr::RAF_ANY )
-			{ // this is a workaround for ares < 1.5.3 where the builtin retry on failed AF_INET6 isn't there yet
-				CS_DEBUG( "Retry for older version of c-ares with AF_INET only" );
-				// this means we tried previously with AF_INET6 and failed, so force AF_INET and retry
+#ifndef _WIN32
+			else if( GetSockError() == ENETUNREACH )
+#else
+			else if( GetSockError() == WSAENETUNREACH || GetSockError() == WSAEHOSTUNREACH )
+#endif /* !_WIN32 */
+			{
+				// the Connect() failed, so throw a retry back in with ipv4, and let it process normally
+				CS_DEBUG( "Failed ipv6 connection with PF_UNSPEC, falling back to ipv4" );
+				m_iARESStatus = -1;
+				CloseSocksFD();
 				SetAFRequire( CSSockAddr::RAF_INET );
 				return( GetAddrInfo( sHostname, csSockAddr ) );
 			}
+		}
+#if ARES_VERSION < CREATE_ARES_VER( 1, 5, 3 )
+		if( m_iARESStatus != ARES_SUCCESS && csSockAddr.GetAFRequire() == CSSockAddr::RAF_ANY )
+		{ // this is a workaround for ares < 1.5.3 where the builtin retry on failed AF_INET6 isn't there yet
+			CS_DEBUG( "Retry for older version of c-ares with AF_INET only" );
+			// this means we tried previously with AF_INET6 and failed, so force AF_INET and retry
+			SetAFRequire( CSSockAddr::RAF_INET );
+			return( GetAddrInfo( sHostname, csSockAddr ) );
+		}
 #endif /* ARES_VERSION < CREATE_ARES_VER( 1, 5, 3 ) */
 #endif /* HAVE_IPV6 */
-			return( m_iARESStatus == ARES_SUCCESS ? 0 : ETIMEDOUT );
-		}
-		return( EAGAIN );
+		return( m_iARESStatus == ARES_SUCCESS ? 0 : ETIMEDOUT );
 	}
-#endif /* HAVE_C_ARES */
-
+	return( EAGAIN );
+#else /* HAVE_C_ARES */
 	return( ::GetAddrInfo( sHostname, this, csSockAddr ) );
+#endif /* HAVE_C_ARES */
 }
 
 int Csock::DNSLookup( EDNSLType eDNSLType )
@@ -2486,6 +2530,7 @@ void Csock::Init( const CS_STRING & sHostname, u_short uPort, int iTimeout )
 	m_iReadSock = CS_INVALID_SOCK;
 	m_iWriteSock = CS_INVALID_SOCK;
 	m_iTimeout = iTimeout;
+	m_iMaxConns = SOMAXCONN;
 	m_bUseSSL = false;
 	m_bIsConnected = false;
 	m_uPort = uPort;
@@ -2626,10 +2671,12 @@ bool CSocketManager::Listen( const CSListener & cListen, Csock * pcSock, u_short
 	if( piRandPort )
 		*piRandPort = 0;
 
-	if ( pcSock->Listen( cListen.GetPort(), cListen.GetMaxConns(), cListen.GetBindHost(), cListen.GetTimeout() ) )
+	bool bDetach = ( cListen.GetDetach() && !piRandPort ); // can't detach if we're waiting for the port to come up right now
+
+	if( pcSock->Listen( cListen.GetPort(), cListen.GetMaxConns(), cListen.GetBindHost(), cListen.GetTimeout(), bDetach ) )
 	{
 		AddSock( pcSock, cListen.GetSockName() );
-		if( ( piRandPort ) && ( cListen.GetPort() == 0 ) )
+		if( piRandPort && cListen.GetPort() == 0 )
 		{
 			cs_sock_t iSock = pcSock->GetSock();
 
@@ -3150,6 +3197,15 @@ void CSocketManager::Select( std::map<Csock *, EMessages> & mpeSocks )
 			ares_timeout( pChannel, &tv, &tv );
 		}
 #endif /* HAVE_C_ARES */
+		if( pcSock->GetType() == Csock::LISTENER && pcSock->GetConState() == Csock::CST_BINDVHOST )
+		{
+			if( !pcSock->Listen( pcSock->GetPort(), pcSock->GetMaxConns(), pcSock->GetBindHost(), pcSock->GetTimeout(), true ) )
+			{
+				pcSock->Close();
+				DelSock( i-- );
+			}
+			continue;
+		}
 
 		pcSock->AssignFDs( miiReadyFds, &tv );
 

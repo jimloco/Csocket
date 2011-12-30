@@ -73,12 +73,16 @@ public:
 			cerr << "ACK [" << iError << "] " << sDescription << endl;
 		}
 
-		bool ConnectionFrom( const std::string & sHost, u_short iPort )
+		virtual bool ConnectionFrom( const std::string & sHost, u_short iPort )
 		{
 			std::ostringstream ossTmp;
 			ossTmp << "Connection from " << sHost << ":" << iPort << endl;
 			WriteAll( ossTmp.str() );
 			return( true );
+		}
+		virtual void Listening( const std::string & sBindIP, u_short uPort )
+		{
+			cerr << "Listening: " << sBindIP << ":" << uPort << endl;
 		}
 	
 private:
@@ -151,6 +155,7 @@ void CTimeoutLogin::RunJob()
 static struct option s_apOpts[] = 
 {
 	{ "port", 					1, 0, 0 },
+	{ "bind-host", 				1, 0, 0 },
 	{ "enable-ssl",				0, 0, 0 },
 	{ "pem-file",				0, 0, 0 },
 	{ "require-client-cert",	1, 0, 0 },
@@ -174,6 +179,7 @@ int main( int argc, char **argv )
 	bool bReqClientCert = false;
 	bool bDumpHelp = true;
 	std::string sPemFile;
+	std::string sBindHost;
 	while( ( iRet = getopt_long( argc, argv, "", s_apOpts, &iOptIndex ) ) >= 0 )
 	{
 		if( iRet == '?' )
@@ -187,6 +193,8 @@ int main( int argc, char **argv )
 			sPemFile = optarg;
 		else if( strcmp( s_apOpts[iOptIndex].name, "require-client-cert" ) == 0 )
 			bReqClientCert = true;
+		else if( strcmp( s_apOpts[iOptIndex].name, "bind-host" ) == 0 )
+			sBindHost = optarg;
 		else
 		{
 			cerr << "Beats me what you sent" << endl;
@@ -198,6 +206,7 @@ int main( int argc, char **argv )
 	{
 		cerr << "Usage: " << argv[0] << " <options>" << endl;
 		cerr << "--port <port to use>" << endl;
+		cerr << "--bind-host <bind host to use>" << endl;
 		cerr << "--pem-file <pemfile to use>" << endl;
 		cerr << "--enable-ssl" << endl;
 		cerr << "--require-client-cert" << endl;
@@ -205,11 +214,11 @@ int main( int argc, char **argv )
 	}
 	else
 	{
-		cerr << "Listening on port: " << uPort << endl;
+		cerr << "Creating Listening port: " << uPort << endl;
 	}
 
 	// sample ssl server compile with -D_HAS_SSL
-	CSListener cListen( (u_short)uPort );
+	CSListener cListen( (u_short)uPort, sBindHost, true );
 	cListen.SetSockName( "talk" );
 	cListen.SetIsSSL( bEnableSSL );
 
@@ -232,7 +241,7 @@ int main( int argc, char **argv )
 		exit( 1 );
 	}
 	
-	while( true )
+	while( cConn.size() )
 		cConn.DynamicSelectLoop( 50000, 5000000 );
 
 #ifdef _WIN32
