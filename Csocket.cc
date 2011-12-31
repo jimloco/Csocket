@@ -299,40 +299,55 @@ static void AresHostCallback( void *pArg, int status, int timeouts, struct hoste
 }
 #endif /* HAVE_C_ARES */
 
-int GetAddrInfo( const CS_STRING & sHostname, Csock *pSock, CSSockAddr & csSockAddr )
+CGetAddrInfo::CGetAddrInfo( const CS_STRING & sHostname, Csock *pSock, CSSockAddr & csSockAddr ) 
+	: m_pSock( pSock ), m_csSockAddr( csSockAddr ) 
 {
-#ifdef USE_GETHOSTBYNAME
-	if( pSock )
-		pSock->SetIPv6( false );
-	csSockAddr.SetIPv6( false );
-	if( __GetHostByName( sHostname, csSockAddr.GetAddr(), 3 ) == 0 )
-		return( 0 );
-#else /* USE_GETHOSTBYNAME */
-	struct addrinfo *res = NULL;
-	struct addrinfo hints;
-	memset( (struct addrinfo *)&hints, '\0', sizeof( hints ) );
-	hints.ai_family = csSockAddr.GetAFRequire();
+	m_sHostname = sHostname;
+	m_pAddrRes = NULL;
+	m_iRet = ETIMEDOUT;
+}
+CGetAddrInfo::~CGetAddrInfo() 
+{
+	if( m_pAddrRes )
+		freeaddrinfo( m_pAddrRes );
+	m_pAddrRes = NULL;
+}
 
-	hints.ai_socktype = SOCK_STREAM;
-	hints.ai_protocol = IPPROTO_TCP;
+void CGetAddrInfo::Init()
+{
+	memset( (struct addrinfo *)&m_cHints, '\0', sizeof( m_cHints ) );
+	m_cHints.ai_family = m_csSockAddr.GetAFRequire();
+
+	m_cHints.ai_socktype = SOCK_STREAM;
+	m_cHints.ai_protocol = IPPROTO_TCP;
 #ifdef AI_ADDRCONFIG
 	// this is suppose to eliminate host from appearing that this system can not support
-	hints.ai_flags = AI_ADDRCONFIG;
+	m_cHints.ai_flags = AI_ADDRCONFIG;
 #endif /* AI_ADDRCONFIG */
 
-	if( pSock && ( pSock->GetType() == Csock::LISTENER || pSock->GetConState() == Csock::CST_BINDVHOST ) )
+	if( m_pSock && ( m_pSock->GetType() == Csock::LISTENER || m_pSock->GetConState() == Csock::CST_BINDVHOST ) )
 	{ // when doing a dns for bind only, set the AI_PASSIVE flag as suggested by the man page
-		hints.ai_flags |= AI_PASSIVE;
+		m_cHints.ai_flags |= AI_PASSIVE;
 	}
+}
 
-	int iRet = getaddrinfo( sHostname.c_str(), NULL, &hints, &res );
-	if( iRet == EAI_AGAIN )
-		return( EAGAIN ); // need to return telling the user to try again
-	else if( ( iRet == 0 ) && ( res ) )
+int CGetAddrInfo::Process()
+{
+	m_iRet = getaddrinfo( m_sHostname.c_str(), NULL, &m_cHints, &m_pAddrRes );
+	if( m_iRet == EAI_AGAIN )
+		return( EAGAIN );
+	else if( m_iRet == 0 )
+		return( 0 );
+	return( ETIMEDOUT );
+}
+
+int CGetAddrInfo::Finish()
+{
+	if( m_iRet == 0 && m_pAddrRes )
 	{ 
 		std::list<struct addrinfo *> lpTryAddrs;
 		bool bFound = false;
-		for( struct addrinfo *pRes = res; pRes; pRes = pRes->ai_next )
+		for( struct addrinfo *pRes = m_pAddrRes; pRes; pRes = pRes->ai_next )
 		{ // pass through the list building out a lean list of candidates to try. AI_CONFIGADDR doesn't always seem to work
 #ifdef __sun
 			if( ( pRes->ai_socktype != SOCK_STREAM ) || ( pRes->ai_protocol != IPPROTO_TCP && pRes->ai_protocol != IPPROTO_IP ) )
@@ -341,7 +356,7 @@ int GetAddrInfo( const CS_STRING & sHostname, Csock *pSock, CSSockAddr & csSockA
 #endif /* __sun work around broken impl of getaddrinfo */
 				continue;
 			
-			if( ( csSockAddr.GetAFRequire() != CSSockAddr::RAF_ANY ) && ( pRes->ai_family != csSockAddr.GetAFRequire() ) )
+			if( ( m_csSockAddr.GetAFRequire() != CSSockAddr::RAF_ANY ) && ( pRes->ai_family != m_csSockAddr.GetAFRequire() ) )
 				continue; // they requested a special type, so be certain we woop past anything unwanted
 			lpTryAddrs.push_back( pRes );
 		}
@@ -351,12 +366,12 @@ int GetAddrInfo( const CS_STRING & sHostname, Csock *pSock, CSSockAddr & csSockA
 			bool bTryConnect = false;
 			if( pRes->ai_family == AF_INET )
 			{
-				if( pSock )
-					pSock->SetIPv6( false );
-				csSockAddr.SetIPv6( false );
+				if( m_pSock )
+					m_pSock->SetIPv6( false );
+				m_csSockAddr.SetIPv6( false );
 				struct sockaddr_in *pTmp = (struct sockaddr_in *)pRes->ai_addr;
-				memcpy( csSockAddr.GetAddr(), &(pTmp->sin_addr), sizeof( *(csSockAddr.GetAddr()) ) );
-				if( pSock && pSock->GetConState() == Csock::CST_DESTDNS && pSock->GetType() == Csock::OUTBOUND )
+				memcpy( m_csSockAddr.GetAddr(), &(pTmp->sin_addr), sizeof( *(m_csSockAddr.GetAddr()) ) );
+				if( m_pSock && m_pSock->GetConState() == Csock::CST_DESTDNS && m_pSock->GetType() == Csock::OUTBOUND )
 				{
 					bTryConnect = true;
 				}
@@ -369,12 +384,12 @@ int GetAddrInfo( const CS_STRING & sHostname, Csock *pSock, CSSockAddr & csSockA
 #ifdef HAVE_IPV6
 			else if( pRes->ai_family == AF_INET6 )
 			{
-				if( pSock )
-					pSock->SetIPv6( true );
-				csSockAddr.SetIPv6( true );
+				if( m_pSock )
+					m_pSock->SetIPv6( true );
+				m_csSockAddr.SetIPv6( true );
 				struct sockaddr_in6 *pTmp = (struct sockaddr_in6 *)pRes->ai_addr;
-				memcpy( csSockAddr.GetAddr6(), &(pTmp->sin6_addr), sizeof( *(csSockAddr.GetAddr6()) ) );
-				if( pSock && pSock->GetConState() == Csock::CST_DESTDNS && pSock->GetType() == Csock::OUTBOUND )
+				memcpy( m_csSockAddr.GetAddr6(), &(pTmp->sin6_addr), sizeof( *(m_csSockAddr.GetAddr6()) ) );
+				if( m_pSock && m_pSock->GetConState() == Csock::CST_DESTDNS && m_pSock->GetType() == Csock::OUTBOUND )
 				{
 					bTryConnect = true;
 				}
@@ -390,13 +405,13 @@ int GetAddrInfo( const CS_STRING & sHostname, Csock *pSock, CSSockAddr & csSockA
 
 			if( bTryConnect && it != lpTryAddrs.end() )
 			{ // save the last attempt for the outer loop, the issue then becomes that the error is thrown on the last failure
-				if( pSock->CreateSocksFD() && pSock->Connect() )
+				if( m_pSock->CreateSocksFD() && m_pSock->Connect() )
 				{
-					pSock->SetSkipConnect( true ); // this tells the socket that the connection state has been started
+					m_pSock->SetSkipConnect( true ); // this tells the socket that the connection state has been started
 					bFound = true;
 					break;
 				}
-				pSock->CloseSocksFD();
+				m_pSock->CloseSocksFD();
 			}
 			else if( bTryConnect )
 			{
@@ -404,14 +419,29 @@ int GetAddrInfo( const CS_STRING & sHostname, Csock *pSock, CSSockAddr & csSockA
 			}
 		}
 
-		freeaddrinfo( res );
 		if( bFound ) // the data pointed to here is invalid now, but the pointer itself is a good test
 		{
 			return( 0 );
 		}
 	}
-#endif /* ! HAVE_IPV6 */
 	return( ETIMEDOUT );
+}
+
+int GetAddrInfo( const CS_STRING & sHostname, Csock *pSock, CSSockAddr & csSockAddr )
+{
+#ifdef USE_GETHOSTBYNAME
+	if( pSock )
+		pSock->SetIPv6( false );
+	csSockAddr.SetIPv6( false );
+	if( __GetHostByName( sHostname, csSockAddr.GetAddr(), 3 ) == 0 )
+		return( 0 );
+#endif /* USE_GETHOSTBYNAME */
+	CGetAddrInfo cInfo( sHostname, pSock, csSockAddr );
+	cInfo.Init();
+	int iRet = cInfo.Process();
+	if( iRet != 0 )
+		return( iRet );
+	return( cInfo.Finish() );
 }
 
 int Csock::ConvertAddress( const struct sockaddr_storage * pAddr, socklen_t iAddrLen, CS_STRING & sIP, u_short * piPort )

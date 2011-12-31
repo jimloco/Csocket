@@ -220,7 +220,8 @@ private:
 class Csock;
 
 /**
- * @brief this function is a wrapper around gethostbyname and getaddrinfo (for ipv6)
+ * @class CGetAddrInfo
+ * @brief this function is a wrapper around getaddrinfo (for ipv6)
  *
  * in the event this code is using ipv6, it calls getaddrinfo, and it tries to start the connection on each iteration
  * in the linked list returned by getaddrinfo. if pSock is not NULL the following behavior happens.
@@ -229,13 +230,38 @@ class Csock;
  * getaddrinfo might return multiple (possibly invalid depending on system configuration) ip addresses, so connect needs to try them all.
  * A classic example of this is a hostname that resolves to both ipv4 and ipv6 ip's. You still need to call Connect (and ConnectSSL) to finish
  * up the connection state
- * - NOTE ... Once threading is reimplemented, this function will spin off a thread to resolve and return EAGAIN until its done.
  *
- * @param sHostname the host to resolve
- * @param pSock the sock being setup, this option can be NULL, if it is null csSockAddr is only setup
- * @param csSockAddr the struct that sockaddr data is being copied to
- * @return 0 on success, otherwise an error. EAGAIN if this needs to be called again at a later time, ETIMEDOUT if no host is found
+ * Process can be called in a thread, but Init and Finish must only be called from the parent once the thread is complete
  */
+class CGetAddrInfo
+{
+public:
+	/**
+	 * @brief ctor
+ 	 * @param sHostname the host to resolve
+	 * @param pSock the sock being setup, this option can be NULL, if it is null csSockAddr is only setup
+	 * @param csSockAddr the struct that sockaddr data is being copied to
+	 */
+	CGetAddrInfo( const CS_STRING & sHostname, Csock *pSock, CSSockAddr & csSockAddr ); 
+	~CGetAddrInfo();
+
+	//! simply sets up m_cHints for use in process
+	void Init();
+	//! the simplest part of the function, only calls getaddrinfo and uses only m_sHostname, m_pAddrRes, and m_cHints.
+	int Process();
+	//! finalizes and sets up csSockAddr (and pSock if not NULL), only needs to be called if Process returns 0, but can be called anyways if flow demands it
+	int Finish();
+
+private:
+	CS_STRING m_sHostname;
+	Csock * m_pSock;
+	CSSockAddr & m_csSockAddr;
+	struct addrinfo * m_pAddrRes;
+	struct addrinfo m_cHints;
+	int m_iRet;
+};
+
+//! backwards compatible wrapper around CGetAddrInfo and gethostbyname
 int GetAddrInfo( const CS_STRING & sHostname, Csock *pSock, CSSockAddr & csSockAddr );
 
 //! used to retrieve the context position of the socket to its associated ssl connection. Setup once in InitSSL() via SSL_get_ex_new_index
