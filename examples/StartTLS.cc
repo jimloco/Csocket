@@ -10,7 +10,7 @@ class CImapClient : public Csock
 public:
 	CImapClient( int itimeout = 60 ) : Csock( itimeout ) {}
 	CImapClient( const string & sHostname, u_short uPort, int itimeout = 60 ) : Csock( sHostname, uPort, itimeout ) {}
-	virtual void ReadData( const char *data, size_t len ) 
+	virtual void ReadData( const char *data, size_t len )
 	{
 		cout << "<<<< ";
 		cout.write( data, len );

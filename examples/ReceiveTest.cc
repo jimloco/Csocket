@@ -8,7 +8,7 @@ class CRecSock : public Csock
 public:
 	CRecSock( int itimeout = 60 ) : Csock( itimeout ) { m_bAllDataOK = false; }
 	CRecSock( const std::string & sHostname, u_short uPort, int itimeout = 60 ) : Csock( sHostname, uPort, itimeout ) { m_bAllDataOK = false; }
-	virtual ~CRecSock() 
+	virtual ~CRecSock()
 	{
 		if( GetType() == Csock::INBOUND )
 		{
@@ -16,18 +16,18 @@ public:
 			assert( m_bAllDataOK );
 		}
 	}
-	virtual bool ConnectionFrom( const std::string & sHost, u_short iPort ) 
-	{ 
+	virtual bool ConnectionFrom( const std::string & sHost, u_short iPort )
+	{
 		cerr << "CRecSock: Connection from: " << sHost << ":" << iPort << endl;
 		Close();
-		return( true ); 
+		return( true );
 	}
-	virtual void ReadData( const char *data, size_t len ) 
+	virtual void ReadData( const char *data, size_t len )
 	{
 		m_sRecData.append( data, len );
 		cerr << "CRecSock: Got " << len << " bytes." << endl;
 	}
-	virtual void Disconnected() 
+	virtual void Disconnected()
 	{
 		cerr << "CRecSock: Disconnected, wrapping up!" << endl;
 		std::string sTestData;
@@ -35,7 +35,7 @@ public:
 		assert( pFile );
 		char szBuff[1024];
 		size_t uBytes = 0;
-		while( ( uBytes = fread( szBuff, sizeof( char ), 1024, pFile ) ) > 0 )
+		while(( uBytes = fread( szBuff, sizeof( char ), 1024, pFile ) ) > 0 )
 			sTestData.append( szBuff, uBytes );
 		assert( m_sRecData.size() );
 		assert( sTestData.size() );
@@ -56,30 +56,30 @@ static void CreatePem()
 	X509 *pCert = NULL;
 	X509_NAME *pName = NULL;
 	int days = 3650;
-	u_int iSeed = (u_int)time( NULL );
+	u_int iSeed = ( u_int )time( NULL );
 	int serial = ( rand_r( &iSeed ) % 9999 );
 
-	RSA *pRSA = RSA_generate_key(1024, 0x10001, NULL, NULL);
-	if( ( pKey = EVP_PKEY_new() ) ) 
+	RSA *pRSA = RSA_generate_key( 1024, 0x10001, NULL, NULL );
+	if(( pKey = EVP_PKEY_new() ) )
 	{
 		assert( EVP_PKEY_assign_RSA( pKey, pRSA ) ) ;
-		PEM_write_RSAPrivateKey( pOut, pRSA, NULL, NULL, 0, NULL, NULL);
-		assert( ( pCert = X509_new() ) );
+		PEM_write_RSAPrivateKey( pOut, pRSA, NULL, NULL, 0, NULL, NULL );
+		assert(( pCert = X509_new() ) );
 
 		X509_set_version( pCert, 2 );
 		ASN1_INTEGER_set( X509_get_serialNumber( pCert ), serial );
 		X509_gmtime_adj( X509_get_notBefore( pCert ), 0 );
-		X509_gmtime_adj( X509_get_notAfter( pCert ), (long)60*60*24*days );
+		X509_gmtime_adj( X509_get_notAfter( pCert ), ( long )60*60*24*days );
 		X509_set_pubkey( pCert, pKey );
 
 		pName = X509_get_subject_name( pCert );
-		X509_NAME_add_entry_by_txt( pName, "C", MBSTRING_ASC, (unsigned char *)"US", -1, -1, 0);
-		X509_NAME_add_entry_by_txt( pName, "ST", MBSTRING_ASC, (unsigned char *)"California", -1, -1, 0);
-		X509_NAME_add_entry_by_txt( pName, "L", MBSTRING_ASC, (unsigned char *)"San Jose", -1, -1, 0);
-		X509_NAME_add_entry_by_txt( pName, "O", MBSTRING_ASC, (unsigned char *)"Foo, Inc", -1, -1, 0);
-		X509_NAME_add_entry_by_txt( pName, "OU", MBSTRING_ASC, (unsigned char *)"Barny", -1, -1, 0);
-		X509_NAME_add_entry_by_txt( pName, "CN", MBSTRING_ASC, (unsigned char *)"foo.com", -1, -1, 0);
-		X509_NAME_add_entry_by_txt( pName, "emailAddress", MBSTRING_ASC, (unsigned char *)"barny@foo.com", -1, -1, 0);
+		X509_NAME_add_entry_by_txt( pName, "C", MBSTRING_ASC, ( unsigned char * )"US", -1, -1, 0 );
+		X509_NAME_add_entry_by_txt( pName, "ST", MBSTRING_ASC, ( unsigned char * )"California", -1, -1, 0 );
+		X509_NAME_add_entry_by_txt( pName, "L", MBSTRING_ASC, ( unsigned char * )"San Jose", -1, -1, 0 );
+		X509_NAME_add_entry_by_txt( pName, "O", MBSTRING_ASC, ( unsigned char * )"Foo, Inc", -1, -1, 0 );
+		X509_NAME_add_entry_by_txt( pName, "OU", MBSTRING_ASC, ( unsigned char * )"Barny", -1, -1, 0 );
+		X509_NAME_add_entry_by_txt( pName, "CN", MBSTRING_ASC, ( unsigned char * )"foo.com", -1, -1, 0 );
+		X509_NAME_add_entry_by_txt( pName, "emailAddress", MBSTRING_ASC, ( unsigned char * )"barny@foo.com", -1, -1, 0 );
 
 		X509_set_subject_name( pCert, pName );
 

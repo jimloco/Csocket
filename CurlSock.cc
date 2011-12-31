@@ -36,14 +36,14 @@ namespace Csocket
 {
 #endif /* _NO_CSOCKET_NS */
 
-CCurlSock::CCurlSock() 
+CCurlSock::CCurlSock()
 {
 	m_iTimeout_ms = -1;
 	m_pMultiHandle = NULL;
 }
 
-CCurlSock::~CCurlSock() 
-{	
+CCurlSock::~CCurlSock()
+{
 	for( std::map< CURL *, bool >::iterator it = m_pcbCurlHandles.begin(); it != m_pcbCurlHandles.end(); ++it )
 	{
 		CURL * pCurl = it->first;
@@ -68,12 +68,14 @@ bool CCurlSock::GatherFDsForSelect( std::map< int, short > & miiReadyFds, long &
 		curl_multi_socket_action( m_pMultiHandle, CURL_SOCKET_TIMEOUT, 0, &iRunningHandles );
 
 		if( iRunningHandles >= 1 )
-		{ // this means there is a request working
+		{
+			// this means there is a request working
 			size_t uNumFDs = m_miiMonitorFDs.size();
 			if( uNumFDs > 0 )
-			{ // the call back came through and there are fd's to work on
+			{
+				// the call back came through and there are fd's to work on
 
-				int * aiFDs = (int *)malloc( sizeof( int ) * uNumFDs );
+				int * aiFDs = ( int * )malloc( sizeof( int ) * uNumFDs );
 				int * pTmp = aiFDs;
 				// cycle through the available fd's and get the specific actions needed to proceed, need to copy as m_miiMonitorFDs might change during the callback
 				for( std::map< int, short >::iterator it = m_miiMonitorFDs.begin(); it != m_miiMonitorFDs.end(); ++it, ++pTmp )
@@ -103,7 +105,7 @@ bool CCurlSock::GatherFDsForSelect( std::map< int, short > & miiReadyFds, long &
 			pMSG = curl_multi_info_read( m_pMultiHandle, &iNumMsgQueue );
 			if( pMSG && pMSG->msg == CURLMSG_DONE )
 			{
-				OnCURLComplete( pMSG->easy_handle );	
+				OnCURLComplete( pMSG->easy_handle );
 				m_pcbCurlHandles.at( pMSG->easy_handle ) = false;
 			}
 		}
@@ -178,7 +180,7 @@ size_t CCurlSock::WriteData( void * pData, size_t uSize, size_t uNemb, void * pC
 	assert( pManager );
 	size_t uBytes = uSize * uNemb;
 //cout.write( (const char *)pData, uBytes );
-	return( pManager->OnBody( pCURL, (const char *)pData, uBytes ) );
+	return( pManager->OnBody( pCURL, ( const char * )pData, uBytes ) );
 }
 
 size_t CCurlSock::WriteHeader( void * pData, size_t uSize, size_t uNemb, void * pCBPtr )
@@ -189,7 +191,7 @@ size_t CCurlSock::WriteHeader( void * pData, size_t uSize, size_t uNemb, void * 
 		return( 0 );
 	assert( pManager );
 	size_t uBytes = uSize * uNemb;
-	return( pManager->OnHeader( pCURL, (const char *)pData, uBytes ) );
+	return( pManager->OnHeader( pCURL, ( const char * )pData, uBytes ) );
 }
 
 int CCurlSock::SetupSock( CURL * pCurl, curl_socket_t iFD, int iWhat, void * pCBPtr, void * pSockPtr )

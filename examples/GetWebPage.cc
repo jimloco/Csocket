@@ -13,19 +13,19 @@ public:
 
 protected:
 	virtual void OnCURLComplete( CURL * pCURL ) { m_bEnabled = false; }
-	size_t OnHeader( CURL * pCURL, const char * pData, size_t uBytes ) 
-	{ 
+	size_t OnHeader( CURL * pCURL, const char * pData, size_t uBytes )
+	{
 		long iData = 0;
 		// only interested in the 200 response, in this test google does a 301
 		if( curl_easy_getinfo( pCURL, CURLINFO_RESPONSE_CODE, &iData ) == CURLE_OK && iData == 200 )
 			m_sHeader.append( pData, uBytes );
-		return( uBytes ); 
+		return( uBytes );
 	}
-	size_t OnBody( CURL * pCURL, const char * pData, size_t uBytes ) 
-	{ 
+	size_t OnBody( CURL * pCURL, const char * pData, size_t uBytes )
+	{
 		if( m_sHeader.size() )
 			m_sBody.append( pData, uBytes );
-		return( uBytes ); 
+		return( uBytes );
 	}
 private:
 	std::string	&	m_sHeader;
@@ -38,7 +38,7 @@ int main( int argc, char **argv )
 	CGetWebPage * pCurl = new CGetWebPage( sHeader, sBody );
 	pCurl->Retr( "http://google.com" );
 	cFoo.MonitorFD( pCurl );
-	
+
 	while( cFoo.HasFDs() )
 		cFoo.Loop();
 

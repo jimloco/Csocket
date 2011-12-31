@@ -35,6 +35,7 @@
  * - You should always compile with -Woverloaded-virtual to detect callbacks that may have been redefined since your last update
  * - If you want to use gethostbyname instead of getaddrinfo, the use -DUSE_GETHOSTBYNAME when compiling
  * - To compile with win32 need to link to winsock2, using gcc its -lws2_32
+ * - Code is formated with 'astyle --style=ansi -t4 --unpad-paren --pad-paren-in --keep-one-line-blocks'
  ***/
 
 #ifndef _HAS_CSOCKET_
@@ -154,7 +155,7 @@ class CSCharBuffer
 public:
 	CSCharBuffer( size_t iSize )
 	{
-		m_pBuffer = (char *)malloc( iSize );
+		m_pBuffer = ( char * )malloc( iSize );
 	}
 	~CSCharBuffer()
 	{
@@ -172,9 +173,9 @@ public:
 	CSSockAddr()
 	{
 		m_bIsIPv6 = false;
-		memset( (struct sockaddr_in *)&m_saddr, '\0', sizeof( m_saddr ) );
+		memset(( struct sockaddr_in * )&m_saddr, '\0', sizeof( m_saddr ) );
 #ifdef HAVE_IPV6
-		memset( (struct sockaddr_in6 *)&m_saddr6, '\0', sizeof( m_saddr6 ) );
+		memset(( struct sockaddr_in6 * )&m_saddr6, '\0', sizeof( m_saddr6 ) );
 #endif /* HAVE_IPV6 */
 		m_iAFRequire = RAF_ANY;
 	}
@@ -198,11 +199,11 @@ public:
 
 	socklen_t GetSockAddrLen() { return( sizeof( m_saddr ) ); }
 	sockaddr_in * GetSockAddr() { return( &m_saddr ); }
-	in_addr * GetAddr() { return( &(m_saddr.sin_addr) ); }
+	in_addr * GetAddr() { return( &( m_saddr.sin_addr ) ); }
 #ifdef HAVE_IPV6
 	socklen_t GetSockAddrLen6() { return( sizeof( m_saddr6 ) ); }
 	sockaddr_in6 * GetSockAddr6() { return( &m_saddr6 ); }
-	in6_addr * GetAddr6() { return( &(m_saddr6.sin6_addr) ); }
+	in6_addr * GetAddr6() { return( &( m_saddr6.sin6_addr ) ); }
 #endif /* HAVE_IPV6 */
 
 	void SetAFRequire( EAFRequire iWhich ) { m_iAFRequire = iWhich; }
@@ -238,11 +239,11 @@ class CGetAddrInfo
 public:
 	/**
 	 * @brief ctor
- 	 * @param sHostname the host to resolve
+	 * @param sHostname the host to resolve
 	 * @param pSock the sock being setup, this option can be NULL, if it is null csSockAddr is only setup
 	 * @param csSockAddr the struct that sockaddr data is being copied to
 	 */
-	CGetAddrInfo( const CS_STRING & sHostname, Csock *pSock, CSSockAddr & csSockAddr ); 
+	CGetAddrInfo( const CS_STRING & sHostname, Csock *pSock, CSSockAddr & csSockAddr );
 	~CGetAddrInfo();
 
 	//! simply sets up m_cHints for use in process
@@ -331,7 +332,7 @@ inline void TFD_SET( cs_sock_t iSock, fd_set *set )
 
 inline bool TFD_ISSET( cs_sock_t iSock, fd_set *set )
 {
-	if ( FD_ISSET( iSock, set ) )
+	if( FD_ISSET( iSock, set ) )
 		return( true );
 
 	return( false );
@@ -452,7 +453,7 @@ public:
 	void Remove( int iFD ) { m_miiMonitorFDs.erase( iFD ); }
 	//! causes this monitor to be removed
 	void DisableMonitor() { m_bEnabled = false; }
-	
+
 	bool IsEnabled() const { return( m_bEnabled ); }
 
 protected:
@@ -472,7 +473,7 @@ public:
 
 	void CleanupCrons();
 	void CleanupFDMonitors();
-	
+
 	//! returns a const reference to the crons associated to this socket
 	const std::vector<CCron *> & GetCrons() const { return( m_vcCrons ); }
 	//! This has a garbage collecter, and is used internall to call the jobs
@@ -504,7 +505,7 @@ protected:
 };
 
 #ifdef HAVE_LIBSSL
-typedef int (*FPCertVerifyCB)( int, X509_STORE_CTX * );
+typedef int ( *FPCertVerifyCB )( int, X509_STORE_CTX * );
 #endif /* HAVE_LIBSSL */
 
 /**
@@ -853,12 +854,12 @@ public:
 	//! Returns the peer's public key
 	CS_STRING GetPeerPubKey();
 	//! Returns the peer's certificate finger print
-	long GetPeerFingerprint( CS_STRING & sFP);
+	long GetPeerFingerprint( CS_STRING & sFP );
 
 	unsigned int GetRequireClientCertFlags();
 	//! legacy, deprecated @see SetRequireClientCertFlags
 	void SetRequiresClientCert( bool bRequiresCert );
-	//! bitwise flags, 0 means don't require cert, SSL_VERIFY_PEER verifies peers, SSL_VERIFY_FAIL_IF_NO_PEER_CERT will cause the connection to fail if no cert 
+	//! bitwise flags, 0 means don't require cert, SSL_VERIFY_PEER verifies peers, SSL_VERIFY_FAIL_IF_NO_PEER_CERT will cause the connection to fail if no cert
 	void SetRequireClientCertFlags( unsigned int iRequireClientCertFlags ) { m_iRequireClientCertFlags = iRequireClientCertFlags; }
 
 #endif /* HAVE_LIBSSL */
@@ -1283,7 +1284,7 @@ public:
 	void SetPemPass( const CS_STRING & s ) { m_sPemPass = s; }
 	//! set to true if require a client certificate (deprecated @see SetRequireClientCertFlags)
 	void SetRequiresClientCert( bool b ) { m_iRequireCertFlags = ( b ? SSL_VERIFY_PEER|SSL_VERIFY_FAIL_IF_NO_PEER_CERT : 0 ); }
-	//! bitwise flags, 0 means don't require cert, SSL_VERIFY_PEER verifies peers, SSL_VERIFY_FAIL_IF_NO_PEER_CERT will cause the connection to fail if no cert 
+	//! bitwise flags, 0 means don't require cert, SSL_VERIFY_PEER verifies peers, SSL_VERIFY_FAIL_IF_NO_PEER_CERT will cause the connection to fail if no cert
 	void SetRequireClientCertFlags( unsigned int iRequireCertFlags ) { m_iRequireCertFlags = iRequireCertFlags; }
 #endif /* HAVE_LIBSSL */
 private:
@@ -1366,7 +1367,7 @@ public:
 	 * @brief Sets up a listening socket
 	 * @param cListen the listener configuration
 	 * @param pcSock preconfigured sock to use
-	 * @param piRandPort if listener is set to port 0, then a random port is used and this is assigned. 
+	 * @param piRandPort if listener is set to port 0, then a random port is used and this is assigned.
 	 *
 	 * IF you provide piRandPort to be assigned, AND you set bDetach to true, then Listen() still blocks. If you don't want this
 	 * behavior, then look for the port assignment to be called in Csock::Listening
@@ -1482,7 +1483,7 @@ public:
 
 protected:
 
-	virtual int Select( std::map< int, short > & miiReadyFds, struct timeval *tvtimeout);
+	virtual int Select( std::map< int, short > & miiReadyFds, struct timeval *tvtimeout );
 
 private:
 	/**
