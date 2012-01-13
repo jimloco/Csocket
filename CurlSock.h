@@ -1,6 +1,6 @@
 /**
 *
-*    Copyright (c) 1999-2011 Jim Hull <imaginos@imaginos.net>
+*    Copyright (c) 1999-2012 Jim Hull <csocket@jimloco.com>
 *    All rights reserved
 *
 * Redistribution and use in source and binary forms, with or without modification,

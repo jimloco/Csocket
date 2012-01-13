@@ -1,6 +1,6 @@
 /**
 *
-*    Copyright (c) 1999-2011 Jim Hull <imaginos@imaginos.net>
+*    Copyright (c) 1999-2012 Jim Hull <csocket@jimloco.com>
 *    All rights reserved
 *
 * Redistribution and use in source and binary forms, with or without modification,
@@ -352,7 +352,7 @@ unsigned long long millitime();
 * @brief this is the main cron job class
 *
 * You should derive from this class, and override RunJob() with your code
-* @author Jim Hull <imaginos@imaginos.net>
+* @author Jim Hull <csocket@jimloco.com>
 */
 
 class CCron
@@ -515,7 +515,7 @@ typedef int ( *FPCertVerifyCB )( int, X509_STORE_CTX * );
 * You can use this class directly for quick things
 * or use the socket manager
 * @see TSocketManager
-* @author Jim Hull <imaginos@imaginos.net>
+* @author Jim Hull <csocket@jimloco.com>
 */
 class Csock : public CSockCommon
 {
@@ -1334,7 +1334,7 @@ public:
 *
 * class CBlahSock : public TSocketManager<SomeSock>
 *
-* @author Jim Hull <imaginos@imaginos.net>
+* @author Jim Hull <csocket@jimloco.com>
 */
 
 class CSocketManager : public std::vector<Csock *>, public CSockCommon
