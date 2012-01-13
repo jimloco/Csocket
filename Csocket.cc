@@ -3105,7 +3105,7 @@ int CSocketManager::Select( std::map< int, short > & miiReadyFds, struct timeval
 			iEvents |= ECT_Write;
 		std::map< int, short >::iterator it = miiReadyFds.find( pFDs[uCurrPoll].fd );
 		if( it != miiReadyFds.end() )
-			it->second |= iEvents;
+			it->second = ( short )( it->second | iEvents ); // TODO need to figure out why |= throws 'short int' from 'int' may alter its value
 		else
 			miiReadyFds[pFDs[uCurrPoll].fd] = iEvents;
 	}
