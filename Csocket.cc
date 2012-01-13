@@ -189,7 +189,7 @@ Csock *GetCsockFromCTX( X509_STORE_CTX *pCTX )
 #endif /* HAVE_LIBSSL */
 
 
-#ifdef USE_GETHOSTNAME
+#ifdef USE_GETHOSTBYNAME
 
 // this issue here is getaddrinfo has a significant behavior difference when dealing with round robin dns on an
 // ipv4 network. This is not desirable IMHO. so when this is compiled without ipv6 support backwards compatibility
@@ -249,7 +249,7 @@ static int __GetHostByName( const CS_STRING & sHostName, struct in_addr *paddr, 
 
 	return( iReturn == TRY_AGAIN ? EAGAIN : iReturn );
 }
-#endif /* !USE_GETHOSTNAME */
+#endif /* !USE_GETHOSTBYNAME */
 
 #ifdef HAVE_C_ARES
 void Csock::FreeAres()
