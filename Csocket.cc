@@ -437,15 +437,16 @@ int GetAddrInfo( const CS_STRING & sHostname, Csock *pSock, CSSockAddr & csSockA
 	if( pSock )
 		pSock->SetIPv6( false );
 	csSockAddr.SetIPv6( false );
-	if( __GetHostByName( sHostname, csSockAddr.GetAddr(), 3 ) == 0 )
-		return( 0 );
-#endif /* USE_GETHOSTBYNAME */
+	int iRet = __GetHostByName( sHostname, csSockAddr.GetAddr(), 3 );
+	return( iRet );
+#else
 	CGetAddrInfo cInfo( sHostname, pSock, csSockAddr );
 	cInfo.Init();
 	int iRet = cInfo.Process();
 	if( iRet != 0 )
 		return( iRet );
 	return( cInfo.Finish() );
+#endif /* USE_GETHOSTBYNAME */
 }
 
 int Csock::ConvertAddress( const struct sockaddr_storage * pAddr, socklen_t iAddrLen, CS_STRING & sIP, u_short * piPort )
