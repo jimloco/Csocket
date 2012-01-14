@@ -583,7 +583,7 @@ static const char * CS_StrError( int iErrno, char * pszBuff, size_t uBuffLen )
 	return( strerror( iErrno ) );
 #else
 	memset( pszBuff, '\0', uBuffLen );
-#if (_POSIX_C_SOURCE >= 200112L || _XOPEN_SOURCE >= 600) && !defined( _GNU_SOURCE )
+#if !defined( _GNU_SOURCE )
 	if( strerror_r( iErrno, pszBuff, uBuffLen ) == 0 )
 		return( pszBuff );
 #else
