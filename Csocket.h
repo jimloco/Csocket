@@ -1058,7 +1058,7 @@ public:
 	 * @brief retrieve name info (numeric only) for a given sockaddr_storage
 	 * @param pAddr the sockaddr_storage
 	 * @param iAddrLen the length
-	 * @param sHostname filled with the IP from getnameinfo
+	 * @param sIP filled with the IP from getnameinfo
 	 * @param piPort if not null, filled with the port
 	 * @return 0 on success.
 	 *
