@@ -30,7 +30,7 @@ class MySock : public Csock
 {
 public:
 	MySock() : Csock() { EnableReadLine(); m_pcParent = NULL; }
-	MySock( const std::string & sHostname, u_short iport, int itimeout = 60 ) :
+	MySock( const std::string & sHostname, uint16_t iport, int itimeout = 60 ) :
 		Csock( sHostname, iport, itimeout ) { EnableReadLine(); m_pcParent = NULL; }
 
 	virtual ~MySock() {}
@@ -73,14 +73,14 @@ public:
 		cerr << "ACK [" << iError << "] " << sDescription << endl;
 	}
 
-	virtual bool ConnectionFrom( const std::string & sHost, u_short iPort )
+	virtual bool ConnectionFrom( const std::string & sHost, uint16_t iPort )
 	{
 		std::ostringstream ossTmp;
 		ossTmp << "Connection from " << sHost << ":" << iPort << endl;
 		WriteAll( ossTmp.str() );
 		return( true );
 	}
-	virtual void Listening( const std::string & sBindIP, u_short uPort )
+	virtual void Listening( const std::string & sBindIP, uint16_t uPort )
 	{
 		cerr << "Listening: " << sBindIP << ":" << uPort << endl;
 	}
@@ -109,7 +109,7 @@ public:
 
 void MySock::WriteAll( const std::string & sLine )
 {
-	for( unsigned int i = 0; i < m_pcParent->size(); i++ )
+	for( size_t i = 0; i < m_pcParent->size(); i++ )
 	{
 		if((( *m_pcParent )[i] != this ) && (( *m_pcParent )[i]->GetType() == MySock::INBOUND ) )
 			if( !(( MySock * )( *m_pcParent )[i] )->GetNick().empty() )
@@ -176,7 +176,7 @@ int main( int argc, char **argv )
 
 	int iRet = 0;
 	int iOptIndex = 0;
-	u_short uPort = 0;
+	uint16_t uPort = 0;
 	bool bEnableSSL = false;
 	bool bReqClientCert = false;
 	bool bDumpHelp = true;
@@ -188,7 +188,7 @@ int main( int argc, char **argv )
 			break;
 		bDumpHelp = false;
 		if( strcmp( s_apOpts[iOptIndex].name, "port" ) == 0 )
-			uPort = ( u_short )atoi( optarg );
+			uPort = ( uint16_t )atoi( optarg );
 		else if( strcmp( s_apOpts[iOptIndex].name, "enable-ssl" ) == 0 )
 			bEnableSSL = true;
 		else if( strcmp( s_apOpts[iOptIndex].name, "pem-file" ) == 0 )
@@ -220,7 +220,7 @@ int main( int argc, char **argv )
 	}
 
 	// sample ssl server compile with -D_HAS_SSL
-	CSListener cListen(( u_short )uPort, sBindHost, true );
+	CSListener cListen(( uint16_t )uPort, sBindHost, true );
 	cListen.SetSockName( "talk" );
 	cListen.SetIsSSL( bEnableSSL );
 

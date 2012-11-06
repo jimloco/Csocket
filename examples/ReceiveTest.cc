@@ -1,5 +1,4 @@
 #include <Csocket.h>
-#include <sys/types.h>
 #include <sys/wait.h>
 #include <stdio.h>
 
@@ -7,7 +6,7 @@ class CRecSock : public Csock
 {
 public:
 	CRecSock( int itimeout = 60 ) : Csock( itimeout ) { m_bAllDataOK = false; }
-	CRecSock( const std::string & sHostname, u_short uPort, int itimeout = 60 ) : Csock( sHostname, uPort, itimeout ) { m_bAllDataOK = false; }
+	CRecSock( const std::string & sHostname, uint16_t uPort, int itimeout = 60 ) : Csock( sHostname, uPort, itimeout ) { m_bAllDataOK = false; }
 	virtual ~CRecSock()
 	{
 		if( GetType() == Csock::INBOUND )
@@ -16,7 +15,7 @@ public:
 			assert( m_bAllDataOK );
 		}
 	}
-	virtual bool ConnectionFrom( const std::string & sHost, u_short iPort )
+	virtual bool ConnectionFrom( const std::string & sHost, uint16_t iPort )
 	{
 		cerr << "CRecSock: Connection from: " << sHost << ":" << iPort << endl;
 		Close();
@@ -116,7 +115,7 @@ int main( int argc, char **argv )
 			cListen.SetPemLocation( "ReceiveTest.pem" );
 		}
 		cListen.SetTimeout( 5 );
-		u_short uPort = 0;
+		uint16_t uPort = 0;
 		assert( cManager.Listen( cListen, NULL, &uPort ) );
 		cerr << "Listening on port: " << uPort << endl;
 		assert( uPort > 0 );
