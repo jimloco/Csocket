@@ -36,7 +36,7 @@ tags: $(SRCS) $(wildcard ../*.h *.h)
 test: $(TESTBINS)
 	@for i in $(TESTBINS); do \
 		echo "Running $$i ..."; \
-		./$$i >$$i.out 2>$$i.err; \
+		./$$i >$$i.out 2>$$i.err || exit 1; \
 	done
 
 clean:

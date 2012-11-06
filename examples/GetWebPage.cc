@@ -31,6 +31,8 @@ private:
 	std::string	&	m_sHeader;
 	std::string	&	m_sBody;
 };
+
+
 int main( int argc, char **argv )
 {
 	std::string sHeader, sBody;

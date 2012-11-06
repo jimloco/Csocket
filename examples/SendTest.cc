@@ -1,14 +1,13 @@
 #include <Csocket.h>
-#include <sys/types.h>
 #include <sys/wait.h>
 #include <stdio.h>
 
 int main( int argc, char **argv )
 {
 	InitCsocket();
-	u_short uPort = 45545;
+	uint16_t uPort = 45545;
 	if( argc > 1 )
-		uPort = ( u_short )atoi( argv[1] );
+		uPort = (uint16_t)atoi( argv[1] );
 	for( int iType = 0; iType < 4; ++iType )
 	{
 		cerr << "------------ New Test ------------" << endl;
@@ -66,7 +65,7 @@ int main( int argc, char **argv )
 			std::string sBuffer;
 			size_t uBytes = 0;
 			char szBuff[1024];
-			while(( uBytes = fread( szBuff, sizeof( char ), 1024, pFile ) ) > 0 )
+			while( (uBytes = fread( szBuff, sizeof( char ), 1024, pFile )) > 0 )
 				sBuffer.append( szBuff, uBytes );
 			fclose( pFile );
 			assert( sBuffer.size() );
@@ -94,3 +93,4 @@ int main( int argc, char **argv )
 	ShutdownCsocket();
 	return( 0 );
 }
+

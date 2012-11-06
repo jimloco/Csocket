@@ -1,5 +1,4 @@
 #include <Csocket.h>
-#include <sys/types.h>
 #include <sys/wait.h>
 #include <stdio.h>
 
@@ -9,8 +8,8 @@ class CImapClient : public Csock
 {
 public:
 	CImapClient( int itimeout = 60 ) : Csock( itimeout ) {}
-	CImapClient( const string & sHostname, u_short uPort, int itimeout = 60 ) : Csock( sHostname, uPort, itimeout ) {}
-	virtual void ReadData( const char *data, size_t len )
+	CImapClient( const string & sHostname, uint16_t uPort, int itimeout = 60 ) : Csock( sHostname, uPort, itimeout ) {}
+	virtual void ReadData( const char * data, size_t len )
 	{
 		cout << "<<<< ";
 		cout.write( data, len );
@@ -18,7 +17,6 @@ public:
 		sFoo.assign( data, len );
 		if( sFoo.find( "CAPABILITY" ) != string::npos )
 		{
-
 			Write( "a001 STARTTLS\n" );
 		}
 		else if( sFoo.find( "STARTTLS completed" ) != string::npos )
