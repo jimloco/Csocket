@@ -824,8 +824,6 @@ public:
 	const CS_STRING & GetPemLocation();
 	void SetPemPass( const CS_STRING & sPassword );
 	const CS_STRING & GetPemPass() const;
-	static int PemPassCB( char *buf, int size, int rwflag, void * pcSocket );
-	static int CertVerifyCB( int preverify_ok, X509_STORE_CTX *x509_ctx );
 
 	//! Set the SSL method type
 	void SetSSLMethod( int iMethod );

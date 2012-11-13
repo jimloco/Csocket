@@ -179,6 +179,33 @@ void CSSockAddr::SetIPv6( bool b )
 
 
 #ifdef HAVE_LIBSSL
+static int _PemPassCB( char *pBuff, int iBuffLen, int rwflag, void * pcSocket )
+{
+	Csock * pSock = static_cast<Csock *>( pcSocket );
+	const CS_STRING & sPassword = pSock->GetPemPass();
+	if( iBuffLen <= 0 )
+		return( 0 );
+	memset( pBuff, '\0', iBuffLen );
+	if( sPassword.empty() )
+		return( 0 );
+	int iUseBytes = min( iBuffLen - 1, (int)sPassword.length() );
+	memcpy( pBuff, sPassword.data(), iUseBytes );
+	return( iUseBytes );
+}
+
+static int _CertVerifyCB( int preverify_ok, X509_STORE_CTX *x509_ctx )
+{
+	/*
+	 * A small quick example on how to get ahold of the Csock in the data portion of x509_ctx
+	Csock * pSock = GetCsockFromCTX( x509_ctx );
+	assert( pSock );
+	cerr << pSock->GetRemoteIP() << endl;
+	 */
+
+	/* return 1 always for now, probably want to add some code for cert verification */
+	return( 1 );
+}
+
 Csock * GetCsockFromCTX( X509_STORE_CTX * pCTX )
 {
 	Csock * pSock = NULL;
@@ -1351,7 +1378,7 @@ bool Csock::SSLClientSetup()
 
 	if( !m_sPemFile.empty() )
 	{	// are we sending a client cerificate ?
-		SSL_CTX_set_default_passwd_cb( m_ssl_ctx, PemPassCB );
+		SSL_CTX_set_default_passwd_cb( m_ssl_ctx, _PemPassCB );
 		SSL_CTX_set_default_passwd_cb_userdata( m_ssl_ctx, ( void * )this );
 
 		//
@@ -1375,7 +1402,7 @@ bool Csock::SSLClientSetup()
 
 	SSL_set_rfd( m_ssl, ( int )m_iReadSock );
 	SSL_set_wfd( m_ssl, ( int )m_iWriteSock );
-	SSL_set_verify( m_ssl, SSL_VERIFY_PEER, ( m_pCerVerifyCB ? m_pCerVerifyCB : CertVerifyCB ) );
+	SSL_set_verify( m_ssl, SSL_VERIFY_PEER, ( m_pCerVerifyCB ? m_pCerVerifyCB : _CertVerifyCB ) );
 	SSL_set_ex_data( m_ssl, GetCsockClassIdx(), this );
 
 	SSLFinishSetup( m_ssl );
@@ -1446,7 +1473,7 @@ bool Csock::SSLServerSetup()
 	SSL_CTX_set_default_verify_paths( m_ssl_ctx );
 
 	// set the pemfile password
-	SSL_CTX_set_default_passwd_cb( m_ssl_ctx, PemPassCB );
+	SSL_CTX_set_default_passwd_cb( m_ssl_ctx, _PemPassCB );
 	SSL_CTX_set_default_passwd_cb_userdata( m_ssl_ctx, ( void * )this );
 
 	if( m_sPemFile.empty() || access( m_sPemFile.c_str(), R_OK ) != 0 )
@@ -1518,7 +1545,7 @@ bool Csock::SSLServerSetup()
 	SSL_set_accept_state( m_ssl );
 	if( m_iRequireClientCertFlags )
 	{
-		SSL_set_verify( m_ssl, m_iRequireClientCertFlags, ( m_pCerVerifyCB ? m_pCerVerifyCB : CertVerifyCB ) );
+		SSL_set_verify( m_ssl, m_iRequireClientCertFlags, ( m_pCerVerifyCB ? m_pCerVerifyCB : _CertVerifyCB ) );
 		SSL_set_ex_data( m_ssl, GetCsockClassIdx(), this );
 	}
 
@@ -2046,29 +2073,6 @@ void Csock::SetPemLocation( const CS_STRING & sPemFile ) { m_sPemFile = sPemFile
 const CS_STRING & Csock::GetPemLocation() { return( m_sPemFile ); }
 void Csock::SetPemPass( const CS_STRING & sPassword ) { m_sPemPass = sPassword; }
 const CS_STRING & Csock::GetPemPass() const { return( m_sPemPass ); }
-
-int Csock::PemPassCB( char *buf, int size, int rwflag, void * pcSocket )
-{
-	Csock * pSock = ( Csock * )pcSocket;
-	const CS_STRING & sPassword = pSock->GetPemPass();
-	memset( buf, '\0', size );
-	strncpy( buf, sPassword.c_str(), size );
-	buf[size-1] = '\0';
-	return(( int )strlen( buf ) );
-}
-
-int Csock::CertVerifyCB( int preverify_ok, X509_STORE_CTX *x509_ctx )
-{
-	/*
-	 * A small quick example on how to get ahold of the Csock in the data portion of x509_ctx
-	Csock * pSock = GetCsockFromCTX( x509_ctx );
-	assert( pSock );
-	cerr << pSock->GetRemoteIP() << endl;
-	 */
-
-	/* return 1 always for now, probably want to add some code for cert verification */
-	return( 1 );
-}
 
 void Csock::SetSSLMethod( int iMethod ) { m_iMethod = iMethod; }
 int Csock::GetSSLMethod() { return( m_iMethod ); }
