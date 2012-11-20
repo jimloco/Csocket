@@ -1198,15 +1198,19 @@ bool Csock::Listen( uint16_t iPort, int iMaxConns, const CS_STRING & sBindHost, 
 	}
 
 #ifdef HAVE_IPV6
-#ifdef _WIN32
-# ifndef IPPROTO_IPV6
-#  define IPPROTO_IPV6 41 /* define for apps with _WIN32_WINNT < 0x0501 (XP) */
-# endif /* !IPPROTO_IPV6 */
+# ifdef _WIN32
+#  ifndef IPPROTO_IPV6
+#   define IPPROTO_IPV6 41 /* define for apps with _WIN32_WINNT < 0x0501 (XP) */
+#  endif /* !IPPROTO_IPV6 */
+#  ifndef IPV6_V6ONLY
+#   define IPV6_V6ONLY 27
+#  endif
 	/* check for IPV6_V6ONLY support at runtime */
 	OSVERSIONINFOW lvi = { sizeof( OSVERSIONINFOW ), 0 };
 	if( ::GetVersionExW( &lvi ) && lvi.dwMajorVersion >= 6 ) // IPV6_V6ONLY is supported on Windows Vista or later.
 	{
-#endif /* _WIN32 */
+# endif /* _WIN32 */
+# ifdef IPV6_V6ONLY
 		if( GetIPv6() )
 		{
 			// per RFC3493#5.3
@@ -1214,9 +1218,10 @@ bool Csock::Listen( uint16_t iPort, int iMaxConns, const CS_STRING & sBindHost, 
 			if( setsockopt( m_iReadSock, IPPROTO_IPV6, IPV6_V6ONLY, ( char * )&on, sizeof( on ) ) != 0 )
 				PERROR( "IPV6_V6ONLY" );
 		}
-#ifdef _WIN32
+# endif /* IPV6_V6ONLY */
+# ifdef _WIN32
 	}
-#endif /* _WIN32 */
+# endif /* _WIN32 */
 #endif /* HAVE_IPV6 */
 
 	m_address.SinFamily();
