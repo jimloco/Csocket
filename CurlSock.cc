@@ -165,7 +165,7 @@ CURL * CCurlSock::Retr( const CS_STRING & sURL, const CS_STRING & sReferrer )
 
 	if( curl_easy_setopt( pCURL, CURLOPT_URL, sURL.c_str() ) != CURLE_OK )
 		return( NULL );
-	if( sReferrer.size() && curl_easy_setopt( pCURL, CURLOPT_REFERER, sReferrer.c_str() ) != CURLE_OK )
+	if( !sReferrer.empty() && curl_easy_setopt( pCURL, CURLOPT_REFERER, sReferrer.c_str() ) != CURLE_OK )
 		return( NULL );
 	m_pcbCurlHandles[pCURL] = true;
 	return( pCURL );
