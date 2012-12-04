@@ -757,7 +757,7 @@ bool CSMonitorFD::CheckFDs( const std::map< int, short > & miiReadyFds )
 		if( itFD != miiReadyFds.end() )
 			miiTriggerdFds[itFD->first] = itFD->second;
 	}
-	if( miiTriggerdFds.size() )
+	if( !miiTriggerdFds.empty() )
 		return( FDsThatTriggered( miiTriggerdFds ) );
 	return( m_bEnabled );
 }
@@ -771,14 +771,14 @@ CSockCommon::~CSockCommon()
 
 void CSockCommon::CleanupCrons()
 {
-	for( size_t a = 0; a < m_vcCrons.size(); a++ )
+	for( size_t a = 0; a < m_vcCrons.size(); ++a )
 		CS_Delete( m_vcCrons[a] );
 	m_vcCrons.clear();
 }
 
 void CSockCommon::CleanupFDMonitors()
 {
-	for( size_t a = 0; a < m_vcMonitorFD.size(); a++ )
+	for( size_t a = 0; a < m_vcMonitorFD.size(); ++a )
 		CS_Delete( m_vcMonitorFD[a] );
 	m_vcMonitorFD.clear();
 }
@@ -815,7 +815,7 @@ void CSockCommon::Cron()
 	timeval tNow;
 	timerclear( &tNow );
 
-	for( vector<CCron *>::size_type a = 0; a < m_vcCrons.size(); a++ )
+	for( vector<CCron *>::size_type a = 0; a < m_vcCrons.size(); ++a )
 	{
 		CCron * pcCron = m_vcCrons[a];
 
@@ -1253,7 +1253,7 @@ bool Csock::Listen( uint16_t iPort, int iMaxConns, const CS_STRING & sBindHost, 
 
 	// set it none blocking
 	set_non_blocking( m_iReadSock );
-	if( m_uPort == 0 || m_sBindHost.size() )
+	if( m_uPort == 0 || !m_sBindHost.empty() )
 	{
 		struct sockaddr_storage cAddr;
 		socklen_t iAddrLen = sizeof( cAddr );
@@ -1910,8 +1910,10 @@ void Csock::SetTimeout( int iTimeout, u_int iTimeoutType )
 
 void Csock::CallSockError( int iErrno, const CS_STRING & sDescription )
 {
-	if( sDescription.size() )
+	if( !sDescription.empty() )
+	{
 		SockError( iErrno, sDescription );
+	}
 	else
 	{
 		char szBuff[0xff];
@@ -1935,7 +1937,9 @@ bool Csock::CheckTimeout( time_t iNow )
 
 	time_t iDiff = 0;
 	if( iNow > m_iLastCheckTimeoutTime )
+	{
 		iDiff = iNow - m_iLastCheckTimeoutTime;
+	}
 	else
 	{
 		// this is weird, but its possible if someone changes a clock and it went back in time, this essentially has to reset the last check
@@ -2621,7 +2625,7 @@ CSocketManager::~CSocketManager()
 
 void CSocketManager::clear()
 {
-	while( this->size() )
+	while( !this->empty() )
 		DelSock( 0 );
 }
 
@@ -2737,7 +2741,7 @@ bool CSocketManager::Listen( const CSListener & cListen, Csock * pcSock, uint16_
 
 bool CSocketManager::HasFDs() const
 {
-	return( this->size() || m_vcMonitorFD.size() );
+	return( !this->empty() || !m_vcMonitorFD.empty() );
 }
 
 void CSocketManager::Loop()
