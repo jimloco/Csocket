@@ -2859,21 +2859,22 @@ void CSocketManager::Loop()
 					{
 						bool bHandled = false;
 #ifdef HAVE_LIBSSL
-						if (pcSock->GetSSL()) {
+						if( pcSock->GetSSL() ) 
+						{
 							unsigned long iSSLError = ERR_peek_error();
-							if (iSSLError) {
+							if( iSSLError )
+							{
 								char szError[512];
 								memset(( char * ) szError, '\0', 512 );
 								ERR_error_string_n( iSSLError, szError, 511 );
-								SSLErrors(__FILE__, __LINE__);
-								pcSock->CallSockError(GetSockError(), szError);
+								SSLErrors( __FILE__, __LINE__ );
+								pcSock->CallSockError( GetSockError(), szError );
 								bHandled = true;
 							}
 						}
 #endif
-						if (!bHandled) {
+						if( !bHandled ) 
 							pcSock->CallSockError( GetSockError() );
-						}
 						DelSockByAddr( pcSock );
 						break;
 					}
