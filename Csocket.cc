@@ -738,22 +738,22 @@ const CS_STRING & CCron::GetName() const { return( m_sName ); }
 void CCron::SetName( const CS_STRING & sName ) { m_sName = sName; }
 void CCron::RunJob() { CS_DEBUG( "This should be overridden" ); }
 
-bool CSMonitorFD::GatherFDsForSelect( std::map< int, short > & miiReadyFds, long & iTimeoutMS )
+bool CSMonitorFD::GatherFDsForSelect( std::map< cs_sock_t, short > & miiReadyFds, long & iTimeoutMS )
 {
 	iTimeoutMS = -1; // don't bother changing anything in the default implementation
-	for( std::map< int, short >::iterator it = m_miiMonitorFDs.begin(); it != m_miiMonitorFDs.end(); ++it )
+	for( std::map< cs_sock_t, short >::iterator it = m_miiMonitorFDs.begin(); it != m_miiMonitorFDs.end(); ++it )
 	{
 		miiReadyFds[it->first] = it->second;
 	}
 	return( m_bEnabled );
 }
 
-bool CSMonitorFD::CheckFDs( const std::map< int, short > & miiReadyFds )
+bool CSMonitorFD::CheckFDs( const std::map< cs_sock_t, short > & miiReadyFds )
 {
-	std::map< int, short > miiTriggerdFds;
-	for( std::map< int, short >::iterator it = m_miiMonitorFDs.begin(); it != m_miiMonitorFDs.end(); ++it )
+	std::map< cs_sock_t, short > miiTriggerdFds;
+	for( std::map< cs_sock_t, short >::iterator it = m_miiMonitorFDs.begin(); it != m_miiMonitorFDs.end(); ++it )
 	{
-		std::map< int, short >::const_iterator itFD = miiReadyFds.find( it->first );
+		std::map< cs_sock_t, short >::const_iterator itFD = miiReadyFds.find( it->first );
 		if( itFD != miiReadyFds.end() )
 			miiTriggerdFds[itFD->first] = itFD->second;
 	}
@@ -783,7 +783,7 @@ void CSockCommon::CleanupFDMonitors()
 	m_vcMonitorFD.clear();
 }
 
-void CSockCommon::CheckFDs( const std::map< int, short > & miiReadyFds )
+void CSockCommon::CheckFDs( const std::map< cs_sock_t, short > & miiReadyFds )
 {
 	for( size_t uMon = 0; uMon < m_vcMonitorFD.size(); ++uMon )
 	{
@@ -792,7 +792,7 @@ void CSockCommon::CheckFDs( const std::map< int, short > & miiReadyFds )
 	}
 }
 
-void CSockCommon::AssignFDs( std::map< int, short > & miiReadyFds, struct timeval * tvtimeout )
+void CSockCommon::AssignFDs( std::map< cs_sock_t, short > & miiReadyFds, struct timeval * tvtimeout )
 {
 	for( size_t uMon = 0; uMon < m_vcMonitorFD.size(); ++uMon )
 	{
@@ -3114,24 +3114,24 @@ uint64_t CSocketManager::GetBytesWritten() const
 	return( iRet );
 }
 
-void CSocketManager::FDSetCheck( int iFd, std::map< int, short > & miiReadyFds, ECheckType eType )
+void CSocketManager::FDSetCheck( cs_sock_t iFd, std::map< cs_sock_t, short > & miiReadyFds, ECheckType eType )
 {
-	std::map< int, short >::iterator it = miiReadyFds.find( iFd );
+	std::map< cs_sock_t, short >::iterator it = miiReadyFds.find( iFd );
 	if( it != miiReadyFds.end() )
 		it->second = ( short )( it->second | eType ); // TODO need to figure out why |= throws 'short int' from 'int' may alter its value
 	else
 		miiReadyFds[iFd] = eType;
 }
 
-bool CSocketManager::FDHasCheck( int iFd, std::map< int, short > & miiReadyFds, ECheckType eType )
+bool CSocketManager::FDHasCheck( cs_sock_t iFd, std::map< cs_sock_t, short > & miiReadyFds, ECheckType eType )
 {
-	std::map< int, short >::iterator it = miiReadyFds.find( iFd );
+	std::map< cs_sock_t, short >::iterator it = miiReadyFds.find( iFd );
 	if( it != miiReadyFds.end() )
-		return(( it->second & eType ) );
+		return( ( it->second & eType ) != 0 );
 	return( false );
 }
 
-int CSocketManager::Select( std::map< int, short > & miiReadyFds, struct timeval *tvtimeout )
+int CSocketManager::Select( std::map< cs_sock_t, short > & miiReadyFds, struct timeval *tvtimeout )
 {
 	AssignFDs( miiReadyFds, tvtimeout );
 #ifdef CSOCK_USE_POLL
@@ -3140,7 +3140,7 @@ int CSocketManager::Select( std::map< int, short > & miiReadyFds, struct timeval
 
 	struct pollfd * pFDs = ( struct pollfd * )malloc( sizeof( struct pollfd ) * miiReadyFds.size() );
 	size_t uCurrPoll = 0;
-	for( std::map< int, short >::iterator it = miiReadyFds.begin(); it != miiReadyFds.end(); ++it, ++uCurrPoll )
+	for( std::map< cs_sock_t, short >::iterator it = miiReadyFds.begin(); it != miiReadyFds.end(); ++it, ++uCurrPoll )
 	{
 		short iEvents = 0;
 		if( it->second & ECT_Read )
@@ -3163,7 +3163,7 @@ int CSocketManager::Select( std::map< int, short > & miiReadyFds, struct timeval
 			iEvents |= ECT_Read;
 		if( pFDs[uCurrPoll].revents & POLLOUT )
 			iEvents |= ECT_Write;
-		std::map< int, short >::iterator it = miiReadyFds.find( pFDs[uCurrPoll].fd );
+		std::map< cs_sock_t, short >::iterator it = miiReadyFds.find( pFDs[uCurrPoll].fd );
 		if( it != miiReadyFds.end() )
 			it->second = ( short )( it->second | iEvents ); // TODO need to figure out why |= throws 'short int' from 'int' may alter its value
 		else
@@ -3176,9 +3176,12 @@ int CSocketManager::Select( std::map< int, short > & miiReadyFds, struct timeval
 	TFD_ZERO( &wfds );
 	bool bHasWrite = false;
 	int iHighestFD = 0;
-	for( std::map< int, short >::iterator it = miiReadyFds.begin(); it != miiReadyFds.end(); ++it )
+	for( std::map< cs_sock_t, short >::iterator it = miiReadyFds.begin(); it != miiReadyFds.end(); ++it )
 	{
+#ifndef _WIN32
+		// the first argument to select() is not used on Win32.
 		iHighestFD = std::max( it->first, iHighestFD );
+#endif /* _WIN32 */
 		if( it->second & ECT_Read )
 		{
 			TFD_SET( it->first, &rfds );
@@ -3197,7 +3200,7 @@ int CSocketManager::Select( std::map< int, short > & miiReadyFds, struct timeval
 	}
 	else
 	{
-		for( std::map< int, short >::iterator it = miiReadyFds.begin(); it != miiReadyFds.end(); ++it )
+		for( std::map< cs_sock_t, short >::iterator it = miiReadyFds.begin(); it != miiReadyFds.end(); ++it )
 		{
 			if(( it->second & ECT_Read ) && !TFD_ISSET( it->first, &rfds ) )
 				it->second &= ~ECT_Read;
@@ -3215,7 +3218,7 @@ void CSocketManager::Select( std::map<Csock *, EMessages> & mpeSocks )
 	mpeSocks.clear();
 	struct timeval tv;
 
-	std::map< int, short > miiReadyFds;
+	std::map< cs_sock_t, short > miiReadyFds;
 	tv.tv_sec = (time_t) (m_iSelectWait / 1000000);
 	tv.tv_usec = (time_t) (m_iSelectWait % 1000000);
 	u_int iQuickReset = 1000;
