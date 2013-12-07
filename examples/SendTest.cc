@@ -82,7 +82,7 @@ int main( int argc, char **argv )
 			cerr << "Sent file, waiting for fork to exit" << endl;
 			int iStatus = 0;
 			wait( &iStatus );
-			assert( iStatus == 0 );
+			assert( WIFEXITED( iStatus ) );
 
 			cerr << "diffing source and dest" << endl;
 			// verify the data

@@ -1087,6 +1087,9 @@ public:
 private:
 	//! making private for safety
 	Csock( const Csock & cCopy ) : CSockCommon() {}
+	//! shrink sendbuff by removing m_uSendBufferPos bytes from m_sSend
+	void ShrinkSendBuff();
+	void IncBuffPos( size_t uBytes );
 
 	// NOTE! if you add any new members, be sure to add them to Copy()
 	uint16_t	m_uPort, m_iRemotePort, m_iLocalPort;
@@ -1100,7 +1103,7 @@ private:
 
 	uint64_t	m_iMaxMilliSeconds, m_iLastSendTime, m_iBytesRead, m_iBytesWritten, m_iStartTime;
 	uint32_t	m_iMaxBytes, m_iMaxStoredBufferLength, m_iTimeoutType;
-	size_t		m_iLastSend;
+	size_t		m_iLastSend, m_uSendBufferPos;
 
 	CSSockAddr 	m_address, m_bindhost;
 	bool		m_bIsIPv6, m_bSkipConnect;

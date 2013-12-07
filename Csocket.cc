@@ -1001,6 +1001,7 @@ void Csock::Copy( const Csock & cCopy )
 	m_iStartTime		= cCopy.m_iStartTime;
 	m_iMaxBytes			= cCopy.m_iMaxBytes;
 	m_iLastSend			= cCopy.m_iLastSend;
+	m_uSendBufferPos	= cCopy.m_uSendBufferPos;
 	m_iMaxStoredBufferLength	= cCopy.m_iMaxStoredBufferLength;
 	m_iTimeoutType		= cCopy.m_iTimeoutType;
 
@@ -1627,9 +1628,31 @@ bool Csock::AllowWrite( uint64_t & iNOW ) const
 	return( true );
 }
 
+void Csock::ShrinkSendBuff()
+{
+	if( m_uSendBufferPos > 0 )
+	{ // just doing this to keep m_sSend from growing out of control
+		m_sSend.erase( 0, m_uSendBufferPos );
+		m_uSendBufferPos = 0;
+	}
+}
+void Csock::IncBuffPos( size_t uBytes )
+{
+	m_uSendBufferPos += uBytes;
+	if( m_uSendBufferPos >= m_sSend.size() )
+	{
+		m_uSendBufferPos = 0;
+		m_sSend.clear();
+	}
+}
+
 bool Csock::Write( const char *data, size_t len )
 {
-	m_sSend.append( data, len );
+	if( len > 0 )
+	{
+		ShrinkSendBuff();
+		m_sSend.append( data, len );
+	}
 
 	if( m_sSend.empty() )
 		return( true );
@@ -1639,6 +1662,8 @@ bool Csock::Write( const char *data, size_t len )
 
 	// rate shaping
 	size_t iBytesToSend = 0;
+
+	size_t uBytesInSend = m_sSend.size() - m_uSendBufferPos;
 
 #ifdef HAVE_LIBSSL
 	if( m_bUseSSL && m_sSSLBuffer.empty() && !m_bsslEstablished )
@@ -1663,8 +1688,8 @@ bool Csock::Write( const char *data, size_t len )
 				iBytesToSend = m_iMaxBytes - m_iLastSend;
 
 			// take which ever is lesser
-			if( m_sSend.length() < iBytesToSend )
-				iBytesToSend = 	m_sSend.length();
+			if( uBytesInSend < iBytesToSend )
+				iBytesToSend = uBytesInSend;
 
 			// add up the bytes sent
 			m_iLastSend += iBytesToSend;
@@ -1675,7 +1700,7 @@ bool Csock::Write( const char *data, size_t len )
 		}
 		else
 		{
-			iBytesToSend = m_sSend.length();
+			iBytesToSend = uBytesInSend;
 		}
 
 #ifdef HAVE_LIBSSL
@@ -1688,7 +1713,7 @@ bool Csock::Write( const char *data, size_t len )
 		}
 
 		if( m_sSSLBuffer.empty() )  // on retrying to write data, ssl wants the data in the SAME spot and the SAME size
-			m_sSSLBuffer.append( m_sSend.data(), iBytesToSend );
+			m_sSSLBuffer.append( m_sSend.data() + m_uSendBufferPos, iBytesToSend );
 
 		int iErr = SSL_write( m_ssl, m_sSSLBuffer.data(), ( int )m_sSSLBuffer.length() );
 
@@ -1730,7 +1755,7 @@ bool Csock::Write( const char *data, size_t len )
 		if( iErr > 0 )
 		{
 			m_sSSLBuffer.clear();
-			m_sSend.erase( 0, iErr );
+			IncBuffPos( (size_t)iErr );
 			// reset the timer on successful write (we have to set it here because the write
 			// bit might not always be set, so need to trigger)
 			if( TMO_WRITE & GetTimeoutType() )
@@ -1743,10 +1768,11 @@ bool Csock::Write( const char *data, size_t len )
 	}
 #endif /* HAVE_LIBSSL */
 #ifdef _WIN32
-	cs_ssize_t bytes = send( m_iWriteSock, m_sSend.data(), iBytesToSend, 0 );
+	cs_ssize_t bytes = send( m_iWriteSock, m_sSend.data() + m_uSendBufferPos, iBytesToSend, 0 );
 #else
-	cs_ssize_t bytes = write( m_iWriteSock, m_sSend.data(), iBytesToSend );
+	cs_ssize_t bytes = write( m_iWriteSock, m_sSend.data() + m_uSendBufferPos, iBytesToSend );
 #endif /* _WIN32 */
+if( bytes > 0 )
 
 	if( bytes == -1 && GetSockError() == ECONNREFUSED )
 	{
@@ -1765,7 +1791,7 @@ bool Csock::Write( const char *data, size_t len )
 	// delete the bytes we sent
 	if( bytes > 0 )
 	{
-		m_sSend.erase( 0, bytes );
+		IncBuffPos( (size_t)bytes );
 		if( TMO_WRITE & GetTimeoutType() )
 			ResetTimer();	// reset the timer on successful write
 		m_iBytesWritten += ( uint64_t )bytes;
@@ -2003,7 +2029,13 @@ void Csock::PushBuff( const char *data, size_t len, bool bStartAtZero )
 }
 
 CS_STRING & Csock::GetInternalReadBuffer() { return( m_sbuffer ); }
-CS_STRING & Csock::GetInternalWriteBuffer() { return( m_sSend ); }
+CS_STRING & Csock::GetInternalWriteBuffer() 
+{ 
+	// in the event that some is grabbing this for some reason, we need to
+	// clean it up so it's what they are expecting.
+	ShrinkSendBuff();
+	return( m_sSend ); 
+}
 void Csock::SetMaxBufferThreshold( u_int iThreshold ) { m_iMaxStoredBufferLength = iThreshold; }
 u_int Csock::GetMaxBufferThreshold() const { return( m_iMaxStoredBufferLength ); }
 int Csock::GetType() const { return( m_iConnType ); }
@@ -2584,6 +2616,7 @@ void Csock::Init( const CS_STRING & sHostname, uint16_t uPort, int iTimeout )
 	m_iMaxMilliSeconds = 0;
 	m_iLastSendTime = 0;
 	m_iLastSend = 0;
+	m_uSendBufferPos = 0;
 	m_bsslEstablished = false;
 	m_bEnableReadLine = false;
 	m_iMaxStoredBufferLength = 1024;
