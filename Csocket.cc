@@ -2130,7 +2130,7 @@ SSL_SESSION * Csock::GetSSLSession()
 #endif /* HAVE_LIBSSL */
 
 const CS_STRING & Csock::GetWriteBuffer() { return( m_sSend ); }
-void Csock::ClearWriteBuffer() { m_sSend.clear(); }
+void Csock::ClearWriteBuffer() { m_sSend.clear(); m_uSendBufferPos = 0; }
 bool Csock::SslIsEstablished() { return ( m_bsslEstablished ); }
 
 bool Csock::ConnectInetd( bool bIsSSL, const CS_STRING & sHostname )
