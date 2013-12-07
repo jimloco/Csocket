@@ -842,7 +842,7 @@ public:
 #endif /* HAVE_LIBSSL */
 
 	//! Get the send buffer
-	const CS_STRING & GetWriteBuffer();
+	bool HasWriteBuffer() const;
 	void ClearWriteBuffer();
 
 	//! is SSL_accept finished ?

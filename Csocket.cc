@@ -2129,7 +2129,12 @@ SSL_SESSION * Csock::GetSSLSession()
 }
 #endif /* HAVE_LIBSSL */
 
-const CS_STRING & Csock::GetWriteBuffer() { return( m_sSend ); }
+bool Csock::HasWriteBuffer() const
+{ 
+	// the fact that this has data in it is good enough. Checking m_uSendBufferPos is a moot point
+	// since once m_uSendBufferPos is at the same position as m_sSend it's cleared (in Write)
+	return( !m_sSend.empty() ); 
+}
 void Csock::ClearWriteBuffer() { m_sSend.clear(); m_uSendBufferPos = 0; }
 bool Csock::SslIsEstablished() { return ( m_bsslEstablished ); }
 
@@ -3266,7 +3271,7 @@ void CSocketManager::Select( std::map<Csock *, EMessages> & mpeSocks )
 
 		Csock::ECloseType eCloseType = pcSock->GetCloseType();
 
-		if( eCloseType == Csock::CLT_NOW || eCloseType == Csock::CLT_DEREFERENCE || ( eCloseType == Csock::CLT_AFTERWRITE && pcSock->GetWriteBuffer().empty() ) )
+		if( eCloseType == Csock::CLT_NOW || eCloseType == Csock::CLT_DEREFERENCE || ( eCloseType == Csock::CLT_AFTERWRITE && !pcSock->HasWriteBuffer() ) )
 		{
 			DelSock( i-- ); // close any socks that have requested it
 			continue;
@@ -3333,7 +3338,7 @@ void CSocketManager::Select( std::map<Csock *, EMessages> & mpeSocks )
 
 		if( pcSock->GetType() != Csock::LISTENER )
 		{
-			bool bHasWriteBuffer = !pcSock->GetWriteBuffer().empty();
+			bool bHasWriteBuffer = pcSock->HasWriteBuffer();
 
 			if( !bIsReadPaused )
 				FDSetCheck( iRSock, miiReadyFds, ECT_Read );
@@ -3485,7 +3490,7 @@ void CSocketManager::Select( std::map<Csock *, EMessages> & mpeSocks )
 			if( iSel > 0 )
 			{
 				iErrno = SUCCESS;
-				if( !pcSock->GetWriteBuffer().empty() && pcSock->IsConnected() )
+				if( pcSock->HasWriteBuffer() && pcSock->IsConnected() )
 				{ // write whats in the socks send buffer
 					if( !pcSock->Write( "" ) )
 					{
