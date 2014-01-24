@@ -2091,11 +2091,15 @@ void Csock::PushBuff( const char *data, size_t len, bool bStartAtZero )
 
 #ifdef HAVE_ICU
 void Csock::SetEncoding(const CS_STRING& sEncoding) {
-	m_cnvTryUTF8 = !sEncoding.empty() && sEncoding[0] == '*';
-	icu::ErrorCode e;
-	m_cnvExt.adoptInstead(ucnv_open(sEncoding.c_str(), e));
-	if (e.isFailure()) {
-		CS_DEBUG( "Can't set encoding to " << sEncoding << ": " <<  e.errorName() );
+	if (sEncoding.empty()) {
+		m_cnvExt.adoptInstead(NULL);
+	} else {
+		m_cnvTryUTF8 = sEncoding[0] == '*';
+		icu::ErrorCode e;
+		m_cnvExt.adoptInstead(ucnv_open(sEncoding.c_str(), e));
+		if (e.isFailure()) {
+			CS_DEBUG( "Can't set encoding to " << sEncoding << ": " <<  e.errorName() );
+		}
 	}
 }
 #endif /* HAVE_ICU */
