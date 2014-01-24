@@ -79,6 +79,10 @@
 #include <ares.h>
 #endif /* HAVE_C_ARES */
 
+#ifdef HAVE_ICU
+# include <unicode/ucnv.h>
+#endif
+
 #include <stdlib.h>
 #include <errno.h>
 #include <string.h>
@@ -670,7 +674,11 @@ public:
 	virtual bool Write( const char *data, size_t len );
 
 	/**
-	 * convenience function
+	 * @brief Write a text string to the socket
+	 *
+	 * Encoding is used, if set
+	 *
+	 * @param sData the string to send; if encoding is provided, sData should be UTF-8 and will be encoded
 	 * @see Write( const char *, int )
 	 */
 	virtual bool Write( const CS_STRING & sData );
@@ -923,7 +931,7 @@ public:
 	 * as the Socket Manager calls most of these callbacks.
 	 *  With ReadLine, if your not going to use it IE a data stream, @see EnableReadLine()
 	 *
-	 * Ready to Read a full line event
+	 * Ready to Read a full line event. If encoding is provided, this is guaranteed to be UTF-8
 	 */
 	virtual void ReadLine( const CS_STRING & sLine ) {}
 	//! set the value of m_bEnableReadLine to true, we don't want to store a buffer for ReadLine, unless we want it
@@ -1084,6 +1092,10 @@ public:
 	//! returns the number of max pending connections when type is LISTENER
 	int GetMaxConns() const { return( m_iMaxConns ); }
 
+#ifdef HAVE_ICU
+	void SetEncoding(const CString& sEncoding);
+#endif /* HAVE_ICU */
+
 private:
 	//! making private for safety
 	Csock( const Csock & cCopy ) : CSockCommon() {}
@@ -1137,6 +1149,10 @@ private:
 	int				m_iARESStatus;
 #endif /* HAVE_C_ARES */
 
+#ifdef HAVE_ICU
+	icu::LocalUConverterPointer m_cnvInt, m_cnvIntStrict, m_cnvExt;
+	bool m_cnvTryUTF8;
+#endif
 };
 
 /**

@@ -49,6 +49,10 @@
 #include <openssl/engine.h>
 #endif /* HAVE_LIBSSL */
 
+#ifdef HAVE_ICU
+#include <unicode/errorcode.h>
+#endif /* HAVE_ICU */
+
 #include <list>
 
 #define CS_SRANDBUFFER 128
@@ -1613,6 +1617,41 @@ bool Csock::ConnectSSL()
 #endif /* HAVE_LIBSSL */
 }
 
+#ifdef HAVE_ICU
+inline bool icuConv(const CS_STRING& src, CS_STRING& tgt, UConverter* cnv_in, UConverter* cnv_out) {
+	const char* indata = src.c_str();
+	const char* indataend = indata + src.length();
+	tgt.clear();
+	char buf[100];
+	UChar pivotStart[100];
+	UChar* pivotSource = pivotStart;
+	UChar* pivotTarget = pivotStart;
+	UChar* pivotLimit = pivotStart + sizeof pivotStart / sizeof pivotStart[0];
+	const char* outdataend = buf + sizeof buf;
+	bool reset = true;
+	while (true) {
+		char* outdata = buf;
+		icu::ErrorCode e;
+		ucnv_convertEx(cnv_out, cnv_in, &outdata, outdataend, &indata, indataend, pivotStart, &pivotSource, &pivotTarget, pivotLimit, reset, true, e);
+		reset = false;
+		if (e.isSuccess()) {
+			if (e != U_ZERO_ERROR) {
+				CS_DEBUG( "Warning during converting string encoding: " << e.errorName() );
+			}
+			tgt.append(buf, outdata - buf);
+			break;
+		}
+		if (e == U_BUFFER_OVERFLOW_ERROR) {
+			tgt.append(buf, outdata - buf);
+			continue;
+		}
+		CS_DEBUG( "Error during converting string encoding: " << e.errorName() );
+		return false;
+	}
+	return true;
+}
+#endif /* HAVE_ICU */
+
 bool Csock::AllowWrite( uint64_t & iNOW ) const
 {
 	if( m_iMaxBytes > 0 && m_iMaxMilliSeconds > 0 )
@@ -1802,6 +1841,15 @@ if( bytes > 0 )
 
 bool Csock::Write( const CS_STRING & sData )
 {
+#ifdef HAVE_ICU
+	if (m_cnvExt.isValid()) {
+		CS_STRING sBinary;
+		if (icuConv(sData, sBinary, m_cnvInt.getAlias(), m_cnvExt.getAlias())) {
+			return( Write( sBinary.c_str(), sBinary.length() ) );
+		}
+	}
+	// can't convert our UTF-8 string to that encoding, just put it as is...
+#endif /* HAVE_ICU */
 	return( Write( sData.c_str(), sData.length() ) );
 }
 
@@ -2015,7 +2063,20 @@ void Csock::PushBuff( const char *data, size_t len, bool bStartAtZero )
 		{
 			CS_STRING sBuff = m_sbuffer.substr( 0, iFind + 1 );	// read up to(including) the newline
 			m_sbuffer.erase( 0, iFind + 1 );					// erase past the newline
-			ReadLine( sBuff );
+#ifdef HAVE_ICU
+			if (m_cnvExt.isValid()) {
+				CS_STRING sUTF8;
+				if ((m_cnvTryUTF8 && icuConv(sBuff, sUTF8, m_cnvIntStrict.getAlias(), m_cnvIntStrict.getAlias())) // maybe it's already UTF-8?
+						|| icuConv(sBuff, sUTF8, m_cnvExt.getAlias(), m_cnvInt.getAlias())) {
+					ReadLine( sUTF8 );
+				} else {
+					CS_DEBUG( "Can't convert received line to UTF-8" );
+				}
+			} else
+#endif /* HAVE_ICU */
+			{
+				ReadLine( sBuff );
+			}
 			iStartPos = 0; // reset this back to 0, since we need to look for the next newline here.
 		} 
 		else
@@ -2027,6 +2088,17 @@ void Csock::PushBuff( const char *data, size_t len, bool bStartAtZero )
 	if( m_iMaxStoredBufferLength > 0 && m_sbuffer.length() > m_iMaxStoredBufferLength )
 		ReachedMaxBuffer(); // call the max read buffer event
 }
+
+#ifdef HAVE_ICU
+void Csock::SetEncoding(const CS_STRING& sEncoding) {
+	m_cnvTryUTF8 = !sEncoding.empty() && sEncoding[0] == '*';
+	icu::ErrorCode e;
+	m_cnvExt.adoptInstead(ucnv_open(sEncoding.c_str(), e));
+	if (e.isFailure()) {
+		CS_DEBUG( "Can't set encoding to " << sEncoding << ": " <<  e.errorName() );
+	}
+}
+#endif /* HAVE_ICU */
 
 CS_STRING & Csock::GetInternalReadBuffer() { return( m_sbuffer ); }
 CS_STRING & Csock::GetInternalWriteBuffer() 
@@ -2644,6 +2716,14 @@ void Csock::Init( const CS_STRING & sHostname, uint16_t uPort, int iTimeout )
 	m_pCurrAddr = NULL;
 	m_iARESStatus = -1;
 #endif /* HAVE_C_ARES */
+#ifdef HAVE_ICU
+	m_cnvTryUTF8 = false;
+	icu::ErrorCode e;
+	m_cnvInt.adoptInstead(ucnv_open("UTF-8", e));
+	m_cnvIntStrict.adoptInstead(ucnv_open("UTF-8", e));
+	ucnv_setToUCallBack(m_cnvIntStrict.getAlias(), UCNV_TO_U_CALLBACK_STOP, NULL, NULL, NULL, e);
+	ucnv_setFromUCallBack(m_cnvIntStrict.getAlias(), UCNV_FROM_U_CALLBACK_STOP, NULL, NULL, NULL, e);
+#endif /* HAVE_ICU */
 }
 
 ////////////////////////// CSocketManager //////////////////////////
