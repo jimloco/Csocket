@@ -188,9 +188,9 @@ public:
 	CSSockAddr()
 	{
 		m_bIsIPv6 = false;
-		memset( (struct sockaddr_in *) &m_saddr, '\0', sizeof( m_saddr ) );
+		memset( ( struct sockaddr_in * ) &m_saddr, '\0', sizeof( m_saddr ) );
 #ifdef HAVE_IPV6
-		memset( (struct sockaddr_in6 *) &m_saddr6, '\0', sizeof( m_saddr6 ) );
+		memset( ( struct sockaddr_in6 * ) &m_saddr6, '\0', sizeof( m_saddr6 ) );
 #endif /* HAVE_IPV6 */
 		m_iAFRequire = RAF_ANY;
 	}
@@ -199,11 +199,11 @@ public:
 
 	enum EAFRequire
 	{
-		RAF_ANY		= PF_UNSPEC,
+	    RAF_ANY		= PF_UNSPEC,
 #ifdef HAVE_IPV6
-		RAF_INET6	= AF_INET6,
+	    RAF_INET6	= AF_INET6,
 #endif /* HAVE_IPV6 */
-		RAF_INET	= AF_INET
+	    RAF_INET	= AF_INET
 	};
 
 	void SinFamily();
@@ -296,9 +296,9 @@ template <class T> inline void CS_Delete( T * & p ) { if( p ) { delete p; p = NU
 #ifdef HAVE_LIBSSL
 enum ECompType
 {
-	CT_NONE	= 0,
-	CT_ZLIB	= 1,
-	CT_RLE	= 2
+    CT_NONE	= 0,
+    CT_ZLIB	= 1,
+    CT_RLE	= 2
 };
 
 //! adjusts tv with a new timeout if iTimeoutMS is smaller
@@ -564,53 +564,53 @@ public:
 
 	enum ETConn
 	{
-		OUTBOUND			= 0,		//!< outbound connection
-		LISTENER			= 1,		//!< a socket accepting connections
-		INBOUND				= 2			//!< an inbound connection, passed from LISTENER
+	    OUTBOUND			= 0,		//!< outbound connection
+	    LISTENER			= 1,		//!< a socket accepting connections
+	    INBOUND				= 2			//!< an inbound connection, passed from LISTENER
 	};
 
 	enum EFRead
 	{
-		READ_EOF			= 0,		//!< End Of File, done reading
-		READ_ERR			= -1,		//!< Error on the socket, socket closed, done reading
-		READ_EAGAIN			= -2,		//!< Try to get data again
-		READ_CONNREFUSED	= -3,		//!< Connection Refused
-		READ_TIMEDOUT		= -4		//!< Connection timed out
+	    READ_EOF			= 0,		//!< End Of File, done reading
+	    READ_ERR			= -1,		//!< Error on the socket, socket closed, done reading
+	    READ_EAGAIN			= -2,		//!< Try to get data again
+	    READ_CONNREFUSED	= -3,		//!< Connection Refused
+	    READ_TIMEDOUT		= -4		//!< Connection timed out
 	};
 
 	enum EFSelect
 	{
-		SEL_OK				= 0,		//!< Select passed ok
-		SEL_TIMEOUT			= -1,		//!< Select timed out
-		SEL_EAGAIN			= -2,		//!< Select wants you to try again
-		SEL_ERR				= -3		//!< Select recieved an error
+	    SEL_OK				= 0,		//!< Select passed ok
+	    SEL_TIMEOUT			= -1,		//!< Select timed out
+	    SEL_EAGAIN			= -2,		//!< Select wants you to try again
+	    SEL_ERR				= -3		//!< Select recieved an error
 	};
 
 	enum ESSLMethod
 	{
-		SSL23				= 0,
-		SSL2				= 2,
-		SSL3				= 3,
-		TLS1				= 4
+	    SSL23				= 0,
+	    SSL2				= 2,
+	    SSL3				= 3,
+	    TLS1				= 4
 	};
 
 	enum ECONState
 	{
-		CST_START		= 0,
-		CST_DNS			= CST_START,
-		CST_BINDVHOST	= 1,
-		CST_DESTDNS		= 2,
-		CST_CONNECT		= 3,
-		CST_CONNECTSSL	= 4,
-		CST_OK			= 5
+	    CST_START		= 0,
+	    CST_DNS			= CST_START,
+	    CST_BINDVHOST	= 1,
+	    CST_DESTDNS		= 2,
+	    CST_CONNECT		= 3,
+	    CST_CONNECTSSL	= 4,
+	    CST_OK			= 5
 	};
 
 	enum ECloseType
 	{
-		CLT_DONT			= 0, //!< don't close DER
-		CLT_NOW				= 1, //!< close immediatly
-		CLT_AFTERWRITE		= 2, //!< close after finishing writing the buffer
-		CLT_DEREFERENCE		= 3	 //!< used after copy in Csock::Dereference() to cleanup a sock thats being shutdown
+	    CLT_DONT			= 0, //!< don't close DER
+	    CLT_NOW				= 1, //!< close immediatly
+	    CLT_AFTERWRITE		= 2, //!< close after finishing writing the buffer
+	    CLT_DEREFERENCE		= 3	 //!< used after copy in Csock::Dereference() to cleanup a sock thats being shutdown
 	};
 
 	Csock & operator<<( const CS_STRING & s );
@@ -737,10 +737,10 @@ public:
 	 */
 	enum
 	{
-		TMO_READ	= 1,
-		TMO_WRITE	= 2,
-		TMO_ACCEPT	= 4,
-		TMO_ALL		= TMO_READ|TMO_WRITE|TMO_ACCEPT
+	    TMO_READ	= 1,
+	    TMO_WRITE	= 2,
+	    TMO_ACCEPT	= 4,
+	    TMO_ALL		= TMO_READ|TMO_WRITE|TMO_ACCEPT
 	};
 
 	//! Currently this uses the same value for all timeouts, and iTimeoutType merely states which event will be checked
@@ -875,7 +875,7 @@ public:
 	uint32_t GetRequireClientCertFlags();
 	//! legacy, deprecated @see SetRequireClientCertFlags
 	void SetRequiresClientCert( bool bRequiresCert );
-	//! bitwise flags, 0 means don't require cert, SSL_VERIFY_PEER verifies peers, SSL_VERIFY_FAIL_IF_NO_PEER_CERT will cause the connection to fail if no cert 
+	//! bitwise flags, 0 means don't require cert, SSL_VERIFY_PEER verifies peers, SSL_VERIFY_FAIL_IF_NO_PEER_CERT will cause the connection to fail if no cert
 	void SetRequireClientCertFlags( uint32_t iRequireClientCertFlags ) { m_iRequireClientCertFlags = iRequireClientCertFlags; }
 #endif /* HAVE_LIBSSL */
 
@@ -1028,8 +1028,8 @@ public:
 
 	enum EDNSLType
 	{
-		DNS_VHOST, //!< this lookup is for the vhost bind
-		DNS_DEST //!< this lookup is for the destination address
+	    DNS_VHOST, //!< this lookup is for the vhost bind
+	    DNS_DEST //!< this lookup is for the destination address
 	};
 
 	/**
@@ -1093,7 +1093,7 @@ public:
 	int GetMaxConns() const { return( m_iMaxConns ); }
 
 #ifdef HAVE_ICU
-	void SetEncoding(const CString& sEncoding);
+	void SetEncoding( const CString& sEncoding );
 #endif /* HAVE_ICU */
 
 private:
@@ -1371,10 +1371,10 @@ public:
 
 	enum EMessages
 	{
-		SUCCESS			= 0,	//!< Select returned at least 1 fd ready for action
-		SELECT_ERROR	= -1,	//!< An Error Happened, Probably dead socket. That socket is returned if available
-		SELECT_TIMEOUT	= -2,	//!< Select Timeout
-		SELECT_TRYAGAIN	= -3	//!< Select calls for you to try again
+	    SUCCESS			= 0,	//!< Select returned at least 1 fd ready for action
+	    SELECT_ERROR	= -1,	//!< An Error Happened, Probably dead socket. That socket is returned if available
+	    SELECT_TIMEOUT	= -2,	//!< Select Timeout
+	    SELECT_TRYAGAIN	= -3	//!< Select calls for you to try again
 	};
 
 	/**
@@ -1493,8 +1493,8 @@ public:
 	//! this is a strict wrapper around C-api select(). Added in the event you need to do special work here
 	enum ECheckType
 	{
-		ECT_Read = 1,
-		ECT_Write = 2
+	    ECT_Read = 1,
+	    ECT_Write = 2
 	};
 
 	void FDSetCheck( cs_sock_t iFd, std::map< cs_sock_t, short > & miiReadyFds, ECheckType eType );
