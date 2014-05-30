@@ -697,6 +697,7 @@ void CCron::StartMaxCycles( double dTimeSequence, u_int iMaxCycles )
 	gettimeofday( &tNow, NULL );
 	timeradd( &tNow, &m_tTimeSequence, &m_tTime );
 	m_iMaxCycles = iMaxCycles;
+	m_bActive = true;
 }
 
 void CCron::StartMaxCycles( const timeval& tTimeSequence, u_int iMaxCycles )
@@ -706,6 +707,7 @@ void CCron::StartMaxCycles( const timeval& tTimeSequence, u_int iMaxCycles )
 	gettimeofday( &tNow, NULL );
 	timeradd( &tNow, &m_tTimeSequence, &m_tTime );
 	m_iMaxCycles = iMaxCycles;
+	m_bActive = true;
 }
 
 void CCron::Start( double dTimeSequence )
@@ -731,6 +733,12 @@ void CCron::Pause()
 void CCron::UnPause()
 {
 	m_bPause = false;
+}
+
+void CCron::Reset()
+{
+	Stop();
+	Start(m_tTimeSequence);
 }
 
 timeval CCron::GetInterval() const { return( m_tTimeSequence ); }
