@@ -1875,13 +1875,12 @@ bool Csock::Write( const char *data, size_t len )
 #else
 	cs_ssize_t bytes = write( m_iWriteSock, m_sSend.data() + m_uSendBufferPos, iBytesToSend );
 #endif /* _WIN32 */
-	if( bytes > 0 )
 
-		if( bytes == -1 && GetSockError() == ECONNREFUSED )
-		{
-			ConnectionRefused();
-			return( false );
-		}
+	if( bytes == -1 && GetSockError() == ECONNREFUSED )
+	{
+		ConnectionRefused();
+		return( false );
+	}
 
 #ifdef _WIN32
 	if( bytes <= 0 && GetSockError() != WSAEWOULDBLOCK )
