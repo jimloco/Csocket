@@ -899,42 +899,22 @@ public:
 	uint64_t GetRateTime();
 
 	/**
-	 * Override these functions for an easy interface when using the Socket Manager
-	 * Don't bother using these callbacks if you are using this class directly (without Socket Manager)
-	 * as the Socket Manager calls most of these callbacks
-	 *
 	 * Connected event
 	 */
 	virtual void Connected() {}
 	/**
-	 * Override these functions for an easy interface when using the Socket Manager
-	 * Don't bother using these callbacks if you are using this class directly (without Socket Manager)
-	 * as the Socket Manager calls most of these callbacks
-	 *
 	 * Disconnected event
 	 */
 	virtual void Disconnected() {}
 	/**
-	 * Override these functions for an easy interface when using the Socket Manager
-	 * Don't bother using these callbacks if you are using this class directly (without Socket Manager)
-	 * as the Socket Manager calls most of these callbacks
-	 *
 	 * Sock Timed out event
 	 */
 	virtual void Timeout() {}
 	/**
-	 * Override these functions for an easy interface when using the Socket Manager
-	 * Don't bother using these callbacks if you are using this class directly (without Socket Manager)
-	 * as the Socket Manager calls most of these callbacks
-	 *
 	 * Ready to read data event
 	 */
 	virtual void ReadData( const char *data, size_t len ) {}
 	/**
-	 * Override these functions for an easy interface when using the Socket Manager
-	 * Don't bother using these callbacks if you are using this class directly (without Socket Manager)
-	 * as the Socket Manager calls most of these callbacks.
-	 *  With ReadLine, if your not going to use it IE a data stream, @see EnableReadLine()
 	 *
 	 * Ready to Read a full line event. If encoding is provided, this is guaranteed to be UTF-8
 	 */
@@ -946,9 +926,6 @@ public:
 	bool HasReadLine() const { return( m_bEnableReadLine ); }
 
 	/**
-	 * Override these functions for an easy interface when using the Socket Manager
-	 * Don't bother using these callbacks if you are using this class directly (without Socket Manager)
-	 * as the Socket Manager calls most of these callbacks
 	 * This WARNING event is called when your buffer for readline exceeds the warning threshold
 	 * and triggers this event. Either Override it and do nothing, or SetMaxBufferThreshold()
 	 * This event will only get called if m_bEnableReadLine is enabled
@@ -956,18 +933,9 @@ public:
 	virtual void ReachedMaxBuffer();
 	/**
 	 * @brief A sock error occured event
-	 *
-	 * Override these functions for an easy interface when using the Socket Manager
-	 * Don't bother using these callbacks if you are using this class directly (without Socket Manager)
-	 * as the Socket Manager calls most of these callbacks
 	 */
 	virtual void SockError( int iErrno, const CS_STRING & sDescription ) {}
 	/**
-	 * Override these functions for an easy interface when using the Socket Manager
-	 * Don't bother using these callbacks if you are using this class directly (without Socket Manager)
-	 * as the Socket Manager calls most of these callbacks
-	 *
-	 *
 	 * Incoming Connection Event
 	 * return false and the connection will fail
 	 * default returns true
@@ -982,10 +950,6 @@ public:
 	virtual void Listening( const CS_STRING & sBindIP, uint16_t uPort ) {}
 
 	/**
-	 * Override these functions for an easy interface when using the Socket Manager
-	 * Don't bother using these callbacks if you are using this class directly (without Socket Manager)
-	 * as the Socket Manager calls most of these callbacks
-	 *
 	 * Connection Refused Event
 	 *
 	 */
