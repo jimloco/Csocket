@@ -124,6 +124,10 @@
 #endif /* __DEBUG__ */
 #endif /* CS_DEBUG */
 
+#ifndef CS_EXPORT
+#define CS_EXPORT
+#endif /* CS_EXPORT */
+
 #ifndef PERROR
 #ifdef __DEBUG__
 #	define PERROR( f ) __Perror( f, __FILE__, __LINE__ )
@@ -160,7 +164,7 @@ namespace Csocket
  * @class CSCharBuffer
  * @brief Ease of use self deleting char * class.
  */
-class CSCharBuffer
+class CS_EXPORT CSCharBuffer
 {
 public:
 	CSCharBuffer( size_t iSize )
@@ -182,7 +186,7 @@ private:
  * @class CSSockAddr
  * @brief sockaddr wrapper.
  */
-class CSSockAddr
+class CS_EXPORT CSSockAddr
 {
 public:
 	CSSockAddr()
@@ -250,7 +254,7 @@ class Csock;
  *
  * Process can be called in a thread, but Init and Finish must only be called from the parent once the thread is complete
  */
-class CGetAddrInfo
+class CS_EXPORT CGetAddrInfo
 {
 public:
 	/**
@@ -366,7 +370,7 @@ uint64_t millitime();
  * You should derive from this class, and override RunJob() with your code
  * @author Jim Hull <csocket@jimloco.com>
  */
-class CCron
+class CS_EXPORT CCron
 {
 public:
 	CCron();
@@ -431,7 +435,7 @@ private:
  * @class CSMonitorFD
  * @brief Class to tie sockets to for monitoring by Csocket at either the Csock or TSockManager.
  */
-class CSMonitorFD
+class CS_EXPORT CSMonitorFD
 {
 public:
 	CSMonitorFD() { m_bEnabled = true; }
@@ -482,7 +486,7 @@ protected:
  * @class CSockCommon
  * @brief simple class to share common code to both TSockManager and Csock
  */
-class CSockCommon
+class CS_EXPORT CSockCommon
 {
 public:
 	CSockCommon() {}
@@ -537,7 +541,7 @@ typedef int ( *FPCertVerifyCB )( int, X509_STORE_CTX * );
  * @see TSocketManager
  * @author Jim Hull <csocket@jimloco.com>
  */
-class Csock : public CSockCommon
+class CS_EXPORT Csock : public CSockCommon
 {
 public:
 	//! default constructor, sets a timeout of 60 seconds
@@ -1128,7 +1132,7 @@ private:
  * @class CSConnection
  * @brief options for creating a connection
  */
-class CSConnection
+class CS_EXPORT CSConnection
 {
 public:
 	/**
@@ -1198,7 +1202,7 @@ protected:
 #endif /* HAVE_LIBSSL */
 };
 
-class CSSSLConnection : public CSConnection
+class CS_EXPORT CSSSLConnection : public CSConnection
 {
 public:
 	CSSSLConnection( const CS_STRING & sHostname, uint16_t iPort, int iTimeout = 60 ) :
@@ -1213,7 +1217,7 @@ public:
  * @class CSListener
  * @brief options container to create a listener
  */
-class CSListener
+class CS_EXPORT CSListener
 {
 public:
 	/**
@@ -1328,7 +1332,7 @@ public:
  * @see TSocketManager
  * @author Jim Hull <csocket@jimloco.com>
  */
-class CSocketManager : public std::vector<Csock *>, public CSockCommon
+class CS_EXPORT CSocketManager : public std::vector<Csock *>, public CSockCommon
 {
 public:
 	CSocketManager();

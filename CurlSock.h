@@ -55,7 +55,7 @@ namespace Csocket
  *
  * The end point here is a non-blocking method to fetch documents via CURL within Csocket
  */
-class CCurlSock : public CSMonitorFD
+class CS_EXPORT CCurlSock : public CSMonitorFD
 {
 public:
 	CCurlSock();
