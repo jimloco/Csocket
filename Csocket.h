@@ -1080,7 +1080,7 @@ private:
 	uint16_t	m_uPort, m_iRemotePort, m_iLocalPort;
 	cs_sock_t	m_iReadSock, m_iWriteSock;
 	int 		m_iTimeout, m_iConnType, m_iMethod, m_iTcount, m_iMaxConns;
-	bool		m_bUseSSL, m_bIsConnected, m_bBLOCK;
+	bool		m_bUseSSL, m_bIsConnected;
 	bool		m_bsslEstablished, m_bEnableReadLine, m_bPauseRead;
 	CS_STRING	m_shostname, m_sbuffer, m_sSockName, m_sPemFile, m_sCipherType, m_sParentName;
 	CS_STRING	m_sSend, m_sPemPass, m_sLocalIP, m_sRemoteIP;
