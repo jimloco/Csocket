@@ -1599,23 +1599,23 @@ bool Csock::SSLServerSetup()
 		ERR_clear_error();
 	}
 
-        // Errors for the following block are non-fatal (ECDHE is nice to have
-        // but not a requirement)
+	// Errors for the following block are non-fatal (ECDHE is nice to have
+	// but not a requirement)
 #if defined( SSL_CTX_set_ecdh_auto )
-        // Auto-select sensible curve
-        if( !SSL_CTX_set_ecdh_auto( m_ssl_ctx , 1 ) )
-            ERR_clear_error();
+	// Auto-select sensible curve
+	if( !SSL_CTX_set_ecdh_auto( m_ssl_ctx , 1 ) )
+		ERR_clear_error();
 #elif defined( SSL_CTX_set_tmp_ecdh )
-        // Use a standard, widely-supported curve
-        EC_KEY * ecdh = EC_KEY_new_by_curve_name( NID_X9_62_prime256v1 );
-        if( ecdh )
-        {
-            if( !SSL_CTX_set_tmp_ecdh( m_ssl_ctx, ecdh ) )
-                ERR_clear_error();
-            EC_KEY_free( ecdh );
-        }
-        else
-            ERR_clear_error();
+	// Use a standard, widely-supported curve
+	EC_KEY * ecdh = EC_KEY_new_by_curve_name( NID_X9_62_prime256v1 );
+	if( ecdh )
+	{
+		if( !SSL_CTX_set_tmp_ecdh( m_ssl_ctx, ecdh ) )
+			ERR_clear_error();
+		EC_KEY_free( ecdh );
+	}
+	else
+		ERR_clear_error();
 #endif
 
 	if( SSL_CTX_set_cipher_list( m_ssl_ctx, m_sCipherType.c_str() ) <= 0 )
