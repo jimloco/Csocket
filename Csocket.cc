@@ -2792,17 +2792,7 @@ void Csock::Init( const CS_STRING & sHostname, uint16_t uPort, int iTimeout )
 	m_shostname = sHostname;
 	m_sbuffer.clear();
 	m_eCloseType = CLT_DONT;
-	/*
-	 * While I appreciate the line ...
-	 * "It's 2014, no idea how this made it as a default for the past 16 years..."
-	 * TLS 1.2 was introduced in 2008. That being said, it's still not widely supported so I'm not
-	 * ready to make it the default. SSL 3.0 is still the most widely supported standard and that's
-	 * what a sane default is supposed to be. Additionally, OpenSSL is smart with SSLv23_client_method
-	 * as it will check for TLS in addition to SSL (per the manual) which is the reason for its choice.
-	 *
-	 * https://www.openssl.org/docs/ssl/SSL_CTX_new.html
-	 */
-	m_iMethod = SSL23;
+	m_iMethod = TLS1;
 	m_sCipherType = "ALL";
 	m_iMaxBytes = 0;
 	m_iMaxMilliSeconds = 0;
