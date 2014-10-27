@@ -607,15 +607,6 @@ public:
 	    TLS12				= 6
 	};
 
-	enum EDisableProtocol
-	{
-		EDP_None		= 0, //!< disable nothing
-		EDP_SSLv2		= 1, //!< disable SSL verion 2
-		EDP_SSLv3		= 2, //!< disable SSL verion 3
-		EDP_TLSv1		= 4, //!< disable TLS verion 1
-		EDP_SSL			= (EDP_SSLv2|EDP_SSLv3)
-	};
-
 	enum ECONState
 	{
 	    CST_START		= 0,
@@ -853,8 +844,8 @@ public:
 	void SetSSL( bool b );
 
 #ifdef HAVE_LIBSSL
-	//! bitwise setter, @see EDisableProtocol
-	void DisableSSLProtocols( u_int uDisableOpts ) { m_uDisableProtocols = uDisableOpts; }
+	//! @see SSL_CTX_set_options()
+	void SetSSLOptions( long lSSLOpts ) { m_lSSLOptions = lSSLOpts; }
 	//! Set the cipher type ( openssl cipher [to see ciphers available] )
 	void SetCipher( const CS_STRING & sCipher );
 	const CS_STRING & GetCipher() const;
@@ -1167,13 +1158,13 @@ private:
 	SSL	*		m_ssl;
 	SSL_CTX	*	m_ssl_ctx;
 	uint32_t	m_iRequireClientCertFlags;
-	u_int		m_uDisableProtocols;
+	long		m_lSSLOptions;
 
 	FPCertVerifyCB		m_pCerVerifyCB;
 
 	void FREE_SSL();
 	void FREE_CTX();
-	void CheckDisabledProtocols( SSL_CTX * pCTX );
+	void ApplySSLOptions( SSL_CTX * pCTX );
 
 #endif /* HAVE_LIBSSL */
 
