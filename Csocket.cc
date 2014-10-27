@@ -70,10 +70,10 @@ namespace Csocket
 {
 #endif /* _NO_CSOCKET_NS */
 
-static int g_iCsockSSLIdx = 0; //!< this get setup once in InitSSL
-int GetCsockClassIdx()
+static int s_iCsockSSLIdx = 0; //!< this gets setup once in InitSSL
+int GetCsockSSLIdx()
 {
-	return( g_iCsockSSLIdx );
+	return( s_iCsockSSLIdx );
 }
 
 #ifdef _WIN32
@@ -203,18 +203,21 @@ static int _PemPassCB( char *pBuff, int iBuffLen, int rwflag, void * pcSocket )
 
 static int _CertVerifyCB( int preverify_ok, X509_STORE_CTX *x509_ctx )
 {
-	/*
-	 * A small quick example on how to get ahold of the Csock in the data portion of x509_ctx
 	Csock * pSock = GetCsockFromCTX( x509_ctx );
-	assert( pSock );
-	cerr << pSock->GetRemoteIP() << endl;
-  	*/
+	if( pSock )
+		return( pSock->VerifyPeerCertificate( preverify_ok, x509_ctx ) );
 
-	/* 
-	 * as it stands, this is just not doing any verification. To let SSL validate the certificates
-	 * set the callback to NULL (Csock::SetCertVerifyCB()), otherwise you can do additional checking here.
-	 */
-   return( 1 );
+   return( preverify_ok );
+}
+
+static void _InfoCallback( const SSL * pSSL, int where, int ret )
+{
+	if( ( where & SSL_CB_HANDSHAKE_DONE ) && ret != 0 )
+	{
+		Csock * pSock = static_cast<Csock *>( SSL_get_ex_data( pSSL, GetCsockSSLIdx() ) );
+		if( pSock )
+			pSock->SSLHandShakeFinished();
+	}
 }
 
 
@@ -223,7 +226,7 @@ Csock * GetCsockFromCTX( X509_STORE_CTX * pCTX )
 	Csock * pSock = NULL;
 	SSL * pSSL = ( SSL * ) X509_STORE_CTX_get_ex_data( pCTX, SSL_get_ex_data_X509_STORE_CTX_idx() );
 	if( pSSL )
-		pSock = ( Csock * ) SSL_get_ex_data( pSSL, GetCsockClassIdx() );
+		pSock = ( Csock * ) SSL_get_ex_data( pSSL, GetCsockSSLIdx() );
 	return( pSock );
 }
 #endif /* HAVE_LIBSSL */
@@ -585,7 +588,7 @@ bool InitSSL( ECompType eCompressionType )
 	}
 
 	// setting this up once in the begining
-	g_iCsockSSLIdx = SSL_get_ex_new_index( 0, ( void * )"CsockGlobalIndex", NULL, NULL, NULL );
+	s_iCsockSSLIdx = SSL_get_ex_new_index( 0, NULL, NULL, NULL, NULL );
 
 	return( true );
 }
@@ -1506,7 +1509,8 @@ bool Csock::SSLClientSetup()
 	SSL_set_rfd( m_ssl, ( int )m_iReadSock );
 	SSL_set_wfd( m_ssl, ( int )m_iWriteSock );
 	SSL_set_verify( m_ssl, SSL_VERIFY_PEER, m_pCerVerifyCB );
-	SSL_set_ex_data( m_ssl, GetCsockClassIdx(), this );
+	SSL_set_info_callback( m_ssl, _InfoCallback );
+	SSL_set_ex_data( m_ssl, GetCsockSSLIdx(), this );
 
 #if defined( SSL_set_tlsext_host_name )
 	CS_STRING sSNIHostname;
@@ -1720,8 +1724,9 @@ bool Csock::SSLServerSetup()
 	if( m_iRequireClientCertFlags )
 	{
 		SSL_set_verify( m_ssl, m_iRequireClientCertFlags, m_pCerVerifyCB );
-		SSL_set_ex_data( m_ssl, GetCsockClassIdx(), this );
 	}
+	SSL_set_info_callback( m_ssl, _InfoCallback );
+	SSL_set_ex_data( m_ssl, GetCsockSSLIdx(), this );
 
 	SSLFinishSetup( m_ssl );
 	return( true );
@@ -3176,58 +3181,58 @@ void CSocketManager::Loop()
 
 				switch( bytes )
 				{
-				case Csock::READ_EOF:
-				{
-					DelSockByAddr( pcSock );
-					break;
-				}
-
-				case Csock::READ_ERR:
-				{
-					bool bHandled = false;
-#ifdef HAVE_LIBSSL
-					if( pcSock->GetSSL() )
+					case Csock::READ_EOF:
 					{
-						unsigned long iSSLError = ERR_peek_error();
-						if( iSSLError )
-						{
-							char szError[512];
-							memset( ( char * ) szError, '\0', 512 );
-							ERR_error_string_n( iSSLError, szError, 511 );
-							SSLErrors( __FILE__, __LINE__ );
-							pcSock->CallSockError( GetSockError(), szError );
-							bHandled = true;
-						}
+						DelSockByAddr( pcSock );
+						break;
 					}
+
+					case Csock::READ_ERR:
+					{
+						bool bHandled = false;
+#ifdef HAVE_LIBSSL
+						if( pcSock->GetSSL() )
+						{
+							unsigned long iSSLError = ERR_peek_error();
+							if( iSSLError )
+							{
+								char szError[512];
+								memset( ( char * ) szError, '\0', 512 );
+								ERR_error_string_n( iSSLError, szError, 511 );
+								SSLErrors( __FILE__, __LINE__ );
+								pcSock->CallSockError( GetSockError(), szError );
+								bHandled = true;
+							}
+						}
 #endif
-					if( !bHandled )
-						pcSock->CallSockError( GetSockError() );
-					DelSockByAddr( pcSock );
-					break;
-				}
+						if( !bHandled )
+							pcSock->CallSockError( GetSockError() );
+						DelSockByAddr( pcSock );
+						break;
+					}
 
-				case Csock::READ_EAGAIN:
-					break;
+					case Csock::READ_EAGAIN:
+						break;
 
-				case Csock::READ_CONNREFUSED:
-					pcSock->ConnectionRefused();
-					DelSockByAddr( pcSock );
-					break;
+					case Csock::READ_CONNREFUSED:
+						pcSock->ConnectionRefused();
+						DelSockByAddr( pcSock );
+						break;
 
-				case Csock::READ_TIMEDOUT:
-					pcSock->Timeout();
-					DelSockByAddr( pcSock );
-					break;
+					case Csock::READ_TIMEDOUT:
+						pcSock->Timeout();
+						DelSockByAddr( pcSock );
+						break;
 
-				default:
-				{
-					if( Csock::TMO_READ & pcSock->GetTimeoutType() )
-						pcSock->ResetTimer();	// reset the timeout timer
+					default:
+					{
+						if( Csock::TMO_READ & pcSock->GetTimeoutType() )
+							pcSock->ResetTimer();	// reset the timeout timer
 
-					pcSock->ReadData( cBuff(), bytes );	// Call ReadData() before PushBuff() so that it is called before the ReadLine() event - LD  07/18/05
-					pcSock->PushBuff( cBuff(), bytes );
-					break;
-				}
+						pcSock->ReadData( cBuff(), bytes );	// Call ReadData() before PushBuff() so that it is called before the ReadLine() event - LD  07/18/05
+						pcSock->PushBuff( cBuff(), bytes );
+						break;
+					}
 				}
 			}
 			else if( iErrno == SELECT_ERROR )
