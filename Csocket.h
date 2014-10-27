@@ -865,10 +865,11 @@ public:
 	void SetSSLMethod( int iMethod );
 	int GetSSLMethod() const;
 
-	void SetSSLObject( SSL *ssl );
-	void SetCTXObject( SSL_CTX *sslCtx );
+	void SetSSLObject( SSL *ssl, bool bDeleteExisting = false );
+	void SetCTXObject( SSL_CTX *sslCtx, bool bDeleteExisting = false );
 	SSL_SESSION * GetSSLSession() const;
 
+	//! setting this to NULL will allow the default openssl verification process kick in
 	void SetCertVerifyCB( FPCertVerifyCB pFP ) { m_pCerVerifyCB = pFP; }
 #endif /* HAVE_LIBSSL */
 
@@ -983,6 +984,22 @@ public:
 	 * to this ssl session via SSL_set_ex_data
 	 */
 	virtual void SSLFinishSetup( SSL * pSSL ) {}
+	/**
+	 * @brief gets called when a SNI request is sent, and used to configure a SNI session
+	 * @param sHostname the hostname sent from the client
+	 * @param sPemFile fill this with the location to the pemfile
+	 * @param sPemPass fill this with the pemfile password if there is one
+	 * @return return true to proceed with the SNI server configuration
+	 */
+	virtual bool SNIConfigureServer( const CS_STRING & sHostname, CS_STRING & sPemFile, CS_STRING & sPemPass ) { return( false ); }
+	/**
+	 * @brief called to configure the SNI client
+	 * @param sHostname, the hostname to configure SNI with, you can fill this with GetHostname() if its a valid hostname and not an OP
+	 * @return returning true causes a call to configure SNI with the hostname returned
+	 */
+	virtual bool SNIConfigureClient( CS_STRING & sHostname ) { return( false ); }
+	//! creates a new SSL_CTX based on the setup of this sock
+	SSL_CTX * SetupServerCTX();
 #endif /* HAVE_LIBSSL */
 
 
@@ -1090,7 +1107,6 @@ private:
 	void ShrinkSendBuff();
 	void IncBuffPos( size_t uBytes );
 	//! checks for configured protocol disabling
-	void CheckDisabledProtocols();
 
 	// NOTE! if you add any new members, be sure to add them to Copy()
 	uint16_t	m_uPort;
@@ -1125,6 +1141,7 @@ private:
 
 	void FREE_SSL();
 	void FREE_CTX();
+	void CheckDisabledProtocols( SSL_CTX * pCTX );
 
 #endif /* HAVE_LIBSSL */
 
