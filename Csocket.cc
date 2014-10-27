@@ -1380,19 +1380,11 @@ bool Csock::AcceptSSL()
 }
 
 #ifdef HAVE_LIBSSL
-void Csock::CheckDisabledProtocols( SSL_CTX * pCTX )
+void Csock::ApplySSLOptions( SSL_CTX * pCTX )
 {
-	if( pCTX && m_uDisableProtocols > 0 )
+	if( pCTX && m_lSSLOptions > 0 )
 	{
-		long uCTXOptions = 0;
-		if( EDP_SSLv2 & m_uDisableProtocols )
-			uCTXOptions |= SSL_OP_NO_SSLv2;
-		if( EDP_SSLv3 & m_uDisableProtocols )
-			uCTXOptions |= SSL_OP_NO_SSLv3;
-		if( EDP_TLSv1 & m_uDisableProtocols )
-			uCTXOptions |= SSL_OP_NO_TLSv1;
-		if( uCTXOptions )
-			SSL_CTX_set_options( pCTX, uCTXOptions );
+		SSL_CTX_set_options( pCTX, m_lSSLOptions );
 	}
 }
 #endif /* HAVE_LIBSSL */
@@ -1500,7 +1492,7 @@ bool Csock::SSLClientSetup()
 		}
 	}
 
-	CheckDisabledProtocols( m_ssl_ctx );
+	ApplySSLOptions( m_ssl_ctx );
 
 	m_ssl = SSL_new( m_ssl_ctx );
 	if( !m_ssl )
@@ -1685,7 +1677,7 @@ SSL_CTX * Csock::SetupServerCTX()
 		SSL_CTX_free( pCTX );
 		return( NULL );
 	}
-	CheckDisabledProtocols( pCTX );
+	ApplySSLOptions( pCTX );
 	return( pCTX );
 }
 
@@ -2878,7 +2870,7 @@ void Csock::Init( const CS_STRING & sHostname, uint16_t uPort, int iTimeout )
 	m_ssl = NULL;
 	m_ssl_ctx = NULL;
 	m_iRequireClientCertFlags = 0;
-	m_uDisableProtocols = 0;
+	m_lSSLOptions = 0;
 #endif /* HAVE_LIBSSL */
 	m_iTcount = 0;
 	m_iReadSock = CS_INVALID_SOCK;
