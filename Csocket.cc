@@ -1039,6 +1039,8 @@ void Csock::Copy( const Csock & cCopy )
 #endif /* HAVE_C_ARES */
 
 #ifdef HAVE_LIBSSL
+	m_bNoSSLCompression = cCopy.m_bNoSSLCompression;
+	m_uDisableProtocols = cCopy.m_uDisableProtocols;
 	m_iRequireClientCertFlags = cCopy.m_iRequireClientCertFlags;
 	m_sSSLBuffer	= cCopy.m_sSSLBuffer;
 
@@ -1380,17 +1382,22 @@ bool Csock::AcceptSSL()
 }
 
 #ifdef HAVE_LIBSSL
-void Csock::CheckDisabledProtocols( SSL_CTX * pCTX )
+void Csock::ConfigureCTXOptions( SSL_CTX * pCTX )
 {
-	if( pCTX && m_uDisableProtocols > 0 )
+	if( pCTX )
 	{
 		long uCTXOptions = 0;
-		if( EDP_SSLv2 & m_uDisableProtocols )
-			uCTXOptions |= SSL_OP_NO_SSLv2;
-		if( EDP_SSLv3 & m_uDisableProtocols )
-			uCTXOptions |= SSL_OP_NO_SSLv3;
-		if( EDP_TLSv1 & m_uDisableProtocols )
-			uCTXOptions |= SSL_OP_NO_TLSv1;
+		if( m_uDisableProtocols > 0 )
+		{
+			if( EDP_SSLv2 & m_uDisableProtocols )
+				uCTXOptions |= SSL_OP_NO_SSLv2;
+			if( EDP_SSLv3 & m_uDisableProtocols )
+				uCTXOptions |= SSL_OP_NO_SSLv3;
+			if( EDP_TLSv1 & m_uDisableProtocols )
+				uCTXOptions |= SSL_OP_NO_TLSv1;
+		}
+		if( m_bNoSSLCompression )
+			uCTXOptions |= SSL_OP_NO_COMPRESSION;
 		if( uCTXOptions )
 			SSL_CTX_set_options( pCTX, uCTXOptions );
 	}
@@ -1500,7 +1507,7 @@ bool Csock::SSLClientSetup()
 		}
 	}
 
-	CheckDisabledProtocols( m_ssl_ctx );
+	ConfigureCTXOptions( m_ssl_ctx );
 
 	m_ssl = SSL_new( m_ssl_ctx );
 	if( !m_ssl )
@@ -1685,7 +1692,7 @@ SSL_CTX * Csock::SetupServerCTX()
 		SSL_CTX_free( pCTX );
 		return( NULL );
 	}
-	CheckDisabledProtocols( pCTX );
+	ConfigureCTXOptions( pCTX );
 	return( pCTX );
 }
 
@@ -2879,6 +2886,7 @@ void Csock::Init( const CS_STRING & sHostname, uint16_t uPort, int iTimeout )
 	m_ssl_ctx = NULL;
 	m_iRequireClientCertFlags = 0;
 	m_uDisableProtocols = 0;
+	m_bNoSSLCompression = false;
 #endif /* HAVE_LIBSSL */
 	m_iTcount = 0;
 	m_iReadSock = CS_INVALID_SOCK;

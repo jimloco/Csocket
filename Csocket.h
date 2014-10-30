@@ -855,6 +855,8 @@ public:
 #ifdef HAVE_LIBSSL
 	//! bitwise setter, @see EDisableProtocol
 	void DisableSSLProtocols( u_int uDisableOpts ) { m_uDisableProtocols = uDisableOpts; }
+	//! allow disabling compression
+	void DisableSSLCompression() { m_bNoSSLCompression = true; }
 	//! Set the cipher type ( openssl cipher [to see ciphers available] )
 	void SetCipher( const CS_STRING & sCipher );
 	const CS_STRING & GetCipher() const;
@@ -1159,7 +1161,7 @@ private:
 	size_t		m_iLastSend, m_uSendBufferPos;
 
 	CSSockAddr 	m_address, m_bindhost;
-	bool		m_bIsIPv6, m_bSkipConnect;
+	bool		m_bIsIPv6, m_bSkipConnect, m_bNoSSLCompression;
 	time_t		m_iLastCheckTimeoutTime;
 
 #ifdef HAVE_LIBSSL
@@ -1173,7 +1175,7 @@ private:
 
 	void FREE_SSL();
 	void FREE_CTX();
-	void CheckDisabledProtocols( SSL_CTX * pCTX );
+	void ConfigureCTXOptions( SSL_CTX * pCTX );
 
 #endif /* HAVE_LIBSSL */
 
