@@ -1533,6 +1533,7 @@ bool Csock::SSLClientSetup()
 #endif /* HAVE_LIBSSL */
 }
 
+#ifdef HAVE_LIBSSL
 SSL_CTX * Csock::SetupServerCTX()
 {
 	SSL_CTX * pCTX = NULL;
@@ -1695,6 +1696,7 @@ SSL_CTX * Csock::SetupServerCTX()
 	ConfigureCTXOptions( pCTX );
 	return( pCTX );
 }
+#endif /* HAVE_LIBSSL */
 
 bool Csock::SSLServerSetup()
 {

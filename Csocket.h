@@ -1161,7 +1161,7 @@ private:
 	size_t		m_iLastSend, m_uSendBufferPos;
 
 	CSSockAddr 	m_address, m_bindhost;
-	bool		m_bIsIPv6, m_bSkipConnect, m_bNoSSLCompression;
+	bool		m_bIsIPv6, m_bSkipConnect;
 	time_t		m_iLastCheckTimeoutTime;
 
 #ifdef HAVE_LIBSSL
@@ -1170,6 +1170,7 @@ private:
 	SSL_CTX	*	m_ssl_ctx;
 	uint32_t	m_iRequireClientCertFlags;
 	u_int		m_uDisableProtocols;
+	bool		m_bNoSSLCompression;
 
 	FPCertVerifyCB		m_pCerVerifyCB;
 
