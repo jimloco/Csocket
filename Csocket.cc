@@ -1389,12 +1389,26 @@ void Csock::ConfigureCTXOptions( SSL_CTX * pCTX )
 		long uCTXOptions = 0;
 		if( m_uDisableProtocols > 0 )
 		{
+#ifdef SSL_OP_NO_SSLv2
 			if( EDP_SSLv2 & m_uDisableProtocols )
 				uCTXOptions |= SSL_OP_NO_SSLv2;
+#endif /* SSL_OP_NO_SSLv2 */
+#ifdef SSL_OP_NO_SSLv3
 			if( EDP_SSLv3 & m_uDisableProtocols )
 				uCTXOptions |= SSL_OP_NO_SSLv3;
+#endif /* SSL_OP_NO_SSLv3 */
+#ifdef SSL_OP_NO_TLSv1
 			if( EDP_TLSv1 & m_uDisableProtocols )
 				uCTXOptions |= SSL_OP_NO_TLSv1;
+#endif /* SSL_OP_NO_TLSv1 */
+#ifdef SSL_OP_NO_TLSv1_1
+			if( EDP_TLSv1_1 & m_uDisableProtocols )
+				uCTXOptions |= SSL_OP_NO_TLSv1_1;
+#endif /* SSL_OP_NO_TLSv1 */
+#ifdef SSL_OP_NO_TLSv1_2
+			if( EDP_TLSv1_2 & m_uDisableProtocols )
+				uCTXOptions |= SSL_OP_NO_TLSv1_2;
+#endif /* SSL_OP_NO_TLSv1_2 */
 		}
 		if( m_bNoSSLCompression )
 			uCTXOptions |= SSL_OP_NO_COMPRESSION;

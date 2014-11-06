@@ -610,9 +610,11 @@ public:
 	enum EDisableProtocol
 	{
 		EDP_None		= 0, //!< disable nothing
-		EDP_SSLv2		= 1, //!< disable SSL verion 2
-		EDP_SSLv3		= 2, //!< disable SSL verion 3
-		EDP_TLSv1		= 4, //!< disable TLS verion 1
+		EDP_SSLv2		= 1, //!< disable SSL version 2
+		EDP_SSLv3		= 2, //!< disable SSL version 3
+		EDP_TLSv1		= 4, //!< disable TLS version 1
+		EDP_TLSv1_1		= 8, //!< disable TLS version 1.1
+		EDP_TLSv1_2		= 16, //!< disable TLS version 1.2
 		EDP_SSL			= (EDP_SSLv2|EDP_SSLv3)
 	};
 
