@@ -1058,6 +1058,12 @@ void Csock::Copy( const Csock & cCopy )
 
 #endif /* HAVE_LIBSSL */
 
+#ifdef HAVE_ICU
+	m_cnvExt.adoptInstead(cCopy.m_cnvExt.orphan());
+	m_cnvTryUTF8 = cCopy.m_cnvTryUTF8;
+	m_cnvSendUTF8 = cCopy.m_cnvSendUTF8;
+#endif
+
 	CleanupCrons();
 	CleanupFDMonitors();
 	m_vcCrons			= cCopy.m_vcCrons;
@@ -2056,7 +2062,7 @@ bool Csock::Write( const char *data, size_t len )
 bool Csock::Write( const CS_STRING & sData )
 {
 #ifdef HAVE_ICU
-	if( m_cnvExt.isValid() )
+	if( m_cnvExt.isValid() && !m_cnvSendUTF8 )
 	{
 		CS_STRING sBinary;
 		if( icuConv( sData, sBinary, m_cnvInt.getAlias(), m_cnvExt.getAlias() ) )
@@ -2322,9 +2328,13 @@ void Csock::SetEncoding( const CS_STRING& sEncoding )
 	}
 	else
 	{
-		m_cnvTryUTF8 = sEncoding[0] == '*';
+		m_cnvTryUTF8 = sEncoding[0] == '*' || sEncoding[0] == '^';
+		m_cnvSendUTF8 = sEncoding[0] == '^';
+		const char* sEncodingName = sEncoding.c_str();
+		if( m_cnvTryUTF8 )
+			sEncodingName++;
 		icu::ErrorCode e;
-		m_cnvExt.adoptInstead( ucnv_open( sEncoding.c_str(), e ) );
+		m_cnvExt.adoptInstead( ucnv_open( sEncodingName, e ) );
 		if( e.isFailure() )
 		{
 			CS_DEBUG( "Can't set encoding to " << sEncoding << ": " <<  e.errorName() );
@@ -2973,6 +2983,7 @@ void Csock::Init( const CS_STRING & sHostname, uint16_t uPort, int iTimeout )
 #endif /* HAVE_C_ARES */
 #ifdef HAVE_ICU
 	m_cnvTryUTF8 = false;
+	m_cnvSendUTF8 = false;
 	icu::ErrorCode e;
 	m_cnvInt.adoptInstead( ucnv_open( "UTF-8", e ) );
 	m_cnvIntStrict.adoptInstead( ucnv_open( "UTF-8", e ) );
