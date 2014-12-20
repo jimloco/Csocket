@@ -1134,6 +1134,19 @@ public:
 
 #ifdef HAVE_ICU
 	void SetEncoding( const CString& sEncoding );
+	virtual void IcuExtToUCallback(
+		UConverterToUnicodeArgs* toArgs,
+		const char* codeUnits,
+		int32_t length,
+		UConverterCallbackReason reason,
+		UErrorCode* err );
+	virtual void IcuExtFromUCallback(
+		UConverterFromUnicodeArgs* fromArgs,
+		const UChar* codeUnits,
+		int32_t length,
+		UChar32 codePoint,
+		UConverterCallbackReason reason,
+		UErrorCode* err );
 #endif /* HAVE_ICU */
 
 private:
@@ -1198,10 +1211,10 @@ private:
 #endif /* HAVE_C_ARES */
 
 #ifdef HAVE_ICU
-	icu::LocalUConverterPointer m_cnvInt, m_cnvIntStrict;
-	mutable icu::LocalUConverterPointer m_cnvExt;
+	icu::LocalUConverterPointer m_cnvInt, m_cnvIntStrict, m_cnvExt;
 	bool m_cnvTryUTF8;
 	bool m_cnvSendUTF8;
+	CS_STRING m_sEncoding;
 #endif
 };
 

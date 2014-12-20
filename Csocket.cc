@@ -51,6 +51,7 @@
 
 #ifdef HAVE_ICU
 #include <unicode/errorcode.h>
+#include <unicode/ucnv_cb.h>
 #endif /* HAVE_ICU */
 
 #include <list>
@@ -1059,9 +1060,7 @@ void Csock::Copy( const Csock & cCopy )
 #endif /* HAVE_LIBSSL */
 
 #ifdef HAVE_ICU
-	m_cnvExt.adoptInstead(cCopy.m_cnvExt.orphan());
-	m_cnvTryUTF8 = cCopy.m_cnvTryUTF8;
-	m_cnvSendUTF8 = cCopy.m_cnvSendUTF8;
+	SetEncoding(cCopy.m_sEncoding);
 #endif
 
 	CleanupCrons();
@@ -2320,8 +2319,63 @@ void Csock::PushBuff( const char *data, size_t len, bool bStartAtZero )
 }
 
 #ifdef HAVE_ICU
+void Csock::IcuExtToUCallback(
+		UConverterToUnicodeArgs* toArgs,
+		const char* codeUnits,
+		int32_t length,
+		UConverterCallbackReason reason,
+		UErrorCode* err)
+{
+	if( reason <= UCNV_IRREGULAR )
+	{
+		*err = U_ZERO_ERROR;
+		ucnv_cbToUWriteSub( toArgs, 0, err );
+	}
+}
+
+void Csock::IcuExtFromUCallback(
+		UConverterFromUnicodeArgs* fromArgs,
+		const UChar* codeUnits,
+		int32_t length,
+		UChar32 codePoint,
+		UConverterCallbackReason reason,
+		UErrorCode * err)
+{
+	if( reason <= UCNV_IRREGULAR )
+	{
+		*err = U_ZERO_ERROR;
+		ucnv_cbFromUWriteSub( fromArgs, 0, err );
+	}
+}
+
+static void icuExtToUCallback(
+		const void* context,
+		UConverterToUnicodeArgs* toArgs,
+		const char* codeUnits,
+		int32_t length,
+		UConverterCallbackReason reason,
+		UErrorCode* err)
+{
+	Csock* pcSock = (Csock*)context;
+	pcSock->IcuExtToUCallback(toArgs, codeUnits, length, reason, err);
+}
+
+static void icuExtFromUCallback(
+		const void* context,
+		UConverterFromUnicodeArgs* fromArgs,
+		const UChar* codeUnits,
+		int32_t length,
+		UChar32 codePoint,
+		UConverterCallbackReason reason,
+		UErrorCode* err)
+{
+	Csock* pcSock = (Csock*)context;
+	pcSock->IcuExtFromUCallback(fromArgs, codeUnits, length, codePoint, reason, err);
+}
+
 void Csock::SetEncoding( const CS_STRING& sEncoding )
 {
+	m_sEncoding = sEncoding;
 	if( sEncoding.empty() )
 	{
 		m_cnvExt.adoptInstead( NULL );
@@ -2338,6 +2392,11 @@ void Csock::SetEncoding( const CS_STRING& sEncoding )
 		if( e.isFailure() )
 		{
 			CS_DEBUG( "Can't set encoding to " << sEncoding << ": " <<  e.errorName() );
+		}
+		if( m_cnvExt.isValid() )
+		{
+			ucnv_setToUCallBack( m_cnvExt.getAlias(), icuExtToUCallback, this, NULL, NULL, e );
+			ucnv_setFromUCallBack( m_cnvExt.getAlias(), icuExtFromUCallback, this, NULL, NULL, e );
 		}
 	}
 }
