@@ -45,7 +45,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <sys/time.h>
-#include <sys/fcntl.h>
+#include <fcntl.h>
 #include <sys/file.h>
 
 #ifndef _WIN32
