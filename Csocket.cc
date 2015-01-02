@@ -1041,6 +1041,7 @@ void Csock::Copy( const Csock & cCopy )
 
 #ifdef HAVE_LIBSSL
 	m_bNoSSLCompression = cCopy.m_bNoSSLCompression;
+	m_bSSLCipherServerPreference = cCopy.m_bSSLCipherServerPreference;
 	m_uDisableProtocols = cCopy.m_uDisableProtocols;
 	m_iRequireClientCertFlags = cCopy.m_iRequireClientCertFlags;
 	m_sSSLBuffer	= cCopy.m_sSSLBuffer;
@@ -1434,7 +1435,8 @@ bool Csock::ConfigureCTXOptions( SSL_CTX * pCTX )
 			uCTXOptions |= SSL_OP_NO_COMPRESSION;
 #endif /* SSL_OP_NO_COMPRESSION */
 #ifdef SSL_OP_CIPHER_SERVER_PREFERENCE
-		uCTXOptions |= SSL_OP_CIPHER_SERVER_PREFERENCE;
+		if( m_bSSLCipherServerPreference )
+			uCTXOptions |= SSL_OP_CIPHER_SERVER_PREFERENCE;
 #endif /* SSL_OP_CIPHER_SERVER_PREFERENCE */
 		if( uCTXOptions )
 			SSL_CTX_set_options( pCTX, uCTXOptions );
@@ -2998,6 +3000,7 @@ void Csock::Init( const CS_STRING & sHostname, uint16_t uPort, int iTimeout )
 	m_iRequireClientCertFlags = 0;
 	m_uDisableProtocols = 0;
 	m_bNoSSLCompression = false;
+	m_bSSLCipherServerPreference = false;
 #endif /* HAVE_LIBSSL */
 	m_iTcount = 0;
 	m_iReadSock = CS_INVALID_SOCK;
