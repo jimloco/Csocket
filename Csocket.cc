@@ -1708,7 +1708,7 @@ SSL_CTX * Csock::SetupServerCTX()
 		// Presumably PEM_read_DHparams failed, as there was no DH structure. Clearing those errors here so they are removed off the stack
 		ERR_clear_error();
 	}
-
+#ifndef OPENSSL_NO_ECDH
 	// Errors for the following block are non-fatal (ECDHE is nice to have
 	// but not a requirement)
 #if defined( SSL_CTX_set_ecdh_auto )
@@ -1725,8 +1725,11 @@ SSL_CTX * Csock::SetupServerCTX()
 		EC_KEY_free( ecdh );
 	}
 	else
+	{
 		ERR_clear_error();
-#endif
+	}
+#endif /* SSL_CTX_set_tmp_ecdh */
+#endif /* OPENSSL_NO_ECDH */
 
 	if( !ConfigureCTXOptions( pCTX ) )
 	{
