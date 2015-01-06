@@ -1472,7 +1472,7 @@ bool Csock::SSLClientSetup()
 		}
 		break;
 	case TLS12:
-#ifdef TLS1_2_VERSION
+#if defined( TLS1_2_VERSION ) && defined( OPENSSL_VERSION_NUMBER ) && OPENSSL_VERSION_NUMBER >= 0x1000100f
 		m_ssl_ctx = SSL_CTX_new( TLSv1_2_client_method() );
 		if( !m_ssl_ctx )
 		{
@@ -1482,7 +1482,7 @@ bool Csock::SSLClientSetup()
 		break;
 #endif /* TLS1_2_VERSION */
 	case TLS11:
-#ifdef TLS1_1_VERSION
+#if defined( TLS1_1_VERSION ) && defined( OPENSSL_VERSION_NUMBER ) && OPENSSL_VERSION_NUMBER >= 0x1000100f
 		m_ssl_ctx = SSL_CTX_new( TLSv1_1_client_method() );
 		if( !m_ssl_ctx )
 		{
@@ -1594,7 +1594,7 @@ SSL_CTX * Csock::SetupServerCTX()
 		}
 		break;
 	case TLS12:
-#ifdef TLS1_2_VERSION
+#if defined( TLS1_2_VERSION ) && defined( OPENSSL_VERSION_NUMBER ) && OPENSSL_VERSION_NUMBER >= 0x1000100f
 		pCTX = SSL_CTX_new( TLSv1_2_server_method() );
 		if( !pCTX )
 		{
@@ -1604,7 +1604,7 @@ SSL_CTX * Csock::SetupServerCTX()
 		break;
 #endif /* TLS1_2_VERSION */
 	case TLS11:
-#ifdef TLS1_1_VERSION
+#if defined( TLS1_1_VERSION ) && defined( OPENSSL_VERSION_NUMBER ) && OPENSSL_VERSION_NUMBER >= 0x1000100f
 		pCTX = SSL_CTX_new( TLSv1_1_server_method() );
 		if( !pCTX )
 		{
