@@ -876,6 +876,7 @@ public:
 	int GetSSLMethod() const;
 
 	void SetSSLObject( SSL *ssl, bool bDeleteExisting = false );
+	SSL * GetSSLObject() const;
 	void SetCTXObject( SSL_CTX *sslCtx, bool bDeleteExisting = false );
 	SSL_SESSION * GetSSLSession() const;
 
