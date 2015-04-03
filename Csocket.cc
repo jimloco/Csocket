@@ -2508,6 +2508,13 @@ void Csock::SetSSLObject( SSL *ssl, bool bDeleteExisting )
 		FREE_SSL();
 	m_ssl = ssl; 
 }
+SSL * Csock::GetSSLObject() const
+{
+	if( m_ssl )
+		return( m_ssl );
+
+	return( NULL );
+}
 void Csock::SetCTXObject( SSL_CTX *sslCtx, bool bDeleteExisting ) 
 {
 	if( bDeleteExisting )
