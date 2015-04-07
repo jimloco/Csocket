@@ -1136,7 +1136,7 @@ public:
 	int GetMaxConns() const { return( m_iMaxConns ); }
 
 #ifdef HAVE_ICU
-	void SetEncoding( const CString& sEncoding );
+	void SetEncoding( const CS_STRING & sEncoding );
 	virtual void IcuExtToUCallback(
 		UConverterToUnicodeArgs* toArgs,
 		const char* codeUnits,
