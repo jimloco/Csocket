@@ -965,6 +965,12 @@ Csock::~Csock()
 	int iOldError = ::WSAGetLastError();
 #endif /* _WIN32 */
 
+#ifdef HAVE_ICU
+	if( m_cnvExt ) ucnv_close( m_cnvExt );
+	if( m_cnvInt ) ucnv_close( m_cnvInt );
+	if( m_cnvIntStrict ) ucnv_close( m_cnvIntStrict );
+#endif
+
 #ifdef HAVE_C_ARES
 	if( m_pARESChannel )
 		ares_cancel( m_pARESChannel );
@@ -1887,14 +1893,14 @@ inline bool icuConv( const CS_STRING& src, CS_STRING& tgt, UConverter* cnv_in, U
 	while( true )
 	{
 		char* outdata = buf;
-		icu::ErrorCode e;
-		ucnv_convertEx( cnv_out, cnv_in, &outdata, outdataend, &indata, indataend, pivotStart, &pivotSource, &pivotTarget, pivotLimit, reset, true, e );
+		UErrorCode e = 0;
+		ucnv_convertEx( cnv_out, cnv_in, &outdata, outdataend, &indata, indataend, pivotStart, &pivotSource, &pivotTarget, pivotLimit, reset, true, &e );
 		reset = false;
-		if( e.isSuccess() )
+		if( U_SUCCESS( e ) )
 		{
 			if( e != U_ZERO_ERROR )
 			{
-				CS_DEBUG( "Warning during converting string encoding: " << e.errorName() );
+				CS_DEBUG( "Warning during converting string encoding: " << u_errorName( e ) );
 			}
 			tgt.append( buf, outdata - buf );
 			break;
@@ -1904,7 +1910,7 @@ inline bool icuConv( const CS_STRING& src, CS_STRING& tgt, UConverter* cnv_in, U
 			tgt.append( buf, outdata - buf );
 			continue;
 		}
-		CS_DEBUG( "Error during converting string encoding: " << e.errorName() );
+		CS_DEBUG( "Error during converting string encoding: " << u_errorName( e ) );
 		return false;
 	}
 	return true;
@@ -2101,10 +2107,10 @@ bool Csock::Write( const char *data, size_t len )
 bool Csock::Write( const CS_STRING & sData )
 {
 #ifdef HAVE_ICU
-	if( m_cnvExt.isValid() && !m_cnvSendUTF8 )
+	if( m_cnvExt && !m_cnvSendUTF8 )
 	{
 		CS_STRING sBinary;
-		if( icuConv( sData, sBinary, m_cnvInt.getAlias(), m_cnvExt.getAlias() ) )
+		if( icuConv( sData, sBinary, m_cnvInt, m_cnvExt ) )
 		{
 			return( Write( sBinary.c_str(), sBinary.length() ) );
 		}
@@ -2328,11 +2334,11 @@ void Csock::PushBuff( const char *data, size_t len, bool bStartAtZero )
 			CS_STRING sBuff = m_sbuffer.substr( 0, iFind + 1 );	// read up to(including) the newline
 			m_sbuffer.erase( 0, iFind + 1 );					// erase past the newline
 #ifdef HAVE_ICU
-			if( m_cnvExt.isValid() )
+			if( m_cnvExt )
 			{
 				CS_STRING sUTF8;
-				if( ( m_cnvTryUTF8 && icuConv( sBuff, sUTF8, m_cnvIntStrict.getAlias(), m_cnvIntStrict.getAlias() ) ) // maybe it's already UTF-8?
-				        || icuConv( sBuff, sUTF8, m_cnvExt.getAlias(), m_cnvInt.getAlias() ) )
+				if( ( m_cnvTryUTF8 && icuConv( sBuff, sUTF8, m_cnvIntStrict, m_cnvIntStrict ) ) // maybe it's already UTF-8?
+				        || icuConv( sBuff, sUTF8, m_cnvExt, m_cnvInt ) )
 				{
 					ReadLine( sUTF8 );
 				}
@@ -2379,7 +2385,7 @@ void Csock::IcuExtFromUCallback(
 		int32_t length,
 		UChar32 codePoint,
 		UConverterCallbackReason reason,
-		UErrorCode * err)
+		UErrorCode* err)
 {
 	if( reason <= UCNV_IRREGULAR )
 	{
@@ -2415,28 +2421,26 @@ static void icuExtFromUCallback(
 
 void Csock::SetEncoding( const CS_STRING& sEncoding )
 {
+	if( m_cnvExt ) ucnv_close( m_cnvExt );
+	m_cnvExt = NULL;
 	m_sEncoding = sEncoding;
-	if( sEncoding.empty() )
-	{
-		m_cnvExt.adoptInstead( NULL );
-	}
-	else
+	if( !sEncoding.empty() )
 	{
 		m_cnvTryUTF8 = sEncoding[0] == '*' || sEncoding[0] == '^';
 		m_cnvSendUTF8 = sEncoding[0] == '^';
 		const char* sEncodingName = sEncoding.c_str();
 		if( m_cnvTryUTF8 )
 			sEncodingName++;
-		icu::ErrorCode e;
-		m_cnvExt.adoptInstead( ucnv_open( sEncodingName, e ) );
-		if( e.isFailure() )
+		UErrorCode e = 0;
+		m_cnvExt = ucnv_open( sEncodingName, &e );
+		if( U_FAILURE( e ) )
 		{
-			CS_DEBUG( "Can't set encoding to " << sEncoding << ": " <<  e.errorName() );
+			CS_DEBUG( "Can't set encoding to " << sEncoding << ": " <<  u_errorName( e ) );
 		}
-		if( m_cnvExt.isValid() )
+		if( m_cnvExt )
 		{
-			ucnv_setToUCallBack( m_cnvExt.getAlias(), icuExtToUCallback, this, NULL, NULL, e );
-			ucnv_setFromUCallBack( m_cnvExt.getAlias(), icuExtFromUCallback, this, NULL, NULL, e );
+			ucnv_setToUCallBack( m_cnvExt, icuExtToUCallback, this, NULL, NULL, &e );
+			ucnv_setFromUCallBack( m_cnvExt, icuExtFromUCallback, this, NULL, NULL, &e );
 		}
 	}
 }
@@ -3091,11 +3095,12 @@ void Csock::Init( const CS_STRING & sHostname, uint16_t uPort, int iTimeout )
 #ifdef HAVE_ICU
 	m_cnvTryUTF8 = false;
 	m_cnvSendUTF8 = false;
-	icu::ErrorCode e;
-	m_cnvInt.adoptInstead( ucnv_open( "UTF-8", e ) );
-	m_cnvIntStrict.adoptInstead( ucnv_open( "UTF-8", e ) );
-	ucnv_setToUCallBack( m_cnvIntStrict.getAlias(), UCNV_TO_U_CALLBACK_STOP, NULL, NULL, NULL, e );
-	ucnv_setFromUCallBack( m_cnvIntStrict.getAlias(), UCNV_FROM_U_CALLBACK_STOP, NULL, NULL, NULL, e );
+	UErrorCode e = 0;
+	m_cnvExt = NULL;
+	m_cnvInt = ucnv_open( "UTF-8", &e );
+	m_cnvIntStrict = ucnv_open( "UTF-8", &e );
+	ucnv_setToUCallBack( m_cnvIntStrict, UCNV_TO_U_CALLBACK_STOP, NULL, NULL, NULL, &e );
+	ucnv_setFromUCallBack( m_cnvIntStrict, UCNV_FROM_U_CALLBACK_STOP, NULL, NULL, NULL, &e );
 #endif /* HAVE_ICU */
 }
 
