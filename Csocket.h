@@ -1215,7 +1215,9 @@ private:
 #endif /* HAVE_C_ARES */
 
 #ifdef HAVE_ICU
-	icu::LocalUConverterPointer m_cnvInt, m_cnvIntStrict, m_cnvExt;
+	UConverter* m_cnvInt;
+	UConverter* m_cnvIntStrict;
+	UConverter* m_cnvExt;
 	bool m_cnvTryUTF8;
 	bool m_cnvSendUTF8;
 	CS_STRING m_sEncoding;
