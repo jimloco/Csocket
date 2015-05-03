@@ -55,6 +55,7 @@
 #include <sys/socket.h>
 #include <sys/ioctl.h>
 #include <netdb.h>
+#include <sys/select.h>
 
 #else
 

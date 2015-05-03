@@ -1893,7 +1893,7 @@ inline bool icuConv( const CS_STRING& src, CS_STRING& tgt, UConverter* cnv_in, U
 	while( true )
 	{
 		char* outdata = buf;
-		UErrorCode e = 0;
+		UErrorCode e = U_ZERO_ERROR;
 		ucnv_convertEx( cnv_out, cnv_in, &outdata, outdataend, &indata, indataend, pivotStart, &pivotSource, &pivotTarget, pivotLimit, reset, true, &e );
 		reset = false;
 		if( U_SUCCESS( e ) )
@@ -2431,7 +2431,7 @@ void Csock::SetEncoding( const CS_STRING& sEncoding )
 		const char* sEncodingName = sEncoding.c_str();
 		if( m_cnvTryUTF8 )
 			sEncodingName++;
-		UErrorCode e = 0;
+		UErrorCode e = U_ZERO_ERROR;
 		m_cnvExt = ucnv_open( sEncodingName, &e );
 		if( U_FAILURE( e ) )
 		{
@@ -3095,7 +3095,7 @@ void Csock::Init( const CS_STRING & sHostname, uint16_t uPort, int iTimeout )
 #ifdef HAVE_ICU
 	m_cnvTryUTF8 = false;
 	m_cnvSendUTF8 = false;
-	UErrorCode e = 0;
+	UErrorCode e = U_ZERO_ERROR;
 	m_cnvExt = NULL;
 	m_cnvInt = ucnv_open( "UTF-8", &e );
 	m_cnvIntStrict = ucnv_open( "UTF-8", &e );
