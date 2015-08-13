@@ -1374,6 +1374,7 @@ cs_sock_t Csock::Accept( CS_STRING & sHost, uint16_t & iRPort )
 }
 
 #ifdef HAVE_LIBSSL
+#if defined( SSL_CTX_set_tlsext_servername_callback )
 static int __SNICallBack( SSL *pSSL, int *piAD, void *pData ) 
 {
 	if( !pSSL || !pData )
@@ -1396,7 +1397,7 @@ static int __SNICallBack( SSL *pSSL, int *piAD, void *pData )
 	pSock->SetCTXObject( pCTX, true );
 	return( SSL_TLSEXT_ERR_OK );
 }
-
+#endif /* SSL_CTX_set_tlsext_servername_callback */
 #endif /* HAVE_LIBSSL */
 
 bool Csock::AcceptSSL()
