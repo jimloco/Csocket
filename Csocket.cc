@@ -1499,6 +1499,7 @@ bool Csock::SSLClientSetup()
 
 	switch( m_iMethod )
 	{
+#ifndef OPENSSL_NO_SSL3
 	case SSL3:
 		m_ssl_ctx = SSL_CTX_new( SSLv3_client_method() );
 		if( !m_ssl_ctx )
@@ -1507,6 +1508,8 @@ bool Csock::SSLClientSetup()
 			return( false );
 		}
 		break;
+#endif /* OPENSSL_NO_SSL3 */
+	/* Fall through if SSL3 is disabled */
 	case TLS12:
 #if defined( TLS1_2_VERSION ) && defined( OPENSSL_VERSION_NUMBER ) && OPENSSL_VERSION_NUMBER >= 0x1000100f
 		m_ssl_ctx = SSL_CTX_new( TLSv1_2_client_method() );
@@ -1621,6 +1624,7 @@ SSL_CTX * Csock::SetupServerCTX()
 	SSL_CTX * pCTX = NULL;
 	switch( m_iMethod )
 	{
+#ifndef OPENSSL_NO_SSL3
 	case SSL3:
 		pCTX = SSL_CTX_new( SSLv3_server_method() );
 		if( !pCTX )
@@ -1629,6 +1633,8 @@ SSL_CTX * Csock::SetupServerCTX()
 			return( NULL );
 		}
 		break;
+#endif /* OPENSSL_NO_SSL3 */
+	/* Fall through if SSL3 is disabled */
 	case TLS12:
 #if defined( TLS1_2_VERSION ) && defined( OPENSSL_VERSION_NUMBER ) && OPENSSL_VERSION_NUMBER >= 0x1000100f
 		pCTX = SSL_CTX_new( TLSv1_2_server_method() );
