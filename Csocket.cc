@@ -1045,6 +1045,7 @@ void Csock::Copy( const Csock & cCopy )
 	m_sbuffer		= cCopy.m_sbuffer;
 	m_sSockName		= cCopy.m_sSockName;
 	m_sKeyFile		= cCopy.m_sKeyFile;
+	m_sDHParamFile		= cCopy.m_sDHParamFile;
 	m_sPemFile		= cCopy.m_sPemFile;
 	m_sCipherType	= cCopy.m_sCipherType;
 	m_sParentName	= cCopy.m_sParentName;
@@ -1387,10 +1388,11 @@ static int __SNICallBack( SSL *pSSL, int *piAD, void *pData )
 
 	Csock * pSock = static_cast<Csock *>( pData );
 
-	CS_STRING sKeyFile, sPemFile, sPemPass;
+	CS_STRING sDHParamFile, sKeyFile, sPemFile, sPemPass;
 	if( !pSock->SNIConfigureServer( pServerName, sPemFile, sPemPass ) )
 		return( SSL_TLSEXT_ERR_NOACK );
 
+	pSock->SetDHParamLocation( sDHParamFile );
 	pSock->SetKeyLocation( sKeyFile );
 	pSock->SetPemLocation( sPemFile );
 	pSock->SetPemPass( sPemPass );
@@ -1737,10 +1739,11 @@ SSL_CTX * Csock::SetupServerCTX()
 
 	// check to see if this pem file contains a DH structure for use with DH key exchange
 	// https://github.com/znc/znc/pull/46
-	FILE *dhParamsFile = fopen( m_sPemFile.c_str(), "r" );
+	CS_STRING DHParamFile = m_sDHParamFile.empty() ? m_sPemFile : m_sDHParamFile;
+	FILE *dhParamsFile = fopen( DHParamFile.c_str(), "r" );
 	if( !dhParamsFile )
 	{
-		CS_DEBUG( "There is a problem with [" << m_sPemFile << "]" );
+		CS_DEBUG( "Error with DHParam file [" << DHParamFile << "]" );
 		SSL_CTX_free( pCTX );
 		return( NULL );
 	}
@@ -2546,6 +2549,9 @@ void Csock::SetSSL( bool b ) { m_bUseSSL = b; }
 void Csock::SetCipher( const CS_STRING & sCipher ) { m_sCipherType = sCipher; }
 const CS_STRING & Csock::GetCipher() const { return( m_sCipherType ); }
 
+void Csock::SetDHParamLocation( const CS_STRING & sDHParamFile ) { m_sDHParamFile = sDHParamFile; }
+const CS_STRING & Csock::GetDHParamLocation() const { return( m_sDHParamFile ); }
+
 void Csock::SetKeyLocation( const CS_STRING & sKeyFile ) { m_sKeyFile = sKeyFile; }
 const CS_STRING & Csock::GetKeyLocation() const { return( m_sKeyFile ); }
 
@@ -3183,6 +3189,7 @@ void CSocketManager::Connect( const CSConnection & cCon, Csock * pcSock )
 	{
 		if( !cCon.GetPemLocation().empty() )
 		{
+			pcSock->SetDHParamLocation( cCon.GetDHParamLocation() );
 			pcSock->SetKeyLocation( cCon.GetKeyLocation() );
 			pcSock->SetPemLocation( cCon.GetPemLocation() );
 			pcSock->SetPemPass( cCon.GetPemPass() );
@@ -3221,6 +3228,7 @@ bool CSocketManager::Listen( const CSListener & cListen, Csock * pcSock, uint16_
 	pcSock->SetSSL( cListen.GetIsSSL() );
 	if( cListen.GetIsSSL() && !cListen.GetPemLocation().empty() )
 	{
+		pcSock->SetDHParamLocation( cListen.GetDHParamLocation() );
 		pcSock->SetKeyLocation( cListen.GetKeyLocation() );
 		pcSock->SetPemLocation( cListen.GetPemLocation() );
 		pcSock->SetPemPass( cListen.GetPemPass() );
@@ -4033,6 +4041,7 @@ void CSocketManager::Select( std::map<Csock *, EMessages> & mpeSocks )
 					if( pcSock->GetSSL() )
 					{
 						NewpcSock->SetCipher( pcSock->GetCipher() );
+						NewpcSock->SetDHParamLocation( pcSock->GetDHParamLocation() );
 						NewpcSock->SetKeyLocation( pcSock->GetKeyLocation() );
 						NewpcSock->SetPemLocation( pcSock->GetPemLocation() );
 						NewpcSock->SetPemPass( pcSock->GetPemPass() );
