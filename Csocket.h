@@ -867,6 +867,10 @@ public:
 	const CS_STRING & GetCipher() const;
 
 	//! Set the pem file location
+	void SetDHParamLocation( const CS_STRING & sDHParamFile );
+	const CS_STRING & GetDHParamLocation() const;
+	void SetKeyLocation( const CS_STRING & sKeyFile );
+	const CS_STRING & GetKeyLocation() const;
 	void SetPemLocation( const CS_STRING & sPemFile );
 	const CS_STRING & GetPemLocation() const;
 	void SetPemPass( const CS_STRING & sPassword );
@@ -1167,7 +1171,7 @@ private:
 	int 		m_iTimeout, m_iConnType, m_iMethod, m_iTcount, m_iMaxConns;
 	bool		m_bUseSSL, m_bIsConnected;
 	bool		m_bsslEstablished, m_bEnableReadLine, m_bPauseRead;
-	CS_STRING	m_shostname, m_sbuffer, m_sSockName, m_sPemFile, m_sCipherType, m_sParentName;
+	CS_STRING	m_shostname, m_sbuffer, m_sSockName, m_sDHParamFile, m_sKeyFile, m_sPemFile, m_sCipherType, m_sParentName;
 	CS_STRING	m_sSend, m_sPemPass;
 	ECloseType	m_eCloseType;
 
@@ -1261,6 +1265,8 @@ public:
 #ifdef HAVE_LIBSSL
 	const CS_STRING & GetCipher() const { return( m_sCipher ); }
 	const CS_STRING & GetPemLocation() const { return( m_sPemLocation ); }
+	const CS_STRING & GetKeyLocation() const { return( m_sKeyLocation ); }
+	const CS_STRING & GetDHParamLocation() const { return( m_sDHParamLocation ); }
 	const CS_STRING & GetPemPass() const { return( m_sPemPass ); }
 #endif /* HAVE_LIBSSL */
 
@@ -1295,7 +1301,7 @@ protected:
 	bool		m_bIsSSL;
 	CSSockAddr::EAFRequire	m_iAFrequire;
 #ifdef HAVE_LIBSSL
-	CS_STRING	m_sPemLocation, m_sPemPass, m_sCipher;
+	CS_STRING	m_sDHParamLocation, m_sKeyLocation, m_sPemLocation, m_sPemPass, m_sCipher;
 #endif /* HAVE_LIBSSL */
 };
 
@@ -1349,6 +1355,8 @@ public:
 	CSSockAddr::EAFRequire GetAFRequire() const { return( m_iAFrequire ); }
 #ifdef HAVE_LIBSSL
 	const CS_STRING & GetCipher() const { return( m_sCipher ); }
+	const CS_STRING & GetDHParamLocation() const { return( m_sDHParamLocation ); }
+	const CS_STRING & GetKeyLocation() const { return( m_sKeyLocation ); }
 	const CS_STRING & GetPemLocation() const { return( m_sPemLocation ); }
 	const CS_STRING & GetPemPass() const { return( m_sPemPass ); }
 	uint32_t GetRequireClientCertFlags() const { return( m_iRequireCertFlags ); }
@@ -1374,6 +1382,10 @@ public:
 	void SetCipher( const CS_STRING & s ) { m_sCipher = s; }
 	//! set the location of the pemfile
 	void SetPemLocation( const CS_STRING & s ) { m_sPemLocation = s; }
+	//! set the location of the keyfile
+	void SetKeyLocation( const CS_STRING & s ) { m_sKeyLocation = s; }
+	//! set the location of the dhparamfile
+	void SetDHParamLocation( const CS_STRING & s ) { m_sDHParamLocation = s; }
 	//! set the pemfile pass
 	void SetPemPass( const CS_STRING & s ) { m_sPemPass = s; }
 	//! set to true if require a client certificate (deprecated @see SetRequireClientCertFlags)
@@ -1391,7 +1403,7 @@ private:
 	CSSockAddr::EAFRequire	m_iAFrequire;
 
 #ifdef HAVE_LIBSSL
-	CS_STRING	m_sPemLocation, m_sPemPass, m_sCipher;
+	CS_STRING	m_sDHParamLocation, m_sKeyLocation, m_sPemLocation, m_sPemPass, m_sCipher;
 	uint32_t		m_iRequireCertFlags;
 #endif /* HAVE_LIBSSL */
 };
