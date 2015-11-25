@@ -1044,8 +1044,9 @@ void Csock::Copy( const Csock & cCopy )
 	m_shostname		= cCopy.m_shostname;
 	m_sbuffer		= cCopy.m_sbuffer;
 	m_sSockName		= cCopy.m_sSockName;
-	m_sKeyRaw  		= cCopy.m_sKeyRaw;
-	m_sCertRaw 		= cCopy.m_sCertRaw;
+	m_pKeyRaw  		= cCopy.m_pKeyRaw;
+	m_pCertRaw 		= cCopy.m_pCertRaw;
+	m_pDHParamRaw 	= cCopy.m_pDHParamRaw;
 	m_sKeyFile		= cCopy.m_sKeyFile;
 	m_sDHParamFile		= cCopy.m_sDHParamFile;
 	m_sPemFile		= cCopy.m_sPemFile;
@@ -1572,32 +1573,32 @@ bool Csock::SSLClientSetup()
 
 	SSL_CTX_set_default_verify_paths( m_ssl_ctx );
 
-    // are we sending a client cerificate ?
-    SSL_CTX_set_default_passwd_cb( m_ssl_ctx, _PemPassCB );
-    SSL_CTX_set_default_passwd_cb_userdata( m_ssl_ctx, ( void * )this );
+	// are we sending a client cerificate ?
+	SSL_CTX_set_default_passwd_cb( m_ssl_ctx, _PemPassCB );
+	SSL_CTX_set_default_passwd_cb_userdata( m_ssl_ctx, ( void * )this );
 
-    // set up the CTX
-    if (m_sCertRaw && m_sKeyRaw)
-    {
-        if( SSL_CTX_use_certificate( m_ssl_ctx, m_sCertRaw ) <= 0 )
-        {
-            CS_DEBUG( "Error with SSLCert file [" << m_sPemFile << "]" );
-            SSLErrors( __FILE__, __LINE__ );
-        }
-        if( SSL_CTX_use_PrivateKey( m_ssl_ctx, m_sKeyRaw ) <= 0 )
-        {
-            CS_DEBUG( "Error with SSLCert file [" << m_sPemFile << "]" );
-            SSLErrors( __FILE__, __LINE__ );
-        }
-    }
-    else if( !m_sPemFile.empty() )
+	// set up the CTX
+	if( m_pCertRaw && m_pKeyRaw )
+	{
+		if( SSL_CTX_use_certificate( m_ssl_ctx, m_pCertRaw ) <= 0 )
+		{
+			CS_DEBUG( "Error with SSLCert file [" << m_sPemFile << "]" );
+			SSLErrors( __FILE__, __LINE__ );
+		}
+		if( SSL_CTX_use_PrivateKey( m_ssl_ctx, m_pKeyRaw ) <= 0 )
+		{
+			CS_DEBUG( "Error with SSLCert file [" << m_sPemFile << "]" );
+			SSLErrors( __FILE__, __LINE__ );
+		}
+	}
+	else if( !m_sPemFile.empty() )
 	{
 		if( SSL_CTX_use_certificate_file( m_ssl_ctx, m_sPemFile.c_str() , SSL_FILETYPE_PEM ) <= 0 )
 		{
 			CS_DEBUG( "Error with SSLCert file [" << m_sPemFile << "]" );
 			SSLErrors( __FILE__, __LINE__ );
 		}
-        CS_STRING privKeyFile = m_sKeyFile.empty() ? m_sPemFile : m_sKeyFile;
+		CS_STRING privKeyFile = m_sKeyFile.empty() ? m_sPemFile : m_sKeyFile;
 		if( SSL_CTX_use_PrivateKey_file( m_ssl_ctx, privKeyFile.c_str(), SSL_FILETYPE_PEM ) <= 0 )
 		{
 			CS_DEBUG( "Error with SSLKey file [" << privKeyFile << "]" );
@@ -1718,91 +1719,98 @@ SSL_CTX * Csock::SetupServerCTX()
 	SSL_CTX_set_default_passwd_cb( pCTX, _PemPassCB );
 	SSL_CTX_set_default_passwd_cb_userdata( pCTX, ( void * )this );
 
-    if(!m_sCertRaw) {
-        if(m_sPemFile.empty() || access( m_sPemFile.c_str(), R_OK ) != 0 )
-        {
-            CS_DEBUG( "Empty, missing, or bad pemfile ... [" << m_sPemFile << "]" );
-            SSL_CTX_free( pCTX );
-            return( NULL );
-        }
-        else {
-            //
-            // set up the CTX
-            if( SSL_CTX_use_certificate_chain_file( pCTX, m_sPemFile.c_str() ) <= 0 )
-            {
-                CS_DEBUG( "Error with SSLCert file [" << m_sPemFile << "]" );
-                SSLErrors( __FILE__, __LINE__ );
-                SSL_CTX_free( pCTX );
-                return( NULL );
-            }
-        }
-    }
-    else
-    {
-        if( SSL_CTX_use_certificate( pCTX, m_sCertRaw ) <= 0 )
-        {
-            CS_DEBUG( "Error with SSLCert file [" << m_sPemFile << "]" );
-            SSLErrors( __FILE__, __LINE__ );
-        }
-    }
-
-
-    if(!m_sKeyRaw) {
-        if(! m_sKeyFile.empty() && access( m_sKeyFile.c_str(), R_OK ) != 0 )
-        {
-            CS_DEBUG( "Bad keyfile ... [" << m_sKeyFile << "]" );
-            SSL_CTX_free( pCTX );
-            return( NULL );
-        } else {
-            CS_STRING privKeyFile = m_sKeyFile.empty() ? m_sPemFile : m_sKeyFile;
-            if( SSL_CTX_use_PrivateKey_file( pCTX, privKeyFile.c_str(), SSL_FILETYPE_PEM ) <= 0 )
-            {
-                CS_DEBUG( "Error with SSLKey file [" << privKeyFile << "]" );
-                SSLErrors( __FILE__, __LINE__ );
-                SSL_CTX_free( pCTX );
-                return( NULL );
-            }
-        }
-    }
-    else
-    {
-        if( SSL_CTX_use_PrivateKey( pCTX, m_sKeyRaw ) <= 0 )
-        {
-            CS_DEBUG( "Error with SSLCert file [" << m_sPemFile << "]" );
-            SSLErrors( __FILE__, __LINE__ );
-        }
-    }
-
-	// check to see if this pem file contains a DH structure for use with DH key exchange
-	// https://github.com/znc/znc/pull/46
-    DH * dhParams;
-    if (!m_sDHParamRaw) {
-        CS_STRING DHParamFile = m_sDHParamFile.empty() ? m_sPemFile : m_sDHParamFile;
-        FILE *dhParamsFile = fopen( DHParamFile.c_str(), "r" );
-        if( !dhParamsFile )
-        {
-            CS_DEBUG( "Error with DHParam file [" << DHParamFile << "]" );
-            SSL_CTX_free( pCTX );
-            return( NULL );
-        }
-        dhParams = PEM_read_DHparams( dhParamsFile, NULL, NULL, NULL );
-        fclose( dhParamsFile );
-    }
-    else {
-        dhParams = m_sDHParamRaw;
-    }
-	if( dhParams )
+	if( !m_pCertRaw )
 	{
-		SSL_CTX_set_options( pCTX, SSL_OP_SINGLE_DH_USE );
-		if( !SSL_CTX_set_tmp_dh( pCTX, dhParams ) )
+		if( m_sPemFile.empty() || access( m_sPemFile.c_str(), R_OK ) != 0 )
 		{
-			CS_DEBUG( "Error setting ephemeral DH parameters from [" << m_sPemFile << "]" );
-			SSLErrors( __FILE__, __LINE__ );
-			DH_free( dhParams );
+			CS_DEBUG( "Empty, missing, or bad pemfile ... [" << m_sPemFile << "]" );
 			SSL_CTX_free( pCTX );
 			return( NULL );
 		}
-		DH_free( dhParams );
+		else
+		{
+			//
+			// set up the CTX
+			if( SSL_CTX_use_certificate_chain_file( pCTX, m_sPemFile.c_str() ) <= 0 )
+			{
+				CS_DEBUG( "Error with SSLCert file [" << m_sPemFile << "]" );
+				SSLErrors( __FILE__, __LINE__ );
+				SSL_CTX_free( pCTX );
+				return( NULL );
+			}
+		}
+	}
+	else
+	{
+		if( SSL_CTX_use_certificate( pCTX, m_pCertRaw ) <= 0 )
+		{
+			CS_DEBUG( "Error with SSLCert file [" << m_sPemFile << "]" );
+			SSLErrors( __FILE__, __LINE__ );
+		}
+	}
+
+
+	if( !m_pKeyRaw )
+	{
+		if( ! m_sKeyFile.empty() && access( m_sKeyFile.c_str(), R_OK ) != 0 )
+		{
+			CS_DEBUG( "Bad keyfile ... [" << m_sKeyFile << "]" );
+			SSL_CTX_free( pCTX );
+			return( NULL );
+		}
+		else
+		{
+			CS_STRING privKeyFile = m_sKeyFile.empty() ? m_sPemFile : m_sKeyFile;
+			if( SSL_CTX_use_PrivateKey_file( pCTX, privKeyFile.c_str(), SSL_FILETYPE_PEM ) <= 0 )
+			{
+				CS_DEBUG( "Error with SSLKey file [" << privKeyFile << "]" );
+				SSLErrors( __FILE__, __LINE__ );
+				SSL_CTX_free( pCTX );
+				return( NULL );
+			}
+		}
+	}
+	else
+	{
+		if( SSL_CTX_use_PrivateKey( pCTX, m_pKeyRaw ) <= 0 )
+		{
+			CS_DEBUG( "Error with SSLCert file [" << m_sPemFile << "]" );
+			SSLErrors( __FILE__, __LINE__ );
+		}
+	}
+
+	// check to see if this pem file contains a DH structure for use with DH key exchange
+	// https://github.com/znc/znc/pull/46
+	DH * pDHParam;
+	if( !m_pDHParamRaw )
+	{
+		CS_STRING sDHParamFile = m_sDHParamFile.empty() ? m_sPemFile : m_sDHParamFile;
+		FILE *pDHParamsFile = fopen( sDHParamFile.c_str(), "r" );
+		if( !pDHParamsFile )
+		{
+			CS_DEBUG( "Error with DHParam file [" << sDHParamFile << "]" );
+			SSL_CTX_free( pCTX );
+			return( NULL );
+		}
+		pDHParam = PEM_read_DHparams( pDHParamsFile, NULL, NULL, NULL );
+		fclose( pDHParamsFile );
+	}
+	else
+	{
+		pDHParam = m_pDHParamRaw;
+	}
+	if( pDHParam )
+	{
+		SSL_CTX_set_options( pCTX, SSL_OP_SINGLE_DH_USE );
+		if( !SSL_CTX_set_tmp_dh( pCTX, pDHParam ) )
+		{
+			CS_DEBUG( "Error setting ephemeral DH parameters from [" << m_sPemFile << "]" );
+			SSLErrors( __FILE__, __LINE__ );
+			DH_free( pDHParam );
+			SSL_CTX_free( pCTX );
+			return( NULL );
+		}
+		DH_free( pDHParam );
 	}
 	else
 	{
@@ -2590,14 +2598,14 @@ void Csock::SetSSL( bool b ) { m_bUseSSL = b; }
 void Csock::SetCipher( const CS_STRING & sCipher ) { m_sCipherType = sCipher; }
 const CS_STRING & Csock::GetCipher() const { return( m_sCipherType ); }
 
-void Csock::SetKeyRaw( EVP_PKEY * sKeyRaw ) { m_sKeyRaw = sKeyRaw; }
-EVP_PKEY * Csock::GetKeyRaw() const { return( m_sKeyRaw ); }
+void Csock::SetKeyRaw( EVP_PKEY * sKeyRaw ) { m_pKeyRaw = sKeyRaw; }
+EVP_PKEY * Csock::GetKeyRaw() const { return( m_pKeyRaw ); }
 
-void Csock::SetCertRaw( X509 * sCertRaw ) { m_sCertRaw = sCertRaw; }
-X509 * Csock::GetCertRaw() const { return( m_sCertRaw ); }
+void Csock::SetCertRaw( X509 * sCertRaw ) { m_pCertRaw = sCertRaw; }
+X509 * Csock::GetCertRaw() const { return( m_pCertRaw ); }
 
-void Csock::SetDHParamRaw( DH * sDHParamRaw ) { m_sDHParamRaw = sDHParamRaw; }
-DH * Csock::GetDHParamRaw() const { return( m_sDHParamRaw ); }
+void Csock::SetDHParamRaw( DH * sDHParamRaw ) { m_pDHParamRaw = sDHParamRaw; }
+DH * Csock::GetDHParamRaw() const { return( m_pDHParamRaw ); }
 
 void Csock::SetDHParamLocation( const CS_STRING & sDHParamFile ) { m_sDHParamFile = sDHParamFile; }
 const CS_STRING & Csock::GetDHParamLocation() const { return( m_sDHParamFile ); }
