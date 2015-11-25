@@ -876,6 +876,14 @@ public:
 	void SetPemPass( const CS_STRING & sPassword );
 	const CS_STRING & GetPemPass() const;
 
+    //! set raw certificate, keys & dhparam
+	void SetKeyRaw( EVP_PKEY * sKeyRaw );
+	EVP_PKEY * GetKeyRaw() const;
+	void SetCertRaw( X509 * sCertRaw );
+	X509 * GetCertRaw() const;
+	void SetDHParamRaw( DH * sDHParamRaw );
+	DH * GetDHParamRaw() const;
+
 	//! Set the SSL method type
 	void SetSSLMethod( int iMethod );
 	int GetSSLMethod() const;
@@ -1172,6 +1180,9 @@ private:
 	bool		m_bUseSSL, m_bIsConnected;
 	bool		m_bsslEstablished, m_bEnableReadLine, m_bPauseRead;
 	CS_STRING	m_shostname, m_sbuffer, m_sSockName, m_sDHParamFile, m_sKeyFile, m_sPemFile, m_sCipherType, m_sParentName;
+	X509*		m_sCertRaw;
+	EVP_PKEY*	m_sKeyRaw;
+	DH*			m_sDHParamRaw;
 	CS_STRING	m_sSend, m_sPemPass;
 	ECloseType	m_eCloseType;
 
@@ -1264,6 +1275,9 @@ public:
 
 #ifdef HAVE_LIBSSL
 	const CS_STRING & GetCipher() const { return( m_sCipher ); }
+	const X509 & GetCertRaw() const { return( *m_sCertRaw ); }
+	const EVP_PKEY & GetKeyRaw() const { return( *m_sKeyRaw ); }
+	const DH & GetDHParamRaw() const { return( *m_sDHParamRaw ); }
 	const CS_STRING & GetPemLocation() const { return( m_sPemLocation ); }
 	const CS_STRING & GetKeyLocation() const { return( m_sKeyLocation ); }
 	const CS_STRING & GetDHParamLocation() const { return( m_sDHParamLocation ); }
@@ -1302,6 +1316,9 @@ protected:
 	CSSockAddr::EAFRequire	m_iAFrequire;
 #ifdef HAVE_LIBSSL
 	CS_STRING	m_sDHParamLocation, m_sKeyLocation, m_sPemLocation, m_sPemPass, m_sCipher;
+	X509*		m_sCertRaw;
+	EVP_PKEY*	m_sKeyRaw;
+	DH*			m_sDHParamRaw;
 #endif /* HAVE_LIBSSL */
 };
 
@@ -1356,6 +1373,9 @@ public:
 #ifdef HAVE_LIBSSL
 	const CS_STRING & GetCipher() const { return( m_sCipher ); }
 	const CS_STRING & GetDHParamLocation() const { return( m_sDHParamLocation ); }
+	const EVP_PKEY & GetKeyRaw() const { return( *m_sKeyRaw ); }
+	const X509 & GetCertRaw() const { return( *m_sCertRaw ); }
+	const DH & GetDHParamRaw() const { return( *m_sDHParamRaw ); }
 	const CS_STRING & GetKeyLocation() const { return( m_sKeyLocation ); }
 	const CS_STRING & GetPemLocation() const { return( m_sPemLocation ); }
 	const CS_STRING & GetPemPass() const { return( m_sPemPass ); }
@@ -1380,6 +1400,12 @@ public:
 #ifdef HAVE_LIBSSL
 	//! set the cipher strength to use, default is HIGH
 	void SetCipher( const CS_STRING & s ) { m_sCipher = s; }
+	//! set the raw cert data
+	void SetCertRaw( X509 * s ) { m_sCertRaw = s; }
+	//! set the raw key data
+	void SetKeyRaw( EVP_PKEY * s ) { m_sKeyRaw = s; }
+	//! set the raw dhparam data
+	void SetDHParamRaw( DH * s ) { m_sDHParamRaw = s; }
 	//! set the location of the pemfile
 	void SetPemLocation( const CS_STRING & s ) { m_sPemLocation = s; }
 	//! set the location of the keyfile
@@ -1404,6 +1430,9 @@ private:
 
 #ifdef HAVE_LIBSSL
 	CS_STRING	m_sDHParamLocation, m_sKeyLocation, m_sPemLocation, m_sPemPass, m_sCipher;
+	X509*		m_sCertRaw;
+	EVP_PKEY*	m_sKeyRaw;
+	DH*			m_sDHParamRaw;
 	uint32_t		m_iRequireCertFlags;
 #endif /* HAVE_LIBSSL */
 };
