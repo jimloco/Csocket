@@ -3127,6 +3127,9 @@ void Csock::Init( const CS_STRING & sHostname, uint16_t uPort, int iTimeout )
 	m_uDisableProtocols = 0;
 	m_bNoSSLCompression = false;
 	m_bSSLCipherServerPreference = false;
+	m_pCertRaw = NULL;
+	m_pKeyRaw = NULL;
+	m_pDHParamRaw = NULL;
 #endif /* HAVE_LIBSSL */
 	m_iTcount = 0;
 	m_iReadSock = CS_INVALID_SOCK;

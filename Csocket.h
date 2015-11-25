@@ -1275,9 +1275,9 @@ public:
 
 #ifdef HAVE_LIBSSL
 	const CS_STRING & GetCipher() const { return( m_sCipher ); }
-	const X509 & GetCertRaw() const { return( *m_sCertRaw ); }
-	const EVP_PKEY & GetKeyRaw() const { return( *m_sKeyRaw ); }
-	const DH & GetDHParamRaw() const { return( *m_sDHParamRaw ); }
+	const X509 * GetCertRaw() const { return( m_pCertRaw ); }
+	const EVP_PKEY * GetKeyRaw() const { return( m_pKeyRaw ); }
+	const DH * GetDHParamRaw() const { return( m_pDHParamRaw ); }
 	const CS_STRING & GetPemLocation() const { return( m_sPemLocation ); }
 	const CS_STRING & GetKeyLocation() const { return( m_sKeyLocation ); }
 	const CS_STRING & GetDHParamLocation() const { return( m_sDHParamLocation ); }
@@ -1373,9 +1373,9 @@ public:
 #ifdef HAVE_LIBSSL
 	const CS_STRING & GetCipher() const { return( m_sCipher ); }
 	const CS_STRING & GetDHParamLocation() const { return( m_sDHParamLocation ); }
-	const EVP_PKEY & GetKeyRaw() const { return( *m_pKeyRaw ); }
-	const X509 & GetCertRaw() const { return( *m_pCertRaw ); }
-	const DH & GetDHParamRaw() const { return( *m_pDHParamRaw ); }
+	const EVP_PKEY * GetKeyRaw() const { return( m_pKeyRaw ); }
+	const X509 * GetCertRaw() const { return( m_pCertRaw ); }
+	const DH * GetDHParamRaw() const { return( m_pDHParamRaw ); }
 	const CS_STRING & GetKeyLocation() const { return( m_sKeyLocation ); }
 	const CS_STRING & GetPemLocation() const { return( m_sPemLocation ); }
 	const CS_STRING & GetPemPass() const { return( m_sPemPass ); }
