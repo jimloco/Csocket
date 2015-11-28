@@ -1044,9 +1044,9 @@ void Csock::Copy( const Csock & cCopy )
 	m_shostname		= cCopy.m_shostname;
 	m_sbuffer		= cCopy.m_sbuffer;
 	m_sSockName		= cCopy.m_sSockName;
-	m_pKeyRaw  		= cCopy.m_pKeyRaw;
-	m_pCertRaw 		= cCopy.m_pCertRaw;
-	m_pDHParamRaw 	= cCopy.m_pDHParamRaw;
+	m_pUseKey  		= cCopy.m_pUseKey;
+	m_pUseCert 		= cCopy.m_pUseCert;
+	m_pUseDHParam 	= cCopy.m_pUseDHParam;
 	m_sKeyFile		= cCopy.m_sKeyFile;
 	m_sDHParamFile		= cCopy.m_sDHParamFile;
 	m_sPemFile		= cCopy.m_sPemFile;
@@ -1578,14 +1578,14 @@ bool Csock::SSLClientSetup()
 	SSL_CTX_set_default_passwd_cb_userdata( m_ssl_ctx, ( void * )this );
 
 	// set up the CTX
-	if( m_pCertRaw && m_pKeyRaw )
+	if( m_pUseCert && m_pUseKey )
 	{
-		if( SSL_CTX_use_certificate( m_ssl_ctx, m_pCertRaw ) <= 0 )
+		if( SSL_CTX_use_certificate( m_ssl_ctx, m_pUseCert ) <= 0 )
 		{
 			CS_DEBUG( "Error with SSLCert file [" << m_sPemFile << "]" );
 			SSLErrors( __FILE__, __LINE__ );
 		}
-		if( SSL_CTX_use_PrivateKey( m_ssl_ctx, m_pKeyRaw ) <= 0 )
+		if( SSL_CTX_use_PrivateKey( m_ssl_ctx, m_pUseKey ) <= 0 )
 		{
 			CS_DEBUG( "Error with SSLCert file [" << m_sPemFile << "]" );
 			SSLErrors( __FILE__, __LINE__ );
@@ -1719,7 +1719,7 @@ SSL_CTX * Csock::SetupServerCTX()
 	SSL_CTX_set_default_passwd_cb( pCTX, _PemPassCB );
 	SSL_CTX_set_default_passwd_cb_userdata( pCTX, ( void * )this );
 
-	if( !m_pCertRaw )
+	if( !m_pUseCert )
 	{
 		if( m_sPemFile.empty() || access( m_sPemFile.c_str(), R_OK ) != 0 )
 		{
@@ -1742,7 +1742,7 @@ SSL_CTX * Csock::SetupServerCTX()
 	}
 	else
 	{
-		if( SSL_CTX_use_certificate( pCTX, m_pCertRaw ) <= 0 )
+		if( SSL_CTX_use_certificate( pCTX, m_pUseCert ) <= 0 )
 		{
 			CS_DEBUG( "Error with SSLCert file [" << m_sPemFile << "]" );
 			SSLErrors( __FILE__, __LINE__ );
@@ -1750,7 +1750,7 @@ SSL_CTX * Csock::SetupServerCTX()
 	}
 
 
-	if( !m_pKeyRaw )
+	if( !m_pUseKey )
 	{
 		if( ! m_sKeyFile.empty() && access( m_sKeyFile.c_str(), R_OK ) != 0 )
 		{
@@ -1772,7 +1772,7 @@ SSL_CTX * Csock::SetupServerCTX()
 	}
 	else
 	{
-		if( SSL_CTX_use_PrivateKey( pCTX, m_pKeyRaw ) <= 0 )
+		if( SSL_CTX_use_PrivateKey( pCTX, m_pUseKey ) <= 0 )
 		{
 			CS_DEBUG( "Error with SSLCert file [" << m_sPemFile << "]" );
 			SSLErrors( __FILE__, __LINE__ );
@@ -1782,7 +1782,7 @@ SSL_CTX * Csock::SetupServerCTX()
 	// check to see if this pem file contains a DH structure for use with DH key exchange
 	// https://github.com/znc/znc/pull/46
 	DH * pDHParam;
-	if( !m_pDHParamRaw )
+	if( !m_pUseDHParam )
 	{
 		CS_STRING sDHParamFile = m_sDHParamFile.empty() ? m_sPemFile : m_sDHParamFile;
 		FILE *pDHParamsFile = fopen( sDHParamFile.c_str(), "r" );
@@ -1797,7 +1797,7 @@ SSL_CTX * Csock::SetupServerCTX()
 	}
 	else
 	{
-		pDHParam = m_pDHParamRaw;
+		pDHParam = m_pUseDHParam;
 	}
 	if( pDHParam )
 	{
@@ -2598,14 +2598,14 @@ void Csock::SetSSL( bool b ) { m_bUseSSL = b; }
 void Csock::SetCipher( const CS_STRING & sCipher ) { m_sCipherType = sCipher; }
 const CS_STRING & Csock::GetCipher() const { return( m_sCipherType ); }
 
-void Csock::SetKeyRaw( EVP_PKEY * sKeyRaw ) { m_pKeyRaw = sKeyRaw; }
-EVP_PKEY * Csock::GetKeyRaw() const { return( m_pKeyRaw ); }
+void Csock::SetUseKey( EVP_PKEY * sKeyRaw ) { m_pUseKey = sKeyRaw; }
+EVP_PKEY * Csock::GetUseKey() const { return( m_pUseKey ); }
 
-void Csock::SetCertRaw( X509 * sCertRaw ) { m_pCertRaw = sCertRaw; }
-X509 * Csock::GetCertRaw() const { return( m_pCertRaw ); }
+void Csock::SetUseCert( X509 * sCertRaw ) { m_pUseCert = sCertRaw; }
+X509 * Csock::GetUseCert() const { return( m_pUseCert ); }
 
-void Csock::SetDHParamRaw( DH * sDHParamRaw ) { m_pDHParamRaw = sDHParamRaw; }
-DH * Csock::GetDHParamRaw() const { return( m_pDHParamRaw ); }
+void Csock::SetUseDHParam( DH * sDHParamRaw ) { m_pUseDHParam = sDHParamRaw; }
+DH * Csock::GetUseDHParam() const { return( m_pUseDHParam ); }
 
 void Csock::SetDHParamLocation( const CS_STRING & sDHParamFile ) { m_sDHParamFile = sDHParamFile; }
 const CS_STRING & Csock::GetDHParamLocation() const { return( m_sDHParamFile ); }
@@ -3127,9 +3127,9 @@ void Csock::Init( const CS_STRING & sHostname, uint16_t uPort, int iTimeout )
 	m_uDisableProtocols = 0;
 	m_bNoSSLCompression = false;
 	m_bSSLCipherServerPreference = false;
-	m_pCertRaw = NULL;
-	m_pKeyRaw = NULL;
-	m_pDHParamRaw = NULL;
+	m_pUseCert = NULL;
+	m_pUseKey = NULL;
+	m_pUseDHParam = NULL;
 #endif /* HAVE_LIBSSL */
 	m_iTcount = 0;
 	m_iReadSock = CS_INVALID_SOCK;
@@ -4107,9 +4107,9 @@ void CSocketManager::Select( std::map<Csock *, EMessages> & mpeSocks )
 						NewpcSock->SetPemLocation( pcSock->GetPemLocation() );
 						NewpcSock->SetPemPass( pcSock->GetPemPass() );
 
-						NewpcSock->SetCertRaw( pcSock->GetCertRaw() );
-						NewpcSock->SetKeyRaw( pcSock->GetKeyRaw() );
-						NewpcSock->SetDHParamRaw( pcSock->GetDHParamRaw() );
+						NewpcSock->SetUseCert( pcSock->GetUseCert() );
+						NewpcSock->SetUseKey( pcSock->GetUseKey() );
+						NewpcSock->SetUseDHParam( pcSock->GetUseDHParam() );
 
 						NewpcSock->SetPemPass( pcSock->GetPemPass() );
 						NewpcSock->SetRequireClientCertFlags( pcSock->GetRequireClientCertFlags() );

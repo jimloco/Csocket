@@ -877,12 +877,12 @@ public:
 	const CS_STRING & GetPemPass() const;
 
 	//! set raw certificate, keys & dhparam
-	void SetKeyRaw( EVP_PKEY * sKeyRaw );
-	EVP_PKEY * GetKeyRaw() const;
-	void SetCertRaw( X509 * sCertRaw );
-	X509 * GetCertRaw() const;
-	void SetDHParamRaw( DH * sDHParamRaw );
-	DH * GetDHParamRaw() const;
+	void SetUseKey( EVP_PKEY * sKeyRaw );
+	EVP_PKEY * GetUseKey() const;
+	void SetUseCert( X509 * sCertRaw );
+	X509 * GetUseCert() const;
+	void SetUseDHParam( DH * sDHParamRaw );
+	DH * GetUseDHParam() const;
 
 	//! Set the SSL method type
 	void SetSSLMethod( int iMethod );
@@ -1180,9 +1180,9 @@ private:
 	bool		m_bUseSSL, m_bIsConnected;
 	bool		m_bsslEstablished, m_bEnableReadLine, m_bPauseRead;
 	CS_STRING	m_shostname, m_sbuffer, m_sSockName, m_sDHParamFile, m_sKeyFile, m_sPemFile, m_sCipherType, m_sParentName;
-	X509*		m_pCertRaw;
-	EVP_PKEY*	m_pKeyRaw;
-	DH*			m_pDHParamRaw;
+	X509*		m_pUseCert;
+	EVP_PKEY*	m_pUseKey;
+	DH*			m_pUseDHParam;
 	CS_STRING	m_sSend, m_sPemPass;
 	ECloseType	m_eCloseType;
 
@@ -1275,9 +1275,9 @@ public:
 
 #ifdef HAVE_LIBSSL
 	const CS_STRING & GetCipher() const { return( m_sCipher ); }
-	const X509 * GetCertRaw() const { return( m_pCertRaw ); }
-	const EVP_PKEY * GetKeyRaw() const { return( m_pKeyRaw ); }
-	const DH * GetDHParamRaw() const { return( m_pDHParamRaw ); }
+	const X509 * GetUseCert() const { return( m_pUseCert ); }
+	const EVP_PKEY * GetUseKey() const { return( m_pUseKey ); }
+	const DH * GetUseDHParam() const { return( m_pUseDHParam ); }
 	const CS_STRING & GetPemLocation() const { return( m_sPemLocation ); }
 	const CS_STRING & GetKeyLocation() const { return( m_sKeyLocation ); }
 	const CS_STRING & GetDHParamLocation() const { return( m_sDHParamLocation ); }
@@ -1316,9 +1316,9 @@ protected:
 	CSSockAddr::EAFRequire	m_iAFrequire;
 #ifdef HAVE_LIBSSL
 	CS_STRING	m_sDHParamLocation, m_sKeyLocation, m_sPemLocation, m_sPemPass, m_sCipher;
-	X509*		m_pCertRaw;
-	EVP_PKEY*	m_pKeyRaw;
-	DH*			m_pDHParamRaw;
+	X509*		m_pUseCert;
+	EVP_PKEY*	m_pUseKey;
+	DH*			m_pUseDHParam;
 #endif /* HAVE_LIBSSL */
 };
 
@@ -1373,9 +1373,9 @@ public:
 #ifdef HAVE_LIBSSL
 	const CS_STRING & GetCipher() const { return( m_sCipher ); }
 	const CS_STRING & GetDHParamLocation() const { return( m_sDHParamLocation ); }
-	const EVP_PKEY * GetKeyRaw() const { return( m_pKeyRaw ); }
-	const X509 * GetCertRaw() const { return( m_pCertRaw ); }
-	const DH * GetDHParamRaw() const { return( m_pDHParamRaw ); }
+	const EVP_PKEY * GetUseKey() const { return( m_pUseKey ); }
+	const X509 * GetUseCert() const { return( m_pUseCert ); }
+	const DH * GetUseDHParam() const { return( m_pUseDHParam ); }
 	const CS_STRING & GetKeyLocation() const { return( m_sKeyLocation ); }
 	const CS_STRING & GetPemLocation() const { return( m_sPemLocation ); }
 	const CS_STRING & GetPemPass() const { return( m_sPemPass ); }
@@ -1401,11 +1401,11 @@ public:
 	//! set the cipher strength to use, default is HIGH
 	void SetCipher( const CS_STRING & s ) { m_sCipher = s; }
 	//! set the raw cert data
-	void SetCertRaw( X509 * s ) { m_pCertRaw = s; }
+	void SetUseCert( X509 * s ) { m_pUseCert = s; }
 	//! set the raw key data
-	void SetKeyRaw( EVP_PKEY * s ) { m_pKeyRaw = s; }
+	void SetUseKey( EVP_PKEY * s ) { m_pUseKey = s; }
 	//! set the raw dhparam data
-	void SetDHParamRaw( DH * s ) { m_pDHParamRaw = s; }
+	void SetUseDHParam( DH * s ) { m_pUseDHParam = s; }
 	//! set the location of the pemfile
 	void SetPemLocation( const CS_STRING & s ) { m_sPemLocation = s; }
 	//! set the location of the keyfile
@@ -1430,9 +1430,9 @@ private:
 
 #ifdef HAVE_LIBSSL
 	CS_STRING	m_sDHParamLocation, m_sKeyLocation, m_sPemLocation, m_sPemPass, m_sCipher;
-	X509*		m_pCertRaw;
-	EVP_PKEY*	m_pKeyRaw;
-	DH*			m_pDHParamRaw;
+	X509*		m_pUseCert;
+	EVP_PKEY*	m_pUseKey;
+	DH*			m_pUseDHParam;
 	uint32_t		m_iRequireCertFlags;
 #endif /* HAVE_LIBSSL */
 };
