@@ -1142,6 +1142,7 @@ public:
 
 #ifdef HAVE_ICU
 	void SetEncoding( const CS_STRING & sEncoding );
+	CS_STRING GetEncoding() const { return m_sEncoding; }
 	virtual void IcuExtToUCallback(
 		UConverterToUnicodeArgs* toArgs,
 		const char* codeUnits,
