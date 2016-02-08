@@ -45,9 +45,12 @@
 
 #ifdef HAVE_LIBSSL
 #include <stdio.h>
+#include <openssl/ssl.h>
 #include <openssl/conf.h>
 #include <openssl/engine.h>
+#ifndef OPENSSL_NO_COMP
 #include <openssl/comp.h>
+#endif
 #endif /* HAVE_LIBSSL */
 
 #ifdef HAVE_ICU
@@ -559,8 +562,12 @@ void ShutdownCsocket()
 {
 #ifdef HAVE_LIBSSL
 	ERR_remove_state( 0 );
+#ifndef OPENSSL_NO_ENGINE
 	ENGINE_cleanup();
+#endif
+#ifndef OPENSSL_IS_BORINGSSL
 	CONF_modules_unload( 1 );
+#endif
 	ERR_free_strings();
 	EVP_cleanup();
 	CRYPTO_cleanup_all_ex_data();
@@ -601,6 +608,7 @@ bool InitSSL( ECompType eCompressionType )
 	}
 #endif /* _WIN32 */
 
+#ifndef OPENSSL_NO_COMP
 	COMP_METHOD *cm = NULL;
 
 	if( CT_ZLIB & eCompressionType )
@@ -616,6 +624,7 @@ bool InitSSL( ECompType eCompressionType )
 		if( cm )
 			SSL_COMP_add_compression_method( CT_RLE, cm );
 	}
+#endif
 
 	// setting this up once in the begining
 	s_iCsockSSLIdx = SSL_get_ex_new_index( 0, NULL, NULL, NULL, NULL );
@@ -1771,6 +1780,8 @@ SSL_CTX * Csock::SetupServerCTX()
 #ifndef OPENSSL_NO_ECDH
 	// Errors for the following block are non-fatal (ECDHE is nice to have
 	// but not a requirement)
+#ifndef OPENSSL_IS_BORINGSSL
+	// BoringSSL does this thing automatically
 #if defined( SSL_CTX_set_ecdh_auto )
 	// Auto-select sensible curve
 	if( !SSL_CTX_set_ecdh_auto( pCTX , 1 ) )
@@ -1789,6 +1800,7 @@ SSL_CTX * Csock::SetupServerCTX()
 		ERR_clear_error();
 	}
 #endif /* SSL_CTX_set_tmp_ecdh */
+#endif /* !OPENSSL_IS_BORINGSSL */
 #endif /* OPENSSL_NO_ECDH */
 
 	if( !ConfigureCTXOptions( pCTX ) )
