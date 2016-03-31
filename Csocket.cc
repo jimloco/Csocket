@@ -960,6 +960,14 @@ Csock *Csock::GetSockObj( const CS_STRING & sHostname, uint16_t iPort )
 	return( NULL );
 }
 
+bool Csock::SNIConfigureClient( CS_STRING & sHostname )
+{
+	if( m_shostname.empty() )
+		return( false );
+	sHostname = m_shostname;
+	return( true );
+}
+
 #ifdef _WIN32
 #define CS_CLOSE closesocket
 #else

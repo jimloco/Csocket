@@ -1014,7 +1014,7 @@ public:
 	 * @param sHostname, the hostname to configure SNI with, you can fill this with GetHostname() if its a valid hostname and not an OP
 	 * @return returning true causes a call to configure SNI with the hostname returned
 	 */
-	virtual bool SNIConfigureClient( CS_STRING & sHostname ) { return( false ); }
+	virtual bool SNIConfigureClient( CS_STRING & sHostname );
 	//! creates a new SSL_CTX based on the setup of this sock
 	SSL_CTX * SetupServerCTX();
 
