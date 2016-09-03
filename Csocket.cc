@@ -52,16 +52,24 @@
 #include <openssl/comp.h>
 #endif
 #define HAVE_ERR_REMOVE_STATE
+#define CONST_SSL_METHOD
 #ifdef OPENSSL_VERSION_NUMBER
 # if OPENSSL_VERSION_NUMBER >= 0x10000000
 #  undef HAVE_ERR_REMOVE_STATE
 #  define HAVE_ERR_REMOVE_THREAD_STATE
-#endif
+#  undef CONST_SSL_METHOD
+#  define CONST_SSL_METHOD const       /* 1.0.0-pre~: openssl/openssl@4ebb342fcd90562bce999dcc0915b16f816fbbf2 */
+# endif
+# if OPENSSL_VERSION_NUMBER < 0x10001000
+#  define OPENSSL_NO_TLS1_1            /* 1.0.1-pre~: openssl/openssl@637f374ad49d5f6d4f81d87d7cdd226428aa470c */
+#  define OPENSSL_NO_TLS1_2            /* 1.0.1-pre~: openssl/openssl@7409d7ad517650db332ae528915a570e4e0ab88b */
+# endif
 # ifndef LIBRESSL_VERSION_NUMBER /* forked from OpenSSL 1.0.1g, sets high version "with the idea of discouraging software from relying on magic numbers for detecting features"(!) */
 #  if OPENSSL_VERSION_NUMBER >= 0x10100000
 #   undef HAVE_ERR_REMOVE_THREAD_STATE /* 1.1.0-pre4: openssl/openssl@8509dcc9f319190c565ab6baad7c88d37a951d1c */
 #   undef OPENSSL_NO_SSL2              /* 1.1.0-pre4: openssl/openssl@e80381e1a3309f5d4a783bcaa508a90187a48882 */
 #   define OPENSSL_NO_SSL2             /* 1.1.0-pre1: openssl/openssl@45f55f6a5bdcec411ef08a6f8aae41d5d3d234ad */
+#   define HAVE_FLEXIBLE_TLS_METHOD    /* 1.1.0-pre1: openssl/openssl@32ec41539b5b23bc42503589fcc5be65d648d1f5 */
 #   define HAVE_OPAQUE_X509            /* 1.1.0-pre1: openssl/openssl@2c81e476fab0e3e0b6140652b4577bf6f3b827be */
 #   define HAVE_OPAQUE_EVP_PKEY        /* 1.1.0-pre3: openssl/openssl@3aeb93486588e7dd01379c50b8fd496d55cf8858 */
 #   define HAVE_OPAQUE_RSA             /* 1.1.0-pre5: openssl/openssl@9862e9aa98ee1e38fbcef8d1dd5db0e750eb5e8d */
@@ -1494,72 +1502,87 @@ bool Csock::SSLClientSetup()
 	}
 #endif /* _WIN64 */
 
+	CONST_SSL_METHOD SSL_METHOD * (*pMethod)() = NULL;
+	const char * pMethodName = NULL;
+
+#ifdef HAVE_FLEXIBLE_TLS_METHOD
+	int iProtoVersion = 0;
+	pMethod = TLS_client_method;
+	pMethodName = "TLS_client_method";
+#else
+	pMethod = SSLv23_client_method;
+	pMethodName = "SSLv23_client_method";
+#endif /* HAVE_FLEXIBLE_TLS_METHOD */
+
 	switch( m_iMethod )
 	{
+	case SSL23:
+		break; // defaults already set above, anything else can either match a case or fall through and use defaults anyway
+#ifndef OPENSSL_NO_TLS1_2
+	case TLS12:
+#	ifdef HAVE_FLEXIBLE_TLS_METHOD
+		iProtoVersion = TLS1_2_VERSION;
+#	else
+		pMethod = TLSv1_2_client_method;
+		pMethodName = "TLSv1_2_client_method";
+#	endif /* HAVE_FLEXIBLE_TLS_METHOD */
+		break;
+#endif /* OPENSSL_NO_TLS1_2 */
+#ifndef OPENSSL_NO_TLS1_1
+	case TLS11:
+#	ifdef HAVE_FLEXIBLE_TLS_METHOD
+		iProtoVersion = TLS1_1_VERSION;
+#	else
+		pMethod = TLSv1_1_client_method;
+		pMethodName = "TLSv1_1_client_method";
+#	endif /* HAVE_FLEXIBLE_TLS_METHOD */
+		break;
+#endif /* OPENSSL_NO_TLS1_1 */
+#ifndef OPENSSL_NO_TLS1
+	case TLS1:
+#	ifdef HAVE_FLEXIBLE_TLS_METHOD
+		iProtoVersion = TLS1_VERSION;
+#	else
+		pMethod = TLSv1_client_method;
+		pMethodName = "TLSv1_client_method";
+#	endif /* HAVE_FLEXIBLE_TLS_METHOD */
+		break;
+#endif /* OPENSSL_NO_TLS1 */
 #ifndef OPENSSL_NO_SSL3
 	case SSL3:
-		m_ssl_ctx = SSL_CTX_new( SSLv3_client_method() );
-		if( !m_ssl_ctx )
-		{
-			CS_DEBUG( "WARNING: MakeConnection .... SSLv3_client_method failed!" );
-			return( false );
-		}
+#	ifdef HAVE_FLEXIBLE_TLS_METHOD
+		iProtoVersion = SSL3_VERSION;
+#	else
+		pMethod = SSLv3_client_method;
+		pMethodName = "SSLv3_client_method";
+#	endif /* HAVE_FLEXIBLE_TLS_METHOD */
 		break;
 #endif /* OPENSSL_NO_SSL3 */
-	/* Fall through if SSL3 is disabled */
-	case TLS12:
-#if defined( TLS1_2_VERSION ) && defined( OPENSSL_VERSION_NUMBER ) && OPENSSL_VERSION_NUMBER >= 0x1000100f
-		m_ssl_ctx = SSL_CTX_new( TLSv1_2_client_method() );
-		if( !m_ssl_ctx )
-		{
-			CS_DEBUG( "WARNING: MakeConnection .... TLSv1_2_client_method failed!" );
-			return( false );
-		}
-		break;
-#endif /* TLS1_2_VERSION */
-	case TLS11:
-#if defined( TLS1_1_VERSION ) && defined( OPENSSL_VERSION_NUMBER ) && OPENSSL_VERSION_NUMBER >= 0x1000100f
-		m_ssl_ctx = SSL_CTX_new( TLSv1_1_client_method() );
-		if( !m_ssl_ctx )
-		{
-			CS_DEBUG( "WARNING: MakeConnection .... TLSv1_1_client_method failed!" );
-			return( false );
-		}
-		break;
-#endif /* TLS1_1_VERSION */
-	case TLS1:
-		m_ssl_ctx = SSL_CTX_new( TLSv1_client_method() );
-		if( !m_ssl_ctx )
-		{
-			CS_DEBUG( "WARNING: MakeConnection .... TLSv1_client_method failed!" );
-			return( false );
-		}
-		break;
-	case SSL2:
 #ifndef OPENSSL_NO_SSL2
-		m_ssl_ctx = SSL_CTX_new( SSLv2_client_method() );
-		if( !m_ssl_ctx )
-		{
-			CS_DEBUG( "WARNING: MakeConnection .... SSLv2_client_method failed!" );
-			return( false );
-		}
+	case SSL2:
+		pMethod = SSLv2_client_method;
+		pMethodName = "SSLv2_client_method";
 		break;
 #endif /* OPENSSL_NO_SSL2 */
-		/* Fall through if SSL2 is disabled */
-	case SSL23:
 	default:
-		if( m_iMethod != SSL23 )
-		{
-			CS_DEBUG( "WARNING: SSL Client Method other than SSLv23 specified, but has passed through" );
-		}
-		m_ssl_ctx = SSL_CTX_new( SSLv23_client_method() );
-		if( !m_ssl_ctx )
-		{
-			CS_DEBUG( "WARNING: MakeConnection .... SSLv23_client_method failed!" );
-			return( false );
-		}
+		CS_DEBUG( "WARNING: SSL Client Method other than SSLv23 specified, but has passed through" );
 		break;
 	}
+
+	m_ssl_ctx = SSL_CTX_new( pMethod() );
+	if( !m_ssl_ctx )
+	{
+		CS_DEBUG( "WARNING: MakeConnection .... " << pMethodName << " failed!" );
+		return( false );
+	}
+
+#ifdef HAVE_FLEXIBLE_TLS_METHOD
+	if( iProtoVersion )
+	{
+		SSL_CTX_set_min_proto_version( m_ssl_ctx, iProtoVersion );
+		SSL_CTX_set_max_proto_version( m_ssl_ctx, iProtoVersion );
+	}
+#endif /* HAVE_FLEXIBLE_TLS_METHOD */
 
 	SSL_CTX_set_default_verify_paths( m_ssl_ctx );
 
@@ -1619,77 +1642,87 @@ bool Csock::SSLClientSetup()
 SSL_CTX * Csock::SetupServerCTX()
 {
 	SSL_CTX * pCTX = NULL;
+	CONST_SSL_METHOD SSL_METHOD * (*pMethod)() = NULL;
+	const char * pMethodName = NULL;
+
+#ifdef HAVE_FLEXIBLE_TLS_METHOD
+	int iProtoVersion = 0;
+	pMethod = TLS_server_method;
+	pMethodName = "TLS_server_method";
+#else
+	pMethod = SSLv23_server_method;
+	pMethodName = "SSLv23_server_method";
+#endif /* HAVE_FLEXIBLE_TLS_METHOD */
+
 	switch( m_iMethod )
 	{
+	case SSL23:
+		break; // defaults already set above, anything else can either match a case or fall through and use defaults anyway
+#ifndef OPENSSL_NO_TLS1_2
+	case TLS12:
+#	ifdef HAVE_FLEXIBLE_TLS_METHOD
+		iProtoVersion = TLS1_2_VERSION;
+#	else
+		pMethod = TLSv1_2_server_method;
+		pMethodName = "TLSv1_2_server_method";
+#	endif /* HAVE_FLEXIBLE_TLS_METHOD */
+		break;
+#endif /* OPENSSL_NO_TLS1_2 */
+#ifndef OPENSSL_NO_TLS1_1
+	case TLS11:
+#	ifdef HAVE_FLEXIBLE_TLS_METHOD
+		iProtoVersion = TLS1_1_VERSION;
+#	else
+		pMethod = TLSv1_1_server_method;
+		pMethodName = "TLSv1_1_server_method";
+#	endif /* HAVE_FLEXIBLE_TLS_METHOD */
+		break;
+#endif /* OPENSSL_NO_TLS1_1 */
+#ifndef OPENSSL_NO_TLS1
+	case TLS1:
+#	ifdef HAVE_FLEXIBLE_TLS_METHOD
+		iProtoVersion = TLS1_VERSION;
+#	else
+		pMethod = TLSv1_server_method;
+		pMethodName = "TLSv1_server_method";
+#	endif /* HAVE_FLEXIBLE_TLS_METHOD */
+		break;
+#endif /* OPENSSL_NO_TLS1 */
 #ifndef OPENSSL_NO_SSL3
 	case SSL3:
-		pCTX = SSL_CTX_new( SSLv3_server_method() );
-		if( !pCTX )
-		{
-			CS_DEBUG( "WARNING: MakeConnection .... SSLv3_server_method failed!" );
-			return( NULL );
-		}
+#	ifdef HAVE_FLEXIBLE_TLS_METHOD
+		iProtoVersion = SSL3_VERSION;
+#	else
+		pMethod = SSLv3_server_method;
+		pMethodName = "SSLv3_server_method";
+#	endif /* HAVE_FLEXIBLE_TLS_METHOD */
 		break;
 #endif /* OPENSSL_NO_SSL3 */
-	/* Fall through if SSL3 is disabled */
-	case TLS12:
-#if defined( TLS1_2_VERSION ) && defined( OPENSSL_VERSION_NUMBER ) && OPENSSL_VERSION_NUMBER >= 0x1000100f
-		pCTX = SSL_CTX_new( TLSv1_2_server_method() );
-		if( !pCTX )
-		{
-			CS_DEBUG( "WARNING: MakeConnection .... TLSv1_2_server_method failed!" );
-			return( NULL );
-		}
-		break;
-#endif /* TLS1_2_VERSION */
-	case TLS11:
-#if defined( TLS1_1_VERSION ) && defined( OPENSSL_VERSION_NUMBER ) && OPENSSL_VERSION_NUMBER >= 0x1000100f
-		pCTX = SSL_CTX_new( TLSv1_1_server_method() );
-		if( !pCTX )
-		{
-			CS_DEBUG( "WARNING: MakeConnection .... TLSv1_1_server_method failed!" );
-			return( NULL );
-		}
-		break;
-	case TLS1:
-#endif /* TLS1_1_VERSION */
-		pCTX = SSL_CTX_new( TLSv1_server_method() );
-		if( !pCTX )
-		{
-			CS_DEBUG( "WARNING: MakeConnection .... TLSv1_server_method failed!" );
-			return( NULL );
-		}
-		break;
-	case SSL2:
 #ifndef OPENSSL_NO_SSL2
-		pCTX = SSL_CTX_new( SSLv2_server_method() );
-		if( !pCTX )
-		{
-			CS_DEBUG( "WARNING: MakeConnection .... SSLv2_server_method failed!" );
-			return( NULL );
-		}
+	case SSL2:
+		pMethod = SSLv2_server_method;
+		pMethodName = "SSLv2_server_method";
 		break;
 #endif /* OPENSSL_NO_SSL2 */
-		/* Fall through if SSL2 is disabled */
-	case SSL23:
 	default:
-		if( m_iMethod != SSL23 )
-		{
-			CS_DEBUG( "WARNING: SSL Server Method other than SSLv23 specified, but has passed through" );
-		}
-		pCTX = SSL_CTX_new( SSLv23_server_method() );
-		if( !pCTX )
-		{
-			CS_DEBUG( "WARNING: MakeConnection .... SSLv23_server_method failed!" );
-			return( NULL );
-		}
+		CS_DEBUG( "WARNING: SSL Server Method other than SSLv23 specified, but has passed through" );
 		break;
 	}
+
+	pCTX = SSL_CTX_new( pMethod() );
 	if( !pCTX )
 	{
-		CS_DEBUG( "ERROR: NULL Ptr where there shouldn't be" );
+		CS_DEBUG( "WARNING: MakeConnection .... " << pMethodName << " failed!" );
 		return( NULL );
 	}
+
+#ifdef HAVE_FLEXIBLE_TLS_METHOD
+	if( iProtoVersion )
+	{
+		SSL_CTX_set_min_proto_version( pCTX, iProtoVersion );
+		SSL_CTX_set_max_proto_version( pCTX, iProtoVersion );
+	}
+#endif /* HAVE_FLEXIBLE_TLS_METHOD */
 
 	SSL_CTX_set_default_verify_paths( pCTX );
 
