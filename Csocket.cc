@@ -57,6 +57,7 @@
 #   undef OPENSSL_NO_SSL2              /* 1.1.0-pre4: openssl/openssl@e80381e1a3309f5d4a783bcaa508a90187a48882 */
 #   define OPENSSL_NO_SSL2             /* 1.1.0-pre1: openssl/openssl@45f55f6a5bdcec411ef08a6f8aae41d5d3d234ad */
 #   define HAVE_OPAQUE_X509            /* 1.1.0-pre1: openssl/openssl@2c81e476fab0e3e0b6140652b4577bf6f3b827be */
+#   define HAVE_OPAQUE_EVP_PKEY        /* 1.1.0-pre3: openssl/openssl@3aeb93486588e7dd01379c50b8fd496d55cf8858 */
 #  endif
 # endif /* LIBRESSL_VERSION_NUMBER */
 #endif /* OPENSSL_VERSION_NUMBER */
@@ -2639,27 +2640,35 @@ CS_STRING Csock::GetPeerPubKey() const
 		EVP_PKEY * pKey = X509_get_pubkey( pCert );
 		if( pKey )
 		{
-			char *hxKey = NULL;
-			switch( pKey->type )
+			const BIGNUM * pPubKey = NULL;
+#ifdef HAVE_OPAQUE_EVP_PKEY
+			int iType = EVP_PKEY_base_id( pKey );
+#else
+			int iType = pKey->type;
+#endif /* HAVE_OPAQUE_EVP_PKEY */
+			switch( iType )
 			{
 			case EVP_PKEY_RSA:
-			{
-				hxKey = BN_bn2hex( pKey->pkey.rsa->n );
+#ifdef HAVE_OPAQUE_EVP_PKEY
+				pPubKey = EVP_PKEY_get0_RSA( pKey )->n;
+#else
+				pPubKey = pKey->pkey.rsa->n;
+#endif /* HAVE_OPAQUE_EVP_PKEY */
 				break;
-			}
 			case EVP_PKEY_DSA:
-			{
-				hxKey = BN_bn2hex( pKey->pkey.dsa->pub_key );
+#ifdef HAVE_OPAQUE_EVP_PKEY
+				pPubKey = EVP_PKEY_get0_DSA( pKey )->pub_key;
+#else
+				pPubKey = pKey->pkey.dsa->pub_key;
+#endif /* HAVE_OPAQUE_EVP_PKEY */
 				break;
-			}
 			default:
-			{
-				CS_DEBUG( "Not Prepared for Public Key Type [" << pKey->type << "]" );
+				CS_DEBUG( "Not Prepared for Public Key Type [" << iType << "]" );
 				break;
 			}
-			}
-			if( hxKey )
+			if( pPubKey )
 			{
+				char *hxKey = BN_bn2hex( pPubKey );
 				sKey = hxKey;
 				OPENSSL_free( hxKey );
 			}
