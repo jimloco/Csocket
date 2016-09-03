@@ -2632,11 +2632,11 @@ CS_STRING Csock::GetPeerPubKey() const
 {
 	CS_STRING sKey;
 
-	SSL_SESSION * pSession = GetSSLSession();
+	X509 * pCert = GetX509();
 
-	if( pSession && pSession->peer )
+	if( pCert )
 	{
-		EVP_PKEY * pKey = X509_get_pubkey( pSession->peer );
+		EVP_PKEY * pKey = X509_get_pubkey( pCert );
 		if( pKey )
 		{
 			char *hxKey = NULL;
@@ -2665,6 +2665,7 @@ CS_STRING Csock::GetPeerPubKey() const
 			}
 			EVP_PKEY_free( pKey );
 		}
+		X509_free( pCert );
 	}
 	return( sKey );
 }
