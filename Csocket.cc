@@ -51,9 +51,15 @@
 #ifndef OPENSSL_NO_COMP
 #include <openssl/comp.h>
 #endif
+#define HAVE_ERR_REMOVE_STATE
 #ifdef OPENSSL_VERSION_NUMBER
+# if OPENSSL_VERSION_NUMBER >= 0x10000000
+#  undef HAVE_ERR_REMOVE_STATE
+#  define HAVE_ERR_REMOVE_THREAD_STATE
+#endif
 # ifndef LIBRESSL_VERSION_NUMBER /* forked from OpenSSL 1.0.1g, sets high version "with the idea of discouraging software from relying on magic numbers for detecting features"(!) */
 #  if OPENSSL_VERSION_NUMBER >= 0x10100000
+#   undef HAVE_ERR_REMOVE_THREAD_STATE /* 1.1.0-pre4: openssl/openssl@8509dcc9f319190c565ab6baad7c88d37a951d1c */
 #   undef OPENSSL_NO_SSL2              /* 1.1.0-pre4: openssl/openssl@e80381e1a3309f5d4a783bcaa508a90187a48882 */
 #   define OPENSSL_NO_SSL2             /* 1.1.0-pre1: openssl/openssl@45f55f6a5bdcec411ef08a6f8aae41d5d3d234ad */
 #   define HAVE_OPAQUE_X509            /* 1.1.0-pre1: openssl/openssl@2c81e476fab0e3e0b6140652b4577bf6f3b827be */
@@ -545,7 +551,11 @@ bool InitCsocket()
 void ShutdownCsocket()
 {
 #ifdef HAVE_LIBSSL
+#if defined( HAVE_ERR_REMOVE_THREAD_STATE )
+	ERR_remove_thread_state( NULL );
+#elif defined( HAVE_ERR_REMOVE_STATE )
 	ERR_remove_state( 0 );
+#endif
 #ifndef OPENSSL_NO_ENGINE
 	ENGINE_cleanup();
 #endif
