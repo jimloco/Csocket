@@ -51,6 +51,14 @@
 #ifndef OPENSSL_NO_COMP
 #include <openssl/comp.h>
 #endif
+#ifdef OPENSSL_VERSION_NUMBER
+# ifndef LIBRESSL_VERSION_NUMBER /* forked from OpenSSL 1.0.1g, sets high version "with the idea of discouraging software from relying on magic numbers for detecting features"(!) */
+#  if OPENSSL_VERSION_NUMBER >= 0x10100000
+#   undef OPENSSL_NO_SSL2              /* 1.1.0-pre4: openssl/openssl@e80381e1a3309f5d4a783bcaa508a90187a48882 */
+#   define OPENSSL_NO_SSL2             /* 1.1.0-pre1: openssl/openssl@45f55f6a5bdcec411ef08a6f8aae41d5d3d234ad */
+#  endif
+# endif /* LIBRESSL_VERSION_NUMBER */
+#endif /* OPENSSL_VERSION_NUMBER */
 #endif /* HAVE_LIBSSL */
 
 #ifdef HAVE_ICU
