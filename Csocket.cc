@@ -56,6 +56,7 @@
 #  if OPENSSL_VERSION_NUMBER >= 0x10100000
 #   undef OPENSSL_NO_SSL2              /* 1.1.0-pre4: openssl/openssl@e80381e1a3309f5d4a783bcaa508a90187a48882 */
 #   define OPENSSL_NO_SSL2             /* 1.1.0-pre1: openssl/openssl@45f55f6a5bdcec411ef08a6f8aae41d5d3d234ad */
+#   define HAVE_OPAQUE_X509            /* 1.1.0-pre1: openssl/openssl@2c81e476fab0e3e0b6140652b4577bf6f3b827be */
 #  endif
 # endif /* LIBRESSL_VERSION_NUMBER */
 #endif /* OPENSSL_VERSION_NUMBER */
@@ -2677,17 +2678,25 @@ long Csock::GetPeerFingerprint( CS_STRING & sFP ) const
 
 	X509 * pCert = GetX509();
 
+#ifdef HAVE_OPAQUE_X509
+	unsigned char sha1_hash[SHA_DIGEST_LENGTH];
+
+	if( pCert && X509_digest( pCert, EVP_sha1(), sha1_hash, NULL ) )
+#else
+	unsigned char * sha1_hash = NULL;
+
 	// Inspired by charybdis
-	if( pCert )
+	if( pCert && (sha1_hash = pCert->sha1_hash) )
+#endif /* HAVE_OPAQUE_X509 */
 	{
 		for( int i = 0; i < SHA_DIGEST_LENGTH; i++ )
 		{
 			char buf[3];
-			snprintf( buf, 3, "%02x", pCert->sha1_hash[i] );
+			snprintf( buf, 3, "%02x", sha1_hash[i] );
 			sFP += buf;
 		}
-		X509_free( pCert );
 	}
+	X509_free( pCert );
 
 	return( SSL_get_verify_result( m_ssl ) );
 }
