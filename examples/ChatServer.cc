@@ -156,11 +156,11 @@ void CTimeoutLogin::RunJob()
 
 static struct option s_apOpts[] =
 {
-	{ "port", 					1, 0, 0 },
-	{ "bind-host", 				1, 0, 0 },
-	{ "enable-ssl",				0, 0, 0 },
-	{ "pem-file",				0, 0, 0 },
-	{ "require-client-cert",	1, 0, 0 },
+	{ "port", 					required_argument,	0, 0 },
+	{ "bind-host", 				required_argument,	0, 0 },
+	{ "enable-ssl",				no_argument,		0, 0 },
+	{ "pem-file",				required_argument,	0, 0 },
+	{ "require-client-cert",	required_argument,	0, 0 },
 	{ NULL, 					0, 0, 0 }
 };
 
