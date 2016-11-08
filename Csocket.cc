@@ -52,13 +52,10 @@
 #include <openssl/comp.h>
 #endif
 #define HAVE_ERR_REMOVE_STATE
-#define CONST_SSL_METHOD
 #ifdef OPENSSL_VERSION_NUMBER
 # if OPENSSL_VERSION_NUMBER >= 0x10000000
 #  undef HAVE_ERR_REMOVE_STATE
 #  define HAVE_ERR_REMOVE_THREAD_STATE
-#  undef CONST_SSL_METHOD
-#  define CONST_SSL_METHOD const       /* 1.0.0-pre~: openssl/openssl@4ebb342fcd90562bce999dcc0915b16f816fbbf2 */
 # endif
 # if OPENSSL_VERSION_NUMBER < 0x10001000
 #  define OPENSSL_NO_TLS1_1            /* 1.0.1-pre~: openssl/openssl@637f374ad49d5f6d4f81d87d7cdd226428aa470c */
@@ -70,10 +67,7 @@
 #   undef OPENSSL_NO_SSL2              /* 1.1.0-pre4: openssl/openssl@e80381e1a3309f5d4a783bcaa508a90187a48882 */
 #   define OPENSSL_NO_SSL2             /* 1.1.0-pre1: openssl/openssl@45f55f6a5bdcec411ef08a6f8aae41d5d3d234ad */
 #   define HAVE_FLEXIBLE_TLS_METHOD    /* 1.1.0-pre1: openssl/openssl@32ec41539b5b23bc42503589fcc5be65d648d1f5 */
-#   define HAVE_OPAQUE_X509            /* 1.1.0-pre1: openssl/openssl@2c81e476fab0e3e0b6140652b4577bf6f3b827be */
-#   define HAVE_OPAQUE_EVP_PKEY        /* 1.1.0-pre3: openssl/openssl@3aeb93486588e7dd01379c50b8fd496d55cf8858 */
-#   define HAVE_OPAQUE_RSA             /* 1.1.0-pre5: openssl/openssl@9862e9aa98ee1e38fbcef8d1dd5db0e750eb5e8d */
-#   define HAVE_OPAQUE_DSA             /* 1.1.0-pre5: openssl/openssl@1258396d73cf937e4daaf2c35377011b9366f956 */
+#   define HAVE_OPAQUE_SSL
 #  endif
 # endif /* LIBRESSL_VERSION_NUMBER */
 #endif /* OPENSSL_VERSION_NUMBER */
@@ -1525,6 +1519,103 @@ bool Csock::ConfigureCTXOptions( SSL_CTX * pCTX )
 }
 #endif /* HAVE_LIBSSL */
 
+
+SSL_CTX * Csock::GetSSLCTX( int iMethod )
+{
+	const SSL_METHOD *pMethod = NULL;
+
+#ifdef HAVE_FLEXIBLE_TLS_METHOD
+	int iProtoVersion = 0;
+	pMethod = TLS_method();
+#else
+	pMethod = SSLv23_method();
+#endif // HAVE_FLEXIBLE_TLS_METHOD
+
+	switch( iMethod )
+	{
+	case TLS:
+		break; // defaults already set above, anything else can either match a case or fall through and use defaults anyway
+#ifdef HAVE_FLEXIBLE_TLS_METHOD
+#ifndef OPENSSL_NO_TLS1_2
+	case TLS12:
+		iProtoVersion = TLS1_2_VERSION;
+		break;
+#endif /* OPENSSL_NO_TLS1_2 */
+#ifndef OPENSSL_NO_TLS1_1
+	case TLS11:
+		iProtoVersion = TLS1_1_VERSION;
+		break;
+#endif /* OPENSSL_NO_TLS1_1 */
+#ifndef OPENSSL_NO_TLS1
+	case TLS1:
+		iProtoVersion = TLS1_VERSION;
+		break;
+#endif /* OPENSSL_NO_TLS1 */
+#ifndef OPENSSL_NO_SSL3
+	case SSL3:
+		iProtoVersion = SSL3_VERSION;
+		break;
+#endif /* OPENSSL_NO_SSL3 */
+#ifndef OPENSSL_NO_SSL2
+	case SSL2:
+		pMethod = SSLv2_method();
+		break;
+#endif /* OPENSSL_NO_SSL2 */
+
+
+#else /* HAVE_FLEXIBLE_TLS_METHOD */
+
+
+#ifndef OPENSSL_NO_TLS1_2
+	case TLS12:
+		pMethod = TLSv1_2_method();
+		break;
+#endif /* OPENSSL_NO_TLS1_2 */
+#ifndef OPENSSL_NO_TLS1_1
+	case TLS11:
+		pMethod = TLSv1_1_method();
+		break;
+#endif /* OPENSSL_NO_TLS1_1 */
+#ifndef OPENSSL_NO_TLS1
+	case TLS1:
+		pMethod = TLSv1_method();
+		break;
+#endif /* OPENSSL_NO_TLS1 */
+#ifndef OPENSSL_NO_SSL3
+	case SSL3:
+		pMethod = SSLv3_method();
+		break;
+#endif /* OPENSSL_NO_SSL3 */
+#ifndef OPENSSL_NO_SSL2
+	case SSL2:
+		pMethod = SSLv2_method();
+		break;
+#endif /* OPENSSL_NO_SSL2 */
+#endif /* HAVE_FLEXIBLE_TLS_METHOD */
+
+	default:
+		CS_DEBUG( "WARNING: SSL Client Method other than SSLv23 specified, but has passed through" );
+		break;
+	}
+
+	SSL_CTX * pCTX = SSL_CTX_new( pMethod );
+	if( !pCTX )
+	{
+		CS_DEBUG( "WARNING: MakeConnection failed!" );
+		return( NULL );
+	}
+
+#ifdef HAVE_FLEXIBLE_TLS_METHOD
+	if( iProtoVersion )
+	{
+		SSL_CTX_set_min_proto_version( pCTX, iProtoVersion );
+		SSL_CTX_set_max_proto_version( pCTX, iProtoVersion );
+	}
+#endif /* HAVE_FLEXIBLE_TLS_METHOD */
+
+	return( pCTX );
+}
+
 bool Csock::SSLClientSetup()
 {
 #ifdef HAVE_LIBSSL
@@ -1541,87 +1632,12 @@ bool Csock::SSLClientSetup()
 	}
 #endif /* _WIN64 */
 
-	CONST_SSL_METHOD SSL_METHOD * (*pMethod)() = NULL;
-	const char * pMethodName = NULL;
-
-#ifdef HAVE_FLEXIBLE_TLS_METHOD
-	int iProtoVersion = 0;
-	pMethod = TLS_client_method;
-	pMethodName = "TLS_client_method";
-#else
-	pMethod = SSLv23_client_method;
-	pMethodName = "SSLv23_client_method";
-#endif /* HAVE_FLEXIBLE_TLS_METHOD */
-
-	switch( m_iMethod )
-	{
-	case SSL23:
-		break; // defaults already set above, anything else can either match a case or fall through and use defaults anyway
-#ifndef OPENSSL_NO_TLS1_2
-	case TLS12:
-#	ifdef HAVE_FLEXIBLE_TLS_METHOD
-		iProtoVersion = TLS1_2_VERSION;
-#	else
-		pMethod = TLSv1_2_client_method;
-		pMethodName = "TLSv1_2_client_method";
-#	endif /* HAVE_FLEXIBLE_TLS_METHOD */
-		break;
-#endif /* OPENSSL_NO_TLS1_2 */
-#ifndef OPENSSL_NO_TLS1_1
-	case TLS11:
-#	ifdef HAVE_FLEXIBLE_TLS_METHOD
-		iProtoVersion = TLS1_1_VERSION;
-#	else
-		pMethod = TLSv1_1_client_method;
-		pMethodName = "TLSv1_1_client_method";
-#	endif /* HAVE_FLEXIBLE_TLS_METHOD */
-		break;
-#endif /* OPENSSL_NO_TLS1_1 */
-#ifndef OPENSSL_NO_TLS1
-	case TLS1:
-#	ifdef HAVE_FLEXIBLE_TLS_METHOD
-		iProtoVersion = TLS1_VERSION;
-#	else
-		pMethod = TLSv1_client_method;
-		pMethodName = "TLSv1_client_method";
-#	endif /* HAVE_FLEXIBLE_TLS_METHOD */
-		break;
-#endif /* OPENSSL_NO_TLS1 */
-#ifndef OPENSSL_NO_SSL3
-	case SSL3:
-#	ifdef HAVE_FLEXIBLE_TLS_METHOD
-		iProtoVersion = SSL3_VERSION;
-#	else
-		pMethod = SSLv3_client_method;
-		pMethodName = "SSLv3_client_method";
-#	endif /* HAVE_FLEXIBLE_TLS_METHOD */
-		break;
-#endif /* OPENSSL_NO_SSL3 */
-#ifndef OPENSSL_NO_SSL2
-	case SSL2:
-		pMethod = SSLv2_client_method;
-		pMethodName = "SSLv2_client_method";
-		break;
-#endif /* OPENSSL_NO_SSL2 */
-	default:
-		CS_DEBUG( "WARNING: SSL Client Method other than SSLv23 specified, but has passed through" );
-		break;
-	}
-
-	m_ssl_ctx = SSL_CTX_new( pMethod() );
+	m_ssl_ctx = GetSSLCTX( m_iMethod );
 	if( !m_ssl_ctx )
 	{
-		CS_DEBUG( "WARNING: MakeConnection .... " << pMethodName << " failed!" );
+		CS_DEBUG( "WARNING: Failed to retrieve a valid ctx" );
 		return( false );
 	}
-
-#ifdef HAVE_FLEXIBLE_TLS_METHOD
-	if( iProtoVersion )
-	{
-		SSL_CTX_set_min_proto_version( m_ssl_ctx, iProtoVersion );
-		SSL_CTX_set_max_proto_version( m_ssl_ctx, iProtoVersion );
-	}
-#endif /* HAVE_FLEXIBLE_TLS_METHOD */
 
 	SSL_CTX_set_default_verify_paths( m_ssl_ctx );
 
@@ -1680,88 +1696,12 @@ bool Csock::SSLClientSetup()
 #ifdef HAVE_LIBSSL
 SSL_CTX * Csock::SetupServerCTX()
 {
-	SSL_CTX * pCTX = NULL;
-	CONST_SSL_METHOD SSL_METHOD * (*pMethod)() = NULL;
-	const char * pMethodName = NULL;
-
-#ifdef HAVE_FLEXIBLE_TLS_METHOD
-	int iProtoVersion = 0;
-	pMethod = TLS_server_method;
-	pMethodName = "TLS_server_method";
-#else
-	pMethod = SSLv23_server_method;
-	pMethodName = "SSLv23_server_method";
-#endif /* HAVE_FLEXIBLE_TLS_METHOD */
-
-	switch( m_iMethod )
-	{
-	case SSL23:
-		break; // defaults already set above, anything else can either match a case or fall through and use defaults anyway
-#ifndef OPENSSL_NO_TLS1_2
-	case TLS12:
-#	ifdef HAVE_FLEXIBLE_TLS_METHOD
-		iProtoVersion = TLS1_2_VERSION;
-#	else
-		pMethod = TLSv1_2_server_method;
-		pMethodName = "TLSv1_2_server_method";
-#	endif /* HAVE_FLEXIBLE_TLS_METHOD */
-		break;
-#endif /* OPENSSL_NO_TLS1_2 */
-#ifndef OPENSSL_NO_TLS1_1
-	case TLS11:
-#	ifdef HAVE_FLEXIBLE_TLS_METHOD
-		iProtoVersion = TLS1_1_VERSION;
-#	else
-		pMethod = TLSv1_1_server_method;
-		pMethodName = "TLSv1_1_server_method";
-#	endif /* HAVE_FLEXIBLE_TLS_METHOD */
-		break;
-#endif /* OPENSSL_NO_TLS1_1 */
-#ifndef OPENSSL_NO_TLS1
-	case TLS1:
-#	ifdef HAVE_FLEXIBLE_TLS_METHOD
-		iProtoVersion = TLS1_VERSION;
-#	else
-		pMethod = TLSv1_server_method;
-		pMethodName = "TLSv1_server_method";
-#	endif /* HAVE_FLEXIBLE_TLS_METHOD */
-		break;
-#endif /* OPENSSL_NO_TLS1 */
-#ifndef OPENSSL_NO_SSL3
-	case SSL3:
-#	ifdef HAVE_FLEXIBLE_TLS_METHOD
-		iProtoVersion = SSL3_VERSION;
-#	else
-		pMethod = SSLv3_server_method;
-		pMethodName = "SSLv3_server_method";
-#	endif /* HAVE_FLEXIBLE_TLS_METHOD */
-		break;
-#endif /* OPENSSL_NO_SSL3 */
-#ifndef OPENSSL_NO_SSL2
-	case SSL2:
-		pMethod = SSLv2_server_method;
-		pMethodName = "SSLv2_server_method";
-		break;
-#endif /* OPENSSL_NO_SSL2 */
-	default:
-		CS_DEBUG( "WARNING: SSL Server Method other than SSLv23 specified, but has passed through" );
-		break;
-	}
-
-	pCTX = SSL_CTX_new( pMethod() );
+	SSL_CTX * pCTX = GetSSLCTX( m_iMethod );
 	if( !pCTX )
 	{
-		CS_DEBUG( "WARNING: MakeConnection .... " << pMethodName << " failed!" );
+		CS_DEBUG( "WARNING: Failed to retrieve a valid ctx" );
 		return( NULL );
 	}
-
-#ifdef HAVE_FLEXIBLE_TLS_METHOD
-	if( iProtoVersion )
-	{
-		SSL_CTX_set_min_proto_version( pCTX, iProtoVersion );
-		SSL_CTX_set_max_proto_version( pCTX, iProtoVersion );
-	}
-#endif /* HAVE_FLEXIBLE_TLS_METHOD */
 
 	SSL_CTX_set_default_verify_paths( pCTX );
 
@@ -2747,33 +2687,29 @@ CS_STRING Csock::GetPeerPubKey() const
 		if( pKey )
 		{
 			const BIGNUM * pPubKey = NULL;
-#ifdef HAVE_OPAQUE_EVP_PKEY
+#ifdef HAVE_OPAQUE_SSL
 			int iType = EVP_PKEY_base_id( pKey );
 #else
 			int iType = pKey->type;
-#endif /* HAVE_OPAQUE_EVP_PKEY */
+#endif /* HAVE_OPAQUE_SSL */
 			switch( iType )
 			{
 #ifndef OPENSSL_NO_RSA
 			case EVP_PKEY_RSA:
-# ifdef HAVE_OPAQUE_RSA
+# ifdef HAVE_OPAQUE_SSL
 				RSA_get0_key( EVP_PKEY_get0_RSA( pKey ), &pPubKey, NULL, NULL );
-# elif defined( HAVE_OPAQUE_EVP_PKEY )
-				pPubKey = EVP_PKEY_get0_RSA( pKey )->n;
 # else
 				pPubKey = pKey->pkey.rsa->n;
-# endif /* HAVE_OPAQUE_RSA */
+# endif /* HAVE_OPAQUE_SSL */
 				break;
 #endif /* OPENSSL_NO_RSA */
 #ifndef OPENSSL_NO_DSA
 			case EVP_PKEY_DSA:
-# ifdef HAVE_OPAQUE_DSA
+# ifdef HAVE_OPAQUE_SSL
 				DSA_get0_key( EVP_PKEY_get0_DSA( pKey ), &pPubKey, NULL );
-# elif defined( HAVE_OPAQUE_EVP_PKEY )
-				pPubKey = EVP_PKEY_get0_DSA( pKey )->pub_key;
 # else
 				pPubKey = pKey->pkey.dsa->pub_key;
-# endif /* HAVE_OPAQUE_DSA */
+# endif /* HAVE_OPAQUE_SSL */
 				break;
 #endif /* OPENSSL_NO_DSA */
 			default:
@@ -2802,7 +2738,7 @@ long Csock::GetPeerFingerprint( CS_STRING & sFP ) const
 
 	X509 * pCert = GetX509();
 
-#ifdef HAVE_OPAQUE_X509
+#ifdef HAVE_OPAQUE_SSL
 	unsigned char sha1_hash[SHA_DIGEST_LENGTH];
 
 	if( pCert && X509_digest( pCert, EVP_sha1(), sha1_hash, NULL ) )
@@ -2811,7 +2747,7 @@ long Csock::GetPeerFingerprint( CS_STRING & sFP ) const
 
 	// Inspired by charybdis
 	if( pCert && (sha1_hash = pCert->sha1_hash) )
-#endif /* HAVE_OPAQUE_X509 */
+#endif /* HAVE_OPAQUE_SSL */
 	{
 		for( int i = 0; i < SHA_DIGEST_LENGTH; i++ )
 		{

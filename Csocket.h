@@ -599,7 +599,8 @@ public:
 
 	enum ESSLMethod
 	{
-	    SSL23				= 0,
+	    TLS					= 0,
+	    SSL23				= TLS,
 	    SSL2				= 2,
 	    SSL3				= 3,
 	    TLS1				= 4,
@@ -673,6 +674,12 @@ public:
 
 	//! This sets up the SSL Server, this is used internally
 	virtual bool SSLServerSetup();
+
+	/**
+	 * @brief Retrieves a SSL_CTX configured to a method
+	 * @param iMethod the method to configure a SSL_CTX for
+	 */
+	SSL_CTX * GetSSLCTX( int iMethod );
 
 	/**
 	 * @brief Create the SSL connection
