@@ -306,8 +306,7 @@ template <class T> inline void CS_Delete( T * & p ) { if( p ) { delete p; p = NU
 enum ECompType
 {
     CT_NONE	= 0,
-    CT_ZLIB	= 1,
-    CT_RLE	= 2
+    CT_ZLIB	= 1
 };
 
 //! adjusts tv with a new timeout if iTimeoutMS is smaller

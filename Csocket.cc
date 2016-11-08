@@ -647,13 +647,6 @@ bool InitSSL( ECompType eCompressionType )
 		if( cm )
 			SSL_COMP_add_compression_method( CT_ZLIB, cm );
 	}
-
-	if( CT_RLE & eCompressionType )
-	{
-		cm = COMP_rle();
-		if( cm )
-			SSL_COMP_add_compression_method( CT_RLE, cm );
-	}
 #endif
 
 	// setting this up once in the begining

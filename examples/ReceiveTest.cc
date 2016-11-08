@@ -57,37 +57,38 @@ static void CreatePem()
 	int days = 3650;
 	u_int iSeed = ( u_int )time( NULL );
 	int serial = ( rand_r( &iSeed ) % 9999 );
+	BIGNUM * pBNE = BN_new();
+	assert( BN_set_word( pBNE, RSA_F4 ) );
+	RSA * pRSA = RSA_new();
 
-	RSA *pRSA = RSA_generate_key( 1024, 0x10001, NULL, NULL );
-	if(( pKey = EVP_PKEY_new() ) )
-	{
-		assert( EVP_PKEY_assign_RSA( pKey, pRSA ) ) ;
-		PEM_write_RSAPrivateKey( pOut, pRSA, NULL, NULL, 0, NULL, NULL );
-		assert(( pCert = X509_new() ) );
+	RSA_generate_key_ex( pRSA, 2048, pBNE, NULL ); // pRSA and pBNE are all cleaned up by pKey free
+	assert( pKey = EVP_PKEY_new() );
+	assert( EVP_PKEY_assign_RSA( pKey, pRSA ) ) ;
+	PEM_write_RSAPrivateKey( pOut, pRSA, NULL, NULL, 0, NULL, NULL );
+	assert(( pCert = X509_new() ) );
 
-		X509_set_version( pCert, 2 );
-		ASN1_INTEGER_set( X509_get_serialNumber( pCert ), serial );
-		X509_gmtime_adj( X509_get_notBefore( pCert ), 0 );
-		X509_gmtime_adj( X509_get_notAfter( pCert ), ( long )60*60*24*days );
-		X509_set_pubkey( pCert, pKey );
+	X509_set_version( pCert, 2 );
+	ASN1_INTEGER_set( X509_get_serialNumber( pCert ), serial );
+	X509_gmtime_adj( X509_get_notBefore( pCert ), 0 );
+	X509_gmtime_adj( X509_get_notAfter( pCert ), ( long )60*60*24*days );
+	X509_set_pubkey( pCert, pKey );
 
-		pName = X509_get_subject_name( pCert );
-		X509_NAME_add_entry_by_txt( pName, "C", MBSTRING_ASC, ( unsigned char * )"US", -1, -1, 0 );
-		X509_NAME_add_entry_by_txt( pName, "ST", MBSTRING_ASC, ( unsigned char * )"California", -1, -1, 0 );
-		X509_NAME_add_entry_by_txt( pName, "L", MBSTRING_ASC, ( unsigned char * )"San Jose", -1, -1, 0 );
-		X509_NAME_add_entry_by_txt( pName, "O", MBSTRING_ASC, ( unsigned char * )"Foo, Inc", -1, -1, 0 );
-		X509_NAME_add_entry_by_txt( pName, "OU", MBSTRING_ASC, ( unsigned char * )"Barny", -1, -1, 0 );
-		X509_NAME_add_entry_by_txt( pName, "CN", MBSTRING_ASC, ( unsigned char * )"foo.com", -1, -1, 0 );
-		X509_NAME_add_entry_by_txt( pName, "emailAddress", MBSTRING_ASC, ( unsigned char * )"barny@foo.com", -1, -1, 0 );
+	pName = X509_get_subject_name( pCert );
+	X509_NAME_add_entry_by_txt( pName, "C", MBSTRING_ASC, ( unsigned char * )"US", -1, -1, 0 );
+	X509_NAME_add_entry_by_txt( pName, "ST", MBSTRING_ASC, ( unsigned char * )"California", -1, -1, 0 );
+	X509_NAME_add_entry_by_txt( pName, "L", MBSTRING_ASC, ( unsigned char * )"San Jose", -1, -1, 0 );
+	X509_NAME_add_entry_by_txt( pName, "O", MBSTRING_ASC, ( unsigned char * )"Foo, Inc", -1, -1, 0 );
+	X509_NAME_add_entry_by_txt( pName, "OU", MBSTRING_ASC, ( unsigned char * )"Barny", -1, -1, 0 );
+	X509_NAME_add_entry_by_txt( pName, "CN", MBSTRING_ASC, ( unsigned char * )"foo.com", -1, -1, 0 );
+	X509_NAME_add_entry_by_txt( pName, "emailAddress", MBSTRING_ASC, ( unsigned char * )"barny@foo.com", -1, -1, 0 );
 
-		X509_set_subject_name( pCert, pName );
+	X509_set_subject_name( pCert, pName );
 
-		assert( X509_sign( pCert, pKey, EVP_md5() ) );
-		PEM_write_X509( pOut, pCert );
-		X509_free( pCert );
-		EVP_PKEY_free( pKey );
-		fclose( pOut );
-	}
+	assert( X509_sign( pCert, pKey, EVP_sha256() ) );
+	PEM_write_X509( pOut, pCert );
+	X509_free( pCert );
+	EVP_PKEY_free( pKey );
+	fclose( pOut );
 }
 
 int main( int argc, char **argv )

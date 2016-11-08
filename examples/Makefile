@@ -4,11 +4,11 @@ TARGETS=$(basename $(wildcard *.cc))
 SRCS=$(wildcard ../*.cc *.cc)
 VPATH=..:.
 #CXXFLAGS=-ggdb -Werror -Wall -Wextra -Wconversion -Wno-unused-parameter -Woverloaded-virtual -Wshadow -D_GNU_SOURCE -DHAVE_LIBSSL -DHAVE_IPV6 -DHAVE_C_ARES -D__DEBUG__
-CXXFLAGS=-ggdb -Werror -Wall -Wextra -Wconversion -Wno-unused-parameter -Woverloaded-virtual -Wshadow -D_GNU_SOURCE -DHAVE_LIBSSL -DHAVE_IPV6 -D__DEBUG__
+CXXFLAGS=-pthread -ggdb -Werror -Wall -Wextra -Wconversion -Wno-unused-parameter -Woverloaded-virtual -Wshadow -D_GNU_SOURCE -DHAVE_LIBSSL -DHAVE_IPV6 -D__DEBUG__
 TESTBINS=GetWebPage SendTest ReceiveTest
 
 INCLUDES=-I.. -I.
-LIBS=-lcrypto -lssl -lcares -lcurl
+LIBS=-lssl -lcrypto -lcares -lcurl -ldl
 
 #INCLUDES=-I.. -I. -Ic:/OpenSSL/include
 #LIBS=-Lc:/OpenSSL/lib/MinGW -lws2_32 -leay32 -lssleay32
@@ -40,6 +40,6 @@ test: $(TESTBINS)
 	done
 
 clean:
-	rm -rf .objs core.* core $(TARGETS) *.out *.err .depend
+	rm -rf .objs core.* core $(TARGETS) *.out *.err .depend RevieveTest.pem
 
 -include .depend
