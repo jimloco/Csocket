@@ -1520,7 +1520,7 @@ bool Csock::ConfigureCTXOptions( SSL_CTX * pCTX )
 #endif /* HAVE_LIBSSL */
 
 
-SSL_CTX * Csock::GetSSLCTX( int iMethod )
+static SSL_CTX * GetSSLCTX( int iMethod )
 {
 	const SSL_METHOD *pMethod = NULL;
 
@@ -1533,31 +1533,31 @@ SSL_CTX * Csock::GetSSLCTX( int iMethod )
 
 	switch( iMethod )
 	{
-	case TLS:
+	case Csock::TLS:
 		break; // defaults already set above, anything else can either match a case or fall through and use defaults anyway
 #ifdef HAVE_FLEXIBLE_TLS_METHOD
 #ifndef OPENSSL_NO_TLS1_2
-	case TLS12:
+	case Csock::TLS12:
 		iProtoVersion = TLS1_2_VERSION;
 		break;
 #endif /* OPENSSL_NO_TLS1_2 */
 #ifndef OPENSSL_NO_TLS1_1
-	case TLS11:
+	case Csock::TLS11:
 		iProtoVersion = TLS1_1_VERSION;
 		break;
 #endif /* OPENSSL_NO_TLS1_1 */
 #ifndef OPENSSL_NO_TLS1
-	case TLS1:
+	case Csock::TLS1:
 		iProtoVersion = TLS1_VERSION;
 		break;
 #endif /* OPENSSL_NO_TLS1 */
 #ifndef OPENSSL_NO_SSL3
-	case SSL3:
+	case Csock::SSL3:
 		iProtoVersion = SSL3_VERSION;
 		break;
 #endif /* OPENSSL_NO_SSL3 */
 #ifndef OPENSSL_NO_SSL2
-	case SSL2:
+	case Csock::SSL2:
 		pMethod = SSLv2_method();
 		break;
 #endif /* OPENSSL_NO_SSL2 */
@@ -1567,27 +1567,27 @@ SSL_CTX * Csock::GetSSLCTX( int iMethod )
 
 
 #ifndef OPENSSL_NO_TLS1_2
-	case TLS12:
+	case Csock::TLS12:
 		pMethod = TLSv1_2_method();
 		break;
 #endif /* OPENSSL_NO_TLS1_2 */
 #ifndef OPENSSL_NO_TLS1_1
-	case TLS11:
+	case Csock::TLS11:
 		pMethod = TLSv1_1_method();
 		break;
 #endif /* OPENSSL_NO_TLS1_1 */
 #ifndef OPENSSL_NO_TLS1
-	case TLS1:
+	case Csock::TLS1:
 		pMethod = TLSv1_method();
 		break;
 #endif /* OPENSSL_NO_TLS1 */
 #ifndef OPENSSL_NO_SSL3
-	case SSL3:
+	case Csock::SSL3:
 		pMethod = SSLv3_method();
 		break;
 #endif /* OPENSSL_NO_SSL3 */
 #ifndef OPENSSL_NO_SSL2
-	case SSL2:
+	case Csock::SSL2:
 		pMethod = SSLv2_method();
 		break;
 #endif /* OPENSSL_NO_SSL2 */
@@ -1601,7 +1601,7 @@ SSL_CTX * Csock::GetSSLCTX( int iMethod )
 	SSL_CTX * pCTX = SSL_CTX_new( pMethod );
 	if( !pCTX )
 	{
-		CS_DEBUG( "WARNING: MakeConnection failed!" );
+		CS_DEBUG( "WARNING: GetSSLCTX failed!" );
 		return( NULL );
 	}
 

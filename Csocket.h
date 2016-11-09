@@ -676,12 +676,6 @@ public:
 	virtual bool SSLServerSetup();
 
 	/**
-	 * @brief Retrieves a SSL_CTX configured to a method
-	 * @param iMethod the method to configure a SSL_CTX for
-	 */
-	SSL_CTX * GetSSLCTX( int iMethod );
-
-	/**
 	 * @brief Create the SSL connection
 	 * @return true on success
 	 *
