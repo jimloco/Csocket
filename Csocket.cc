@@ -977,6 +977,7 @@ Csock *Csock::GetSockObj( const CS_STRING & sHostname, uint16_t iPort )
 	return( NULL );
 }
 
+#ifdef HAVE_LIBSSL
 bool Csock::SNIConfigureClient( CS_STRING & sHostname )
 {
 	if( m_shostname.empty() )
@@ -984,6 +985,7 @@ bool Csock::SNIConfigureClient( CS_STRING & sHostname )
 	sHostname = m_shostname;
 	return( true );
 }
+#endif
 
 #ifdef _WIN32
 #define CS_CLOSE closesocket
@@ -1520,6 +1522,7 @@ bool Csock::ConfigureCTXOptions( SSL_CTX * pCTX )
 #endif /* HAVE_LIBSSL */
 
 
+#ifdef HAVE_LIBSSL
 static SSL_CTX * GetSSLCTX( int iMethod )
 {
 	const SSL_METHOD *pMethod = NULL;
@@ -1615,6 +1618,7 @@ static SSL_CTX * GetSSLCTX( int iMethod )
 
 	return( pCTX );
 }
+#endif
 
 bool Csock::SSLClientSetup()
 {
