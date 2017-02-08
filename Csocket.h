@@ -151,9 +151,18 @@ typedef ssize_t cs_ssize_t;
 #define CS_INVALID_SOCK	-1
 #endif /* _WIN32 */
 
+/* Assume that everything but windows has Unix sockets */
+#ifndef _WIN32
+#define HAVE_UNIX_SOCKET
+#endif
+
 #ifdef CSOCK_USE_POLL
 #include <poll.h>
 #endif /* CSOCK_USE_POLL */
+
+#ifdef HAVE_UNIX_SOCKET
+#include <sys/un.h>
+#endif
 
 #ifndef _NO_CSOCKET_NS // some people may not want to use a namespace
 namespace Csocket
@@ -652,6 +661,22 @@ public:
 	 * @return true on success
 	 */
 	virtual bool Connect();
+
+#ifdef HAVE_UNIX_SOCKET
+	/**
+	 * @brief Connect to a UNIX socket.
+	 * @param sPath the path to the UNIX socket.
+	 */
+	virtual bool ConnectUnix( const CS_STRING & sPath );
+
+	/**
+	 * @brief Listens for connections on an UNIX socket
+	 * @param sBindFile the socket on which to listen
+	 * @param iMaxConns the maximum amount of pending connections to allow
+	 * @param iTimeout if no connections come in by this timeout, the listener is closed
+	 */
+	virtual bool ListenUnix( const CS_STRING & sBindFile, int iMaxConns = SOMAXCONN, uint32_t iTimeout = 0 );
+#endif
 
 	/**
 	 * @brief Listens for connections
@@ -1206,7 +1231,7 @@ private:
 #endif /* HAVE_LIBSSL */
 
 	//! Create the socket
-	cs_sock_t CreateSocket( bool bListen = false );
+	cs_sock_t CreateSocket( bool bListen = false, bool bUnix = false );
 	void Init( const CS_STRING & sHostname, uint16_t uPort, int iTimeout = 60 );
 
 	// Connection State Info

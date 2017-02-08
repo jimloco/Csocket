@@ -5,7 +5,7 @@ SRCS=$(wildcard ../*.cc *.cc)
 VPATH=..:.
 #CXXFLAGS=-ggdb -Werror -Wall -Wextra -Wconversion -Wno-unused-parameter -Woverloaded-virtual -Wshadow -D_GNU_SOURCE -DHAVE_LIBSSL -DHAVE_IPV6 -DHAVE_C_ARES -D__DEBUG__
 CXXFLAGS=-pthread -ggdb -Werror -Wall -Wextra -Wconversion -Wno-unused-parameter -Woverloaded-virtual -Wshadow -D_GNU_SOURCE -DHAVE_LIBSSL -DHAVE_IPV6 -D__DEBUG__
-TESTBINS=GetWebPage SendTest ReceiveTest
+TESTBINS=GetWebPage SendTest ReceiveTest UnixSocket
 
 INCLUDES=-I.. -I.
 LIBS=-lssl -lcrypto -lcares -lcurl -ldl

@@ -1268,6 +1268,96 @@ bool Csock::Connect()
 }
 
 
+#ifdef HAVE_UNIX_SOCKET
+static bool prepare_sockaddr(struct sockaddr_un * addr, const CS_STRING & sPath)
+{
+	memset( addr, 0, sizeof(*addr) );
+	addr->sun_family = AF_UNIX;
+	if( sizeof(addr->sun_path) <= sPath.length() )
+		return( false );
+	memcpy( &addr->sun_path, sPath.c_str(), sPath.length() + 1 );
+	return true;
+}
+
+bool Csock::ConnectUnix( const CS_STRING & sPath )
+{
+	if( m_iReadSock != m_iWriteSock )
+		return( false );
+	if( m_iReadSock == CS_INVALID_SOCK )
+		m_iReadSock = m_iWriteSock = CreateSocket( false, true );
+
+	set_non_blocking( m_iReadSock );
+	m_iConnType = OUTBOUND;
+
+	struct sockaddr_un addr;
+	if( !prepare_sockaddr( &addr, sPath) )
+	{
+		CallSockError( EADDRNOTAVAIL );
+		return( false );
+	}
+	if( connect( m_iReadSock, ( struct sockaddr * )&addr, sizeof(addr) ) == -1)
+	{
+		CS_DEBUG( "Connect Failed. ERRNO [" << GetSockError() << "] FD [" << m_iReadSock << "]" );
+		return( false );
+	}
+
+	if( m_eConState != CST_OK )
+	{
+		m_eConState = ( GetSSL() ? CST_CONNECTSSL : CST_OK );
+	}
+
+	return( true );
+}
+
+bool Csock::ListenUnix( const CS_STRING & sBindFile, int iMaxConns, u_int iTimeout )
+{
+	m_iConnType = LISTENER;
+	m_iTimeout = iTimeout;
+	m_sBindHost = sBindFile;
+	m_iMaxConns = iMaxConns;
+
+	SetConState( Csock::CST_OK );
+
+	// Should m_address be set up somehow?
+
+	struct sockaddr_un addr;
+	if( !prepare_sockaddr( &addr, sBindFile) )
+	{
+		CallSockError( EADDRNOTAVAIL );
+		return( false );
+	}
+
+	m_iReadSock = m_iWriteSock = CreateSocket( true, true );
+
+	if( m_iReadSock == CS_INVALID_SOCK )
+	{
+		CallSockError( EBADF );
+		return( false );
+	}
+
+	if( bind( m_iReadSock, ( struct sockaddr * ) &addr, sizeof(addr) ) == -1 )
+	{
+		CallSockError( GetSockError() );
+		return( false );
+	}
+
+	if( listen( m_iReadSock, iMaxConns ) == -1 )
+	{
+		CallSockError( GetSockError() );
+		return( false );
+	}
+
+	// set it none blocking
+	set_non_blocking( m_iReadSock );
+
+	// TODO: The following callback makes no sense here; should a
+	// ListeningUnix() be added? We aren't doing anything asynchronous...
+	//Listening( m_sBindHost, m_uPort );
+
+	return( true );
+}
+#endif
+
 bool Csock::Listen( uint16_t iPort, int iMaxConns, const CS_STRING & sBindHost, u_int iTimeout, bool bDetach )
 {
 	m_iConnType = LISTENER;
@@ -3067,13 +3157,28 @@ void Csock::FREE_CTX()
 
 #endif /* HAVE_LIBSSL */
 
-cs_sock_t Csock::CreateSocket( bool bListen )
+cs_sock_t Csock::CreateSocket( bool bListen, bool bUnix )
 {
+	int domain, protocol;
+	if ( !bUnix )
+	{
 #ifdef HAVE_IPV6
-	cs_sock_t iRet = socket( ( GetIPv6() ? PF_INET6 : PF_INET ), SOCK_STREAM, IPPROTO_TCP );
+		domain = ( GetIPv6() ? PF_INET6 : PF_INET );
 #else
-	cs_sock_t iRet = socket( PF_INET, SOCK_STREAM, IPPROTO_TCP );
+		domain = PF_INET;
 #endif /* HAVE_IPV6 */
+		protocol = IPPROTO_TCP;
+	}
+	else
+	{
+#ifdef HAVE_UNIX_SOCKET
+		domain = AF_UNIX;
+		protocol = 0;
+#else
+		return CS_INVALID_SOCK;
+#endif
+	}
+	cs_sock_t iRet = socket( domain, SOCK_STREAM, protocol );
 
 	if( iRet != CS_INVALID_SOCK )
 	{
