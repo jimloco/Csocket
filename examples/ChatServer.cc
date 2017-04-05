@@ -1,6 +1,8 @@
 #include <string.h>
 #include <Csocket.h>
+#ifndef _WIN32
 #include <unistd.h>
+#endif
 #include <getopt.h>
 
 
@@ -170,7 +172,7 @@ int main( int argc, char **argv )
 	InitSSL();
 #endif /* HAVE_LIBSSL */
 #ifdef _WIN32
-	InitWin32();
+	//InitWin32();
 #endif /* _WIN32 */
 	LConn cConn;
 
@@ -247,7 +249,7 @@ int main( int argc, char **argv )
 		cConn.DynamicSelectLoop( 50000, 5000000 );
 
 #ifdef _WIN32
-	ShutdownWin32();
+	//ShutdownWin32();
 #endif /* _WIN32 */
 
 	return( 0 );

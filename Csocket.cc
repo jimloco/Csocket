@@ -79,6 +79,7 @@
 #endif /* HAVE_ICU */
 
 #include <list>
+#include <algorithm>
 
 #define CS_SRANDBUFFER 128
 

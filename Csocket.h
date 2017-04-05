@@ -43,13 +43,13 @@
 #include "defines.h" // require this as a general rule, most projects have a defines.h or the like
 
 #include <stdio.h>
-#include <unistd.h>
-#include <sys/time.h>
 #include <fcntl.h>
-#include <sys/file.h>
 
 #ifndef _WIN32
 
+#include <unistd.h>
+#include <sys/time.h>
+#include <sys/file.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <sys/socket.h>
@@ -59,9 +59,15 @@
 
 #else
 
+#include <io.h>
 #include <winsock2.h>
 #include <ws2tcpip.h>
+#include <time.h>
 #include <sys/timeb.h>
+
+#ifdef _MSC_VER
+#define strcasecmp _stricmp
+#endif
 
 #ifndef ECONNREFUSED
 // these aliases might or might not be defined in errno.h
