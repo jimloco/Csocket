@@ -1410,9 +1410,16 @@ bool Csock::Listen( uint16_t iPort, int iMaxConns, const CS_STRING & sBindHost, 
 #  ifndef IPV6_V6ONLY
 #   define IPV6_V6ONLY 27
 #  endif
-	/* check for IPV6_V6ONLY support at runtime */
-	OSVERSIONINFOW lvi = { sizeof( OSVERSIONINFOW ), 0 };
-	if( ::GetVersionExW( &lvi ) && lvi.dwMajorVersion >= 6 ) // IPV6_V6ONLY is supported on Windows Vista or later.
+	/* check for IPV6_V6ONLY support at runtime: only supported on Windows Vista or later */
+	OSVERSIONINFOEX osvi = { 0 };
+	DWORDLONG dwlConditionMask = 0;
+
+	osvi.dwOSVersionInfoSize = sizeof(OSVERSIONINFOEX);
+	osvi.dwMajorVersion = 6;
+
+	VER_SET_CONDITION(dwlConditionMask, VER_MAJORVERSION, VER_GREATER_EQUAL);
+
+	if( VerifyVersionInfo( &osvi, VER_MAJORVERSION, dwlConditionMask ) )
 	{
 # endif /* _WIN32 */
 # ifdef IPV6_V6ONLY
