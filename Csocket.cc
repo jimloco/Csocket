@@ -722,7 +722,7 @@ uint64_t millitime()
 	return( iTime );
 }
 
-#ifndef _WIN32
+#ifndef _MSC_VER
 #define CS_GETTIMEOFDAY gettimeofday
 #else
 #define CS_GETTIMEOFDAY win32_gettimeofday
@@ -737,7 +737,7 @@ win32_gettimeofday( struct timeval* now, void* )
 	SYSTEMTIME system_time;
 
 	GetSystemTime( &system_time );
-	if ( !SystemTimeToFileTime(&system_time, ( LPFILETIME )&file_time) )
+	if ( !SystemTimeToFileTime( &system_time, ( LPFILETIME )&file_time) )
 		return( 1 );
 
 	now->tv_sec = ( long )( ( file_time.QuadPart - epoch ) / 10000000L );
