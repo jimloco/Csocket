@@ -719,6 +719,31 @@ uint64_t millitime()
 	return( iTime );
 }
 
+#ifndef _WIN32
+#define CS_GETTIMEOFDAY gettimeofday
+#else
+#define CS_GETTIMEOFDAY win32_gettimeofday
+
+// timezone-agnostic implementation of gettimeofday
+static int
+win32_gettimeofday( struct timeval* now, void* )
+{
+	static const ULONGLONG epoch = 116444736000000000ULL; // Jan 1st 1970
+
+	ULARGE_INTEGER file_time;
+	SYSTEMTIME system_time;
+
+	GetSystemTime( &system_time );
+	if ( !SystemTimeToFileTime(&system_time, ( LPFILETIME )&file_time) )
+		return( 1 );
+
+	now->tv_sec = ( long )( ( file_time.QuadPart - epoch ) / 10000000L );
+	now->tv_usec = ( long )( system_time.wMilliseconds * 1000 );
+
+	return 0;
+}
+#endif
+
 #ifndef _NO_CSOCKET_NS // some people may not want to use a namespace
 }
 using namespace Csocket;
@@ -742,7 +767,7 @@ void CCron::run( timeval & tNow )
 		return;
 
 	if( !timerisset( &tNow ) )
-		gettimeofday( &tNow, NULL );
+		CS_GETTIMEOFDAY( &tNow, NULL );
 
 	if( m_bActive && ( !timercmp( &tNow, &m_tTime, < ) || m_bRunOnNextCall ) )
 	{
@@ -762,7 +787,7 @@ void CCron::StartMaxCycles( double dTimeSequence, u_int iMaxCycles )
 	m_tTimeSequence.tv_sec = ( time_t ) dTimeSequence;
 	// this could be done with modf(), but we're avoiding bringing in libm just for the one function.
 	m_tTimeSequence.tv_usec = ( suseconds_t )( ( dTimeSequence - ( double )( ( time_t ) dTimeSequence ) ) * 1000000 );
-	gettimeofday( &tNow, NULL );
+	CS_GETTIMEOFDAY( &tNow, NULL );
 	timeradd( &tNow, &m_tTimeSequence, &m_tTime );
 	m_iMaxCycles = iMaxCycles;
 	m_bActive = true;
@@ -772,7 +797,7 @@ void CCron::StartMaxCycles( const timeval& tTimeSequence, u_int iMaxCycles )
 {
 	timeval tNow;
 	m_tTimeSequence = tTimeSequence;
-	gettimeofday( &tNow, NULL );
+	CS_GETTIMEOFDAY( &tNow, NULL );
 	timeradd( &tNow, &m_tTimeSequence, &m_tTime );
 	m_iMaxCycles = iMaxCycles;
 	m_bActive = true;
@@ -3622,7 +3647,7 @@ void CSocketManager::DynamicSelectLoop( uint64_t iLowerBounds, uint64_t iUpperBo
 		timeval tNow;
 		tMaxResolution.tv_sec = iMaxResolution;
 		tMaxResolution.tv_usec = 0;
-		gettimeofday( &tNow, NULL );
+		CS_GETTIMEOFDAY( &tNow, NULL );
 		timeval tSelectTimeout = GetDynamicSleepTime( tNow, tMaxResolution );
 		uint64_t iSelectTimeout = tSelectTimeout.tv_sec * 1000000 + tSelectTimeout.tv_usec;
 		iSelectTimeout = std::max( iLowerBounds, iSelectTimeout );

@@ -67,6 +67,7 @@
 
 #ifdef _MSC_VER
 #define strcasecmp _stricmp
+#define suseconds_t long
 #endif
 
 #ifndef ECONNREFUSED
