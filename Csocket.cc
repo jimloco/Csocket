@@ -682,11 +682,14 @@ void CSAdjustTVTimeout( struct timeval & tv, long iTimeoutMS )
 #define CS_UNKNOWN_ERROR "Unknown Error"
 static const char * CS_StrError( int iErrno, char * pszBuff, size_t uBuffLen )
 {
-#if defined( sgi ) || defined(__sun) || defined(_WIN32) || (defined(__NetBSD_Version__) && __NetBSD_Version__ < 4000000000)
+#if defined( sgi ) || defined(__sun) || (defined(__NetBSD_Version__) && __NetBSD_Version__ < 4000000000)
 	return( strerror( iErrno ) );
 #else
 	memset( pszBuff, '\0', uBuffLen );
-#if !defined( _GNU_SOURCE ) || !defined(__GLIBC__) || defined( __FreeBSD__ )
+#if defined( _WIN32 )
+	if ( strerror_s( pszBuff, uBuffLen, iErrno ) == 0 )
+		return( pszBuff );
+#elif !defined( _GNU_SOURCE ) || !defined(__GLIBC__) || defined( __FreeBSD__ )
 	if( strerror_r( iErrno, pszBuff, uBuffLen ) == 0 )
 		return( pszBuff );
 #else
