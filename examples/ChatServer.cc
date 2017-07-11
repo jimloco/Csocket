@@ -1,6 +1,8 @@
 #include <string.h>
 #include <Csocket.h>
+#ifndef _WIN32
 #include <unistd.h>
+#endif
 #include <getopt.h>
 
 
@@ -166,12 +168,7 @@ static struct option s_apOpts[] =
 
 int main( int argc, char **argv )
 {
-#ifdef HAVE_LIBSSL
-	InitSSL();
-#endif /* HAVE_LIBSSL */
-#ifdef _WIN32
-	InitWin32();
-#endif /* _WIN32 */
+	InitCsocket();
 	LConn cConn;
 
 	int iRet = 0;
@@ -246,9 +243,7 @@ int main( int argc, char **argv )
 	while( cConn.size() )
 		cConn.DynamicSelectLoop( 50000, 5000000 );
 
-#ifdef _WIN32
-	ShutdownWin32();
-#endif /* _WIN32 */
+	ShutdownCsocket();
 
 	return( 0 );
 }

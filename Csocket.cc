@@ -79,6 +79,7 @@
 #endif /* HAVE_ICU */
 
 #include <list>
+#include <algorithm>
 
 #define CS_SRANDBUFFER 128
 
@@ -525,7 +526,7 @@ int CGetAddrInfo::Finish()
 	return( ETIMEDOUT );
 }
 
-int GetAddrInfo( const CS_STRING & sHostname, Csock * pSock, CSSockAddr & csSockAddr )
+int CS_GetAddrInfo( const CS_STRING & sHostname, Csock * pSock, CSSockAddr & csSockAddr )
 {
 #ifdef USE_GETHOSTBYNAME
 	if( pSock )
@@ -681,11 +682,14 @@ void CSAdjustTVTimeout( struct timeval & tv, long iTimeoutMS )
 #define CS_UNKNOWN_ERROR "Unknown Error"
 static const char * CS_StrError( int iErrno, char * pszBuff, size_t uBuffLen )
 {
-#if defined( sgi ) || defined(__sun) || defined(_WIN32) || (defined(__NetBSD_Version__) && __NetBSD_Version__ < 4000000000)
+#if defined( sgi ) || defined(__sun) || (defined(__NetBSD_Version__) && __NetBSD_Version__ < 4000000000)
 	return( strerror( iErrno ) );
 #else
 	memset( pszBuff, '\0', uBuffLen );
-#if !defined( _GNU_SOURCE ) || !defined(__GLIBC__) || defined( __FreeBSD__ )
+#if defined( _WIN32 )
+	if ( strerror_s( pszBuff, uBuffLen, iErrno ) == 0 )
+		return( pszBuff );
+#elif !defined( _GNU_SOURCE ) || !defined(__GLIBC__) || defined( __FreeBSD__ )
 	if( strerror_r( iErrno, pszBuff, uBuffLen ) == 0 )
 		return( pszBuff );
 #else
@@ -718,6 +722,31 @@ uint64_t millitime()
 	return( iTime );
 }
 
+#ifndef _MSC_VER
+#define CS_GETTIMEOFDAY gettimeofday
+#else
+#define CS_GETTIMEOFDAY win32_gettimeofday
+
+// timezone-agnostic implementation of gettimeofday
+static int
+win32_gettimeofday( struct timeval* now, void* )
+{
+	static const ULONGLONG epoch = 116444736000000000ULL; // Jan 1st 1970
+
+	ULARGE_INTEGER file_time;
+	SYSTEMTIME system_time;
+
+	GetSystemTime( &system_time );
+	if ( !SystemTimeToFileTime( &system_time, ( LPFILETIME )&file_time) )
+		return( 1 );
+
+	now->tv_sec = ( long )( ( file_time.QuadPart - epoch ) / 10000000L );
+	now->tv_usec = ( long )( system_time.wMilliseconds * 1000 );
+
+	return 0;
+}
+#endif
+
 #ifndef _NO_CSOCKET_NS // some people may not want to use a namespace
 }
 using namespace Csocket;
@@ -741,7 +770,7 @@ void CCron::run( timeval & tNow )
 		return;
 
 	if( !timerisset( &tNow ) )
-		gettimeofday( &tNow, NULL );
+		CS_GETTIMEOFDAY( &tNow, NULL );
 
 	if( m_bActive && ( !timercmp( &tNow, &m_tTime, < ) || m_bRunOnNextCall ) )
 	{
@@ -761,7 +790,7 @@ void CCron::StartMaxCycles( double dTimeSequence, u_int iMaxCycles )
 	m_tTimeSequence.tv_sec = ( time_t ) dTimeSequence;
 	// this could be done with modf(), but we're avoiding bringing in libm just for the one function.
 	m_tTimeSequence.tv_usec = ( suseconds_t )( ( dTimeSequence - ( double )( ( time_t ) dTimeSequence ) ) * 1000000 );
-	gettimeofday( &tNow, NULL );
+	CS_GETTIMEOFDAY( &tNow, NULL );
 	timeradd( &tNow, &m_tTimeSequence, &m_tTime );
 	m_iMaxCycles = iMaxCycles;
 	m_bActive = true;
@@ -771,7 +800,7 @@ void CCron::StartMaxCycles( const timeval& tTimeSequence, u_int iMaxCycles )
 {
 	timeval tNow;
 	m_tTimeSequence = tTimeSequence;
-	gettimeofday( &tNow, NULL );
+	CS_GETTIMEOFDAY( &tNow, NULL );
 	timeradd( &tNow, &m_tTimeSequence, &m_tTime );
 	m_iMaxCycles = iMaxCycles;
 	m_bActive = true;
@@ -1385,7 +1414,7 @@ bool Csock::Listen( uint16_t iPort, int iMaxConns, const CS_STRING & sBindHost, 
 		else
 		{
 			// if not detaching, then must block to do DNS resolution, so might as well use internal resolver
-			if( ::GetAddrInfo( m_sBindHost, this, m_address ) != 0 )
+			if( ::CS_GetAddrInfo( m_sBindHost, this, m_address ) != 0 )
 			{
 				CallSockError( EADDRNOTAVAIL );
 				return( false );
@@ -1409,9 +1438,16 @@ bool Csock::Listen( uint16_t iPort, int iMaxConns, const CS_STRING & sBindHost, 
 #  ifndef IPV6_V6ONLY
 #   define IPV6_V6ONLY 27
 #  endif
-	/* check for IPV6_V6ONLY support at runtime */
-	OSVERSIONINFOW lvi = { sizeof( OSVERSIONINFOW ), 0 };
-	if( ::GetVersionExW( &lvi ) && lvi.dwMajorVersion >= 6 ) // IPV6_V6ONLY is supported on Windows Vista or later.
+	/* check for IPV6_V6ONLY support at runtime: only supported on Windows Vista or later */
+	OSVERSIONINFOEX osvi = { 0 };
+	DWORDLONG dwlConditionMask = 0;
+
+	osvi.dwOSVersionInfoSize = sizeof(OSVERSIONINFOEX);
+	osvi.dwMajorVersion = 6;
+
+	VER_SET_CONDITION(dwlConditionMask, VER_MAJORVERSION, VER_GREATER_EQUAL);
+
+	if( VerifyVersionInfo( &osvi, VER_MAJORVERSION, dwlConditionMask ) )
 	{
 # endif /* _WIN32 */
 # ifdef IPV6_V6ONLY
@@ -3037,7 +3073,7 @@ int Csock::GetAddrInfo( const CS_STRING & sHostname, CSSockAddr & csSockAddr )
 	}
 	return( EAGAIN );
 #else /* HAVE_C_ARES */
-	return( ::GetAddrInfo( sHostname, this, csSockAddr ) );
+	return( ::CS_GetAddrInfo( sHostname, this, csSockAddr ) );
 #endif /* HAVE_C_ARES */
 }
 
@@ -3614,7 +3650,7 @@ void CSocketManager::DynamicSelectLoop( uint64_t iLowerBounds, uint64_t iUpperBo
 		timeval tNow;
 		tMaxResolution.tv_sec = iMaxResolution;
 		tMaxResolution.tv_usec = 0;
-		gettimeofday( &tNow, NULL );
+		CS_GETTIMEOFDAY( &tNow, NULL );
 		timeval tSelectTimeout = GetDynamicSleepTime( tNow, tMaxResolution );
 		uint64_t iSelectTimeout = tSelectTimeout.tv_sec * 1000000 + tSelectTimeout.tv_usec;
 		iSelectTimeout = std::max( iLowerBounds, iSelectTimeout );

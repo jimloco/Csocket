@@ -43,13 +43,13 @@
 #include "defines.h" // require this as a general rule, most projects have a defines.h or the like
 
 #include <stdio.h>
-#include <unistd.h>
-#include <sys/time.h>
 #include <fcntl.h>
-#include <sys/file.h>
 
 #ifndef _WIN32
 
+#include <unistd.h>
+#include <sys/time.h>
+#include <sys/file.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <sys/socket.h>
@@ -59,9 +59,16 @@
 
 #else
 
+#include <io.h>
 #include <winsock2.h>
 #include <ws2tcpip.h>
+#include <time.h>
 #include <sys/timeb.h>
+
+#ifdef _MSC_VER
+#define strcasecmp _stricmp
+#define suseconds_t long
+#endif
 
 #ifndef ECONNREFUSED
 // these aliases might or might not be defined in errno.h
@@ -293,7 +300,7 @@ private:
 };
 
 //! backwards compatible wrapper around CGetAddrInfo and gethostbyname
-int GetAddrInfo( const CS_STRING & sHostname, Csock * pSock, CSSockAddr & csSockAddr );
+int CS_GetAddrInfo( const CS_STRING & sHostname, Csock * pSock, CSSockAddr & csSockAddr );
 
 /**
  * This returns the [ex_]data index position for SSL objects only. If you want to tie more data 
