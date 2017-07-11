@@ -526,7 +526,7 @@ int CGetAddrInfo::Finish()
 	return( ETIMEDOUT );
 }
 
-int GetAddrInfo( const CS_STRING & sHostname, Csock * pSock, CSSockAddr & csSockAddr )
+int CS_GetAddrInfo( const CS_STRING & sHostname, Csock * pSock, CSSockAddr & csSockAddr )
 {
 #ifdef USE_GETHOSTBYNAME
 	if( pSock )
@@ -1414,7 +1414,7 @@ bool Csock::Listen( uint16_t iPort, int iMaxConns, const CS_STRING & sBindHost, 
 		else
 		{
 			// if not detaching, then must block to do DNS resolution, so might as well use internal resolver
-			if( ::GetAddrInfo( m_sBindHost, this, m_address ) != 0 )
+			if( ::CS_GetAddrInfo( m_sBindHost, this, m_address ) != 0 )
 			{
 				CallSockError( EADDRNOTAVAIL );
 				return( false );
@@ -3073,7 +3073,7 @@ int Csock::GetAddrInfo( const CS_STRING & sHostname, CSSockAddr & csSockAddr )
 	}
 	return( EAGAIN );
 #else /* HAVE_C_ARES */
-	return( ::GetAddrInfo( sHostname, this, csSockAddr ) );
+	return( ::CS_GetAddrInfo( sHostname, this, csSockAddr ) );
 #endif /* HAVE_C_ARES */
 }
 

@@ -300,7 +300,7 @@ private:
 };
 
 //! backwards compatible wrapper around CGetAddrInfo and gethostbyname
-int GetAddrInfo( const CS_STRING & sHostname, Csock * pSock, CSSockAddr & csSockAddr );
+int CS_GetAddrInfo( const CS_STRING & sHostname, Csock * pSock, CSSockAddr & csSockAddr );
 
 /**
  * This returns the [ex_]data index position for SSL objects only. If you want to tie more data 
