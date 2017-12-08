@@ -1254,7 +1254,6 @@ private:
 
 #ifdef HAVE_ICU
 	UConverter* m_cnvInt;
-	UConverter* m_cnvIntStrict;
 	UConverter* m_cnvExt;
 	bool m_cnvTryUTF8;
 	bool m_cnvSendUTF8;
