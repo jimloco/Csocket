@@ -1033,7 +1033,6 @@ Csock::~Csock()
 #ifdef HAVE_ICU
 	if( m_cnvExt ) ucnv_close( m_cnvExt );
 	if( m_cnvInt ) ucnv_close( m_cnvInt );
-	if( m_cnvIntStrict ) ucnv_close( m_cnvIntStrict );
 #endif
 
 #ifdef HAVE_C_ARES
@@ -2073,6 +2072,19 @@ inline bool icuConv( const CS_STRING& src, CS_STRING& tgt, UConverter* cnv_in, U
 	}
 	return true;
 }
+
+static bool isUTF8( const CS_STRING& src, CS_STRING& target)
+{
+	UErrorCode e = U_ZERO_ERROR;
+	// Convert to UTF-16 without actually converting. This will still count
+	// the number of output characters, so we either get
+	// U_BUFFER_OVERFLOW_ERROR or U_INVALID_CHAR_FOUND.
+	u_strFromUTF8( NULL, 0, NULL, src.c_str(), (int32_t) src.length(), &e );
+	if( e != U_BUFFER_OVERFLOW_ERROR)
+		return false;
+	target = src;
+	return true;
+}
 #endif /* HAVE_ICU */
 
 bool Csock::AllowWrite( uint64_t & iNOW ) const
@@ -2495,7 +2507,7 @@ void Csock::PushBuff( const char *data, size_t len, bool bStartAtZero )
 			if( m_cnvExt )
 			{
 				CS_STRING sUTF8;
-				if( ( m_cnvTryUTF8 && icuConv( sBuff, sUTF8, m_cnvIntStrict, m_cnvIntStrict ) ) // maybe it's already UTF-8?
+				if( ( m_cnvTryUTF8 && isUTF8( sBuff, sUTF8 ) ) // maybe it's already UTF-8?
 				        || icuConv( sBuff, sUTF8, m_cnvExt, m_cnvInt ) )
 				{
 					ReadLine( sUTF8 );
@@ -3300,9 +3312,6 @@ void Csock::Init( const CS_STRING & sHostname, uint16_t uPort, int iTimeout )
 	UErrorCode e = U_ZERO_ERROR;
 	m_cnvExt = NULL;
 	m_cnvInt = ucnv_open( "UTF-8", &e );
-	m_cnvIntStrict = ucnv_open( "UTF-8", &e );
-	ucnv_setToUCallBack( m_cnvIntStrict, UCNV_TO_U_CALLBACK_STOP, NULL, NULL, NULL, &e );
-	ucnv_setFromUCallBack( m_cnvIntStrict, UCNV_FROM_U_CALLBACK_STOP, NULL, NULL, NULL, &e );
 #endif /* HAVE_ICU */
 }
 
