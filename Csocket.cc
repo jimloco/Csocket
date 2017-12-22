@@ -74,6 +74,7 @@
 #endif /* HAVE_LIBSSL */
 
 #ifdef HAVE_ICU
+#include <unicode/ustring.h>
 #include <unicode/errorcode.h>
 #include <unicode/ucnv_cb.h>
 #endif /* HAVE_ICU */
