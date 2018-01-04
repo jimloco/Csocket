@@ -4239,7 +4239,9 @@ void CSocketManager::Select( std::map<Csock *, EMessages> & mpeSocks )
 						// set the name of the listener
 						NewpcSock->SetParentSockName( pcSock->GetSockName() );
 						NewpcSock->SetRate( pcSock->GetRateBytes(), pcSock->GetRateTime() );
+#ifdef HAVE_ICU
 						NewpcSock->SetEncoding( pcSock->GetEncoding() );
+#endif
 						if( NewpcSock->GetSockName().empty() )
 						{
 							std::stringstream s;
