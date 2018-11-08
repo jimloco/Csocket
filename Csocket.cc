@@ -47,9 +47,15 @@
 #include <stdio.h>
 #include <openssl/ssl.h>
 #include <openssl/conf.h>
-#include <openssl/engine.h>
+#include <openssl/bn.h>
+#include <openssl/dh.h>
+#include <openssl/dsa.h>
+#include <openssl/rsa.h>
 #ifndef OPENSSL_NO_COMP
 #include <openssl/comp.h>
+#endif
+#ifndef OPENSSL_NO_ENGINE
+#include <openssl/engine.h>
 #endif
 #define HAVE_ERR_REMOVE_STATE
 #ifdef OPENSSL_VERSION_NUMBER
