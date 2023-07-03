@@ -1883,6 +1883,8 @@ SSL_CTX * Csock::SetupServerCTX()
 		return( NULL );
 	}
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 	DH * dhParams = PEM_read_DHparams( dhParamsFile, NULL, NULL, NULL );
 	fclose( dhParamsFile );
 	if( dhParams )
@@ -1903,6 +1905,7 @@ SSL_CTX * Csock::SetupServerCTX()
 		// Presumably PEM_read_DHparams failed, as there was no DH structure. Clearing those errors here so they are removed off the stack
 		ERR_clear_error();
 	}
+#pragma GCC diagnostic pop
 #ifndef OPENSSL_NO_ECDH
 	// Errors for the following block are non-fatal (ECDHE is nice to have
 	// but not a requirement)
@@ -2840,7 +2843,10 @@ CS_STRING Csock::GetPeerPubKey() const
 #ifndef OPENSSL_NO_RSA
 			case EVP_PKEY_RSA:
 # ifdef HAVE_OPAQUE_SSL
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 				RSA_get0_key( EVP_PKEY_get0_RSA( pKey ), &pPubKey, NULL, NULL );
+#pragma GCC diagnostic pop
 # else
 				pPubKey = pKey->pkey.rsa->n;
 # endif /* HAVE_OPAQUE_SSL */
@@ -2849,7 +2855,10 @@ CS_STRING Csock::GetPeerPubKey() const
 #ifndef OPENSSL_NO_DSA
 			case EVP_PKEY_DSA:
 # ifdef HAVE_OPAQUE_SSL
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 				DSA_get0_key( EVP_PKEY_get0_DSA( pKey ), &pPubKey, NULL );
+#pragma GCC diagnostic pop
 # else
 				pPubKey = pKey->pkey.dsa->pub_key;
 # endif /* HAVE_OPAQUE_SSL */

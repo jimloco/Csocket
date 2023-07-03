@@ -1,6 +1,8 @@
 #include <Csocket.h>
 #include <sys/wait.h>
 #include <stdio.h>
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 
 class CRecSock : public Csock
 {
@@ -160,3 +162,4 @@ int main( int argc, char **argv )
 	ShutdownCsocket();
 	return( 0 );
 }
+#pragma GCC diagnostic pop
