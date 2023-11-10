@@ -1302,9 +1302,12 @@ static bool prepare_sockaddr(struct sockaddr_un * addr, const CS_STRING & sPath)
 {
 	memset( addr, 0, sizeof(*addr) );
 	addr->sun_family = AF_UNIX;
-	if( sizeof(addr->sun_path) <= sPath.length() )
+	auto length = sPath.length();
+	if( sizeof(addr->sun_path) <= length )
 		return( false );
-	memcpy( &addr->sun_path, sPath.c_str(), sPath.length() + 1 );
+	memcpy( &addr->sun_path, sPath.c_str(), length + 1 );
+	// Linux abstract namespace is null followed by name.
+	if (sPath[0] == '@') addr->sun_path[0] = 0;
 	return true;
 }
 
