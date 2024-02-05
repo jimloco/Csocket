@@ -17,7 +17,7 @@ ifneq (.objs,$(wildcard .objs))
 $(shell mkdir .objs)
 endif
 
-all: $(OBJS) $(LOCALOBJS) $(TARGETS)
+all: ReceiveTest.pem ReceiveTest6.pem $(OBJS) $(LOCALOBJS) $(TARGETS)
 
 depend: .depend
 
@@ -32,6 +32,13 @@ depend: .depend
 
 tags: $(SRCS) $(wildcard ../*.h *.h)
 	/usr/bin/exuberant-ctags -R --c++-kinds=+p --fields=+iaS --extra=+q ..
+
+ReceiveTest.pem:
+	openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -sha256 -days 3650 -nodes -subj "/C=XX/ST=FO/L=FOOOOOO/O=Fooo/OU=Foo/CN=127.0.0.1"
+	cat key.pem cert.pem > ReceiveTest.pem
+ReceiveTest6.pem:
+	openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -sha256 -days 3650 -nodes -subj "/C=XX/ST=FO/L=FOOOOOO/O=Fooo/OU=Foo/CN=::1"
+	cat key.pem cert.pem > ReceiveTest6.pem
 
 test: $(TESTBINS)
 	@for i in $(TESTBINS); do \

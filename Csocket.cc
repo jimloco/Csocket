@@ -48,6 +48,9 @@
 #include <openssl/ssl.h>
 #include <openssl/conf.h>
 #include <openssl/engine.h>
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+#include <openssl/core_names.h>
+#endif /* OPENSSL_VERSION_NUMBER >= 0x30000000L */
 #ifndef OPENSSL_NO_COMP
 #include <openssl/comp.h>
 #endif
@@ -1883,8 +1886,7 @@ SSL_CTX * Csock::SetupServerCTX()
 		return( NULL );
 	}
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#if OPENSSL_VERSION_NUMBER < 0x30000000L 
 	DH * dhParams = PEM_read_DHparams( dhParamsFile, NULL, NULL, NULL );
 	fclose( dhParamsFile );
 	if( dhParams )
@@ -1905,7 +1907,8 @@ SSL_CTX * Csock::SetupServerCTX()
 		// Presumably PEM_read_DHparams failed, as there was no DH structure. Clearing those errors here so they are removed off the stack
 		ERR_clear_error();
 	}
-#pragma GCC diagnostic pop
+#endif /* OPENSSL_VERSION_NUMBER < 0x30000000L */
+
 #ifndef OPENSSL_NO_ECDH
 	// Errors for the following block are non-fatal (ECDHE is nice to have
 	// but not a requirement)
@@ -2825,58 +2828,65 @@ CS_STRING Csock::GetPeerPubKey() const
 {
 	CS_STRING sKey;
 
-	X509 * pCert = GetX509();
-
-	if( pCert )
+	SSL_SESSION * pSession = GetSSLSession();
+	X509 * pPeer = NULL;
+	if( pSession )
 	{
-		EVP_PKEY * pKey = X509_get_pubkey( pCert );
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
+		pPeer = pSession->peer;
+#endif /* OPENSSL_VERSION_NUMBER < 0x10100000L */
+		pPeer = SSL_SESSION_get0_peer( pSession );
+	}
+
+	if( pPeer )
+	{
+		EVP_PKEY * pKey = X509_get_pubkey( pPeer );
 		if( pKey )
 		{
-			const BIGNUM * pPubKey = NULL;
-#ifdef HAVE_OPAQUE_SSL
-			int iType = EVP_PKEY_base_id( pKey );
-#else
+			char *hxKey = NULL;
+
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
 			int iType = pKey->type;
-#endif /* HAVE_OPAQUE_SSL */
+#else
+			int iType = EVP_PKEY_base_id( pKey );
+#endif /* OPENSSL_VERSION_NUMBER < 0x10100000L */
 			switch( iType )
 			{
-#ifndef OPENSSL_NO_RSA
-			case EVP_PKEY_RSA:
-# ifdef HAVE_OPAQUE_SSL
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-				RSA_get0_key( EVP_PKEY_get0_RSA( pKey ), &pPubKey, NULL, NULL );
-#pragma GCC diagnostic pop
-# else
-				pPubKey = pKey->pkey.rsa->n;
-# endif /* HAVE_OPAQUE_SSL */
-				break;
-#endif /* OPENSSL_NO_RSA */
-#ifndef OPENSSL_NO_DSA
-			case EVP_PKEY_DSA:
-# ifdef HAVE_OPAQUE_SSL
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-				DSA_get0_key( EVP_PKEY_get0_DSA( pKey ), &pPubKey, NULL );
-#pragma GCC diagnostic pop
-# else
-				pPubKey = pKey->pkey.dsa->pub_key;
-# endif /* HAVE_OPAQUE_SSL */
-				break;
-#endif /* OPENSSL_NO_DSA */
-			default:
-				CS_DEBUG( "Not Prepared for Public Key Type [" << iType << "]" );
-				break;
+				case EVP_PKEY_RSA:
+				{
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
+					hxKey = BN_bn2hex( pKey->pkey.rsa->n );
+#else
+#	if OPENSSL_VERSION_NUMBER < 0x30000000L
+					hxKey = BN_bn2hex( RSA_get0_n( EVP_PKEY_get0_RSA( pKey ) ) );
+#	else
+					BIGNUM * pBigNum = NULL;
+					EVP_PKEY_get_bn_param( pKey, OSSL_PKEY_PARAM_RSA_N, &pBigNum );
+					hxKey = BN_bn2hex( pBigNum );
+					BN_clear_free( pBigNum );
+#	endif
+#endif /* OPENSSL_VERSION_NUMBER < 0x10100000L */
+					break;
+				}
+#if OPENSSL_VERSION_NUMBER < 0x30000000L
+				case EVP_PKEY_DSA:
+				{
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
+					hxKey = BN_bn2hex( pKey->pkey.dsa->pub_key );
+#else
+					hxKey = BN_bn2hex( DSA_get0_pub_key( EVP_PKEY_get0_DSA( pKey ) ) );
+#endif /* OPENSSL_VERSION_NUMBER < 0x10100000L */
+					break;
+				}
+#endif /* OPENSSL_VERSION_NUMBER */
 			}
-			if( pPubKey )
+			if( hxKey )
 			{
-				char *hxKey = BN_bn2hex( pPubKey );
 				sKey = hxKey;
 				OPENSSL_free( hxKey );
 			}
 			EVP_PKEY_free( pKey );
 		}
-		X509_free( pCert );
 	}
 	return( sKey );
 }

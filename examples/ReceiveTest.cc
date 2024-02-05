@@ -48,58 +48,11 @@ private:
 	bool	m_bAllDataOK;
 };
 
-static void CreatePem()
-{
-	cout << "Generating a private/public key pair" << endl;
-	FILE *pOut = fopen( "ReceiveTest.pem", "w" );
-	assert( pOut );
-	EVP_PKEY *pKey = NULL;
-	X509 *pCert = NULL;
-	X509_NAME *pName = NULL;
-	int days = 3650;
-	u_int iSeed = ( u_int )time( NULL );
-	int serial = ( rand_r( &iSeed ) % 9999 );
-	BIGNUM * pBNE = BN_new();
-	assert( BN_set_word( pBNE, RSA_F4 ) );
-	RSA * pRSA = RSA_new();
-
-	RSA_generate_key_ex( pRSA, 2048, pBNE, NULL ); // pRSA and pBNE are all cleaned up by pKey free
-	assert( pKey = EVP_PKEY_new() );
-	assert( EVP_PKEY_assign_RSA( pKey, pRSA ) ) ;
-	PEM_write_RSAPrivateKey( pOut, pRSA, NULL, NULL, 0, NULL, NULL );
-	assert(( pCert = X509_new() ) );
-
-	X509_set_version( pCert, 2 );
-	ASN1_INTEGER_set( X509_get_serialNumber( pCert ), serial );
-	X509_gmtime_adj( X509_get_notBefore( pCert ), 0 );
-	X509_gmtime_adj( X509_get_notAfter( pCert ), ( long )60*60*24*days );
-	X509_set_pubkey( pCert, pKey );
-
-	pName = X509_get_subject_name( pCert );
-	X509_NAME_add_entry_by_txt( pName, "C", MBSTRING_ASC, ( unsigned char * )"US", -1, -1, 0 );
-	X509_NAME_add_entry_by_txt( pName, "ST", MBSTRING_ASC, ( unsigned char * )"California", -1, -1, 0 );
-	X509_NAME_add_entry_by_txt( pName, "L", MBSTRING_ASC, ( unsigned char * )"San Jose", -1, -1, 0 );
-	X509_NAME_add_entry_by_txt( pName, "O", MBSTRING_ASC, ( unsigned char * )"Foo, Inc", -1, -1, 0 );
-	X509_NAME_add_entry_by_txt( pName, "OU", MBSTRING_ASC, ( unsigned char * )"Barny", -1, -1, 0 );
-	X509_NAME_add_entry_by_txt( pName, "CN", MBSTRING_ASC, ( unsigned char * )"foo.com", -1, -1, 0 );
-	X509_NAME_add_entry_by_txt( pName, "emailAddress", MBSTRING_ASC, ( unsigned char * )"barny@foo.com", -1, -1, 0 );
-
-	X509_set_subject_name( pCert, pName );
-
-	assert( X509_sign( pCert, pKey, EVP_sha256() ) );
-	PEM_write_X509( pOut, pCert );
-	X509_free( pCert );
-	EVP_PKEY_free( pKey );
-	fclose( pOut );
-}
-
 int main( int argc, char **argv )
 {
 	InitCsocket();
+	signal( SIGPIPE, SIG_IGN );
 
-	if( access( "ReceiveTest.pem", R_OK ) != 0 )
-		CreatePem();
-	assert( access( "ReceiveTest.pem", R_OK ) == 0 );
 	for( int iType = 0; iType < 4; ++iType )
 	{
 		cerr << "------------ New Test -------------" << endl;
@@ -111,11 +64,12 @@ int main( int argc, char **argv )
 			cerr << "Testing SSL!" << endl;
 
 		TSocketManager<CRecSock> cManager;
+		std::string sPemFile = bIsIPv6 ? "ReceiveTest6.pem" : "ReceiveTest.pem";
 		CSListener cListen( 0, bIsIPv6 ? "::1" : "127.0.0.1" );
 		if( bIsSSL )
 		{
 			cListen.SetIsSSL( true );
-			cListen.SetPemLocation( "ReceiveTest.pem" );
+			cListen.SetPemLocation( sPemFile );
 		}
 		cListen.SetTimeout( 5 );
 		uint16_t uPort = 0;
@@ -131,9 +85,9 @@ int main( int argc, char **argv )
 			cManager.at( 0 )->Dereference();
 			cManager.clear();
 			std::ostringstream ossArgs;
-			ossArgs << "ncat -v ";
+			ossArgs << "ncat -vvvv ";
 			if( bIsSSL )
-				ossArgs << "--ssl ";
+				ossArgs << "--ssl-trustfile " << sPemFile << " --ssl ";
 			if( bIsIPv6 )
 				ossArgs << "-6 ::1 ";
 			else
@@ -142,7 +96,10 @@ int main( int argc, char **argv )
 			ossArgs << " --send-only < ReceiveTest.cc > ReceiveTest.txt.out 2>&1";
 			cerr << "ncat command: " << ossArgs.str() << endl;
 			if( 0xffff & system( ossArgs.str().c_str() ) )
+			{
+				cerr << "ncat failed!!!" << endl;
 				return( 1 );
+			}
 			return( 0 );
 		}
 		else
@@ -154,8 +111,8 @@ int main( int argc, char **argv )
 			int iStatus = 0;
 			cerr << "Waiting for fork to exit" << endl;
 			wait( &iStatus );
-			assert( iStatus == 0 );
 			cerr << "Exited with status " << iStatus << endl;
+			assert( iStatus == 0 );
 		}
 	}
 

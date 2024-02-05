@@ -58,6 +58,7 @@ int main( int argc, char **argv )
 {
 	CS_STRING sPath = "echo";
 
+	unlink( sPath.c_str() );
 	InitCsocket();
 	TSocketManager< Csock > cManager;
 
